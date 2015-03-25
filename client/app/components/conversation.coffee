@@ -13,14 +13,15 @@ module.exports = React.createClass
     mixins: [RouterMixin]
 
     propTypes:
-        message           : React.PropTypes.object
-        conversation      : React.PropTypes.object
-        selectedAccount   : React.PropTypes.object.isRequired
-        layout            : React.PropTypes.string.isRequired
-        selectedMailboxID : React.PropTypes.string
-        mailboxes         : React.PropTypes.object.isRequired
-        settings          : React.PropTypes.object.isRequired
-        accounts          : React.PropTypes.object.isRequired
+        message              : React.PropTypes.object
+        conversation         : React.PropTypes.object
+        selectedAccountID    : React.PropTypes.string.isRequired
+        selectedAccountLogin : React.PropTypes.string.isRequired
+        layout               : React.PropTypes.string.isRequired
+        selectedMailboxID    : React.PropTypes.string
+        mailboxes            : React.PropTypes.object.isRequired
+        settings             : React.PropTypes.object.isRequired
+        accounts             : React.PropTypes.object.isRequired
 
     shouldComponentUpdate: (nextProps, nextState) ->
         return not(_.isEqual(nextState, @state)) or
@@ -34,17 +35,21 @@ module.exports = React.createClass
 
     renderMessage: (key, message, active) ->
         Message
-            accounts: @props.accounts
-            active: active
-            inConversation: @props.conversation.length > 1
-            key: key
-            mailboxes: @props.mailboxes
-            message: message
-            nextID: @props.nextID
-            prevID: @props.prevID
-            selectedAccount: @props.selectedAccount
-            selectedMailboxID: @props.selectedMailboxID
-            settings: @props.settings
+            ref                 : 'message'
+            accounts            : @props.accounts
+            active              : active
+            inConversation      : @props.conversation.length > 1
+            key                 : key
+            mailboxes           : @props.mailboxes
+            message             : message
+            nextMessageID       : @props.nextMessageID
+            nextConversationID  : @props.nextConversationID
+            prevMessageID       : @props.prevMessageID
+            prevConversationID  : @props.prevConversationID
+            selectedAccountID   : @props.selectedAccountID
+            selectedAccountLogin: @props.selectedAccountLogin
+            selectedMailboxID   : @props.selectedMailboxID
+            settings            : @props.settings
 
     render: ->
         if not @props.message? or not @props.conversation
@@ -58,7 +63,7 @@ module.exports = React.createClass
 
         if window.router.previous?
             try
-                selectedAccountID = @props.selectedAccount.get 'id'
+                selectedAccountID = @props.selectedAccountID
             catch
                 selectedAccountID = @props.conversation.get(0).mailbox
         else
@@ -79,6 +84,7 @@ module.exports = React.createClass
         activeMessages = {}
 
         @props.conversation.map (message, key) =>
+            # open every unseen message of the conversation
             if @props.message.get('id') is message.get('id') or
                     MessageFlags.SEEN not in message.get('flags')
 
@@ -105,7 +111,9 @@ module.exports = React.createClass
                     className: 'compress clickable',
                         i className:'fa fa-compress'
 
-            h3 className: 'message-title',
+            h3
+                className: 'message-title'
+                'data-message-id': @props.message.get 'id'
                 @props.message.get 'subject'
 
             ul className: 'thread list-unstyled',
@@ -115,8 +123,8 @@ module.exports = React.createClass
                         @renderMessage key, message, false
 
                 else if @props.conversationLength > 1
-                    li className: 'conversation-length-msg',
-                        a onClick: @expand,
+                    li className: 'conversation-length-msg', onClick: @expand,
+                        a null
                             t 'mail conversation length',
                                 smart_count: @props.conversationLength
 

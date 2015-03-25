@@ -35,7 +35,8 @@ module.exports =
             if res.ok
                 callback null, res.body
             else
-                console.log "Error in fetchConversation", emailID, res.body?.error
+                console.log "Error in fetchConversation", emailID,
+                    res.body?.error
                 callback t('app error')
 
 
@@ -85,6 +86,16 @@ module.exports =
                 console.log "Error in mailboxDelete", data, res.body?.error
                 callback t('app error')
 
+    mailboxExpunge: (data, callback) ->
+        request.del "mailbox/#{data.mailboxID}/expunge"
+        .set 'Accept', 'application/json'
+        .end (res) ->
+            if res.ok
+                callback null, res.body
+            else
+                console.log "Error in mailboxExpunge", data, res.body?.error
+                callback t('app error')
+
     messageSend: (message, callback) ->
         req = request.post "message"
         .set 'Accept', 'application/json'
@@ -105,36 +116,38 @@ module.exports =
                 callback null, res.body
             else
                 console.log "Error in messageSend", message, res.body?.error
-                callback t('app error')
+                callback res.body?.error?.message
 
-    messagePatch: (messageId, patch, callback) ->
-        request.patch "message/#{messageId}", patch
+    messagePatch: (messageID, patch, callback) ->
+        request.patch "message/#{messageID}", patch
         .set 'Accept', 'application/json'
         .end (res) ->
             if res.ok
                 callback null, res.body
             else
-                console.log "Error in messagePatch", messageId, res.body?.error
+                console.log "Error in messagePatch", messageID, res.body?.error
                 callback t('app error')
 
-    conversationDelete: (conversationId, callback) ->
-        request.del "conversation/#{conversationId}"
+    conversationDelete: (conversationID, callback) ->
+        request.del "conversation/#{conversationID}"
         .set 'Accept', 'application/json'
         .end (res) ->
             if res.ok
                 callback null, res.body
             else
-                console.log "Error in conversationDelete", conversationId, res.body?.error
+                console.log "Error in conversationDelete", conversationID,
+                    res.body?.error
                 callback t('app error')
 
-    conversationPatch: (conversationId, patch, callback) ->
-        request.patch "conversation/#{conversationId}", patch
+    conversationPatch: (conversationID, patch, callback) ->
+        request.patch "conversation/#{conversationID}", patch
         .set 'Accept', 'application/json'
         .end (res) ->
             if res.ok
                 callback null, res.body
             else
-                console.log "Error in conversationPatch", conversationId, res.body?.error
+                console.log "Error in conversationPatch", conversationID,
+                    res.body?.error
                 callback t('app error')
 
     createAccount: (account, callback) ->

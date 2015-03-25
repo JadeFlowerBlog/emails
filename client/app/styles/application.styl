@@ -21,11 +21,14 @@
 @import '_message-list'
 @import '_quick-actions-bar'
 @import '_toasts'
+@import '_responsive'
 
 // tweaks fontawesome icons
 * > .fa-compress
     transform rotate(45deg)
 
+.spin
+    margin 10px
 
 /*
   Put styles here for scaffolding and testing out new features/stuff
@@ -89,12 +92,16 @@
       background basecolor
     & > li.selected > a
       color white
+    & > li.selected:hover > a
+      color black
 
    .avatar
        font-size 2em
        width 1em
        height 1em
        margin-right .5em
+       text-align center
+       vertical-align middle
 
 /*
   Open email tabs
@@ -177,12 +184,15 @@
     position absolute
     background transparent
 
-.alert
-    opacity 1
+.row-alert
+    z-index 1
 
-.alert.autoclose
-    opacity 0
-    transition opacity 10s
+    .alert
+        opacity 1
+
+    .alert.autoclose
+        opacity 0
+        transition opacity 10s
 
 .compose-toggle-cc
 .compose-toggle-bcc
@@ -208,21 +218,6 @@
 
 .clickable
     cursor: pointer
-/*
-  EDITOR
-
-  --
-*/
-
-
-#email-compose
-    width 100%
-    max-width 800px
-
-.compose-label
-  display block
-  width 100%
-
 .file-picker
     .dropzone
         width 100%
@@ -231,35 +226,3 @@
         input
             width 100%
 
-.rt-editor
-    border 1px solid basecolor
-    width 100%
-
-    &:hover
-        border 1px solid actioncolor
-
-    &:active
-    &:focus
-        border 0
-        outline 0
-        border 1px solid actioncolor
-
-    blockquote
-        border-left .25em solid blue
-        padding-left .5em
-        margin 0
-
-    &.folded
-        blockquote
-            height .5em
-            overflow hidden
-            text-overflow ellipsis
-
-    .originalToggle
-        color basecolor
-        font-weight bold
-        cursor pointer
-
-    div
-    p
-        margin .5em 0

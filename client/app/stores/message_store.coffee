@@ -51,7 +51,7 @@ class MessageStore extends Store
     _currentMessages = Immutable.Sequence()
     _conversationLengths = Immutable.Map()
     _conversationMemoize = null
-    _conversationMemoizeId = null
+    _conversationMemoizeID = null
     _currentID       = null
     _prevAction      = null
 
@@ -98,7 +98,7 @@ class MessageStore extends Store
             message.date = new Date().toISOString()
         if not message.createdAt?
             message.createdAt = message.date
-        # Add messageId to every attachment
+        # Add messageID to every attachment
 
         message.hasAttachments = message.attachments.length > 0
         message.attachments = message.attachments.map (file) ->
@@ -132,10 +132,10 @@ class MessageStore extends Store
             if messages.mailboxID
                 SocketUtils.changeRealtimeScope messages.mailboxID
 
-            # reinit params here for pagination on filtered lists
-            _params = {}
             if messages.links?
                 if messages.links.next?
+                    # reinit params here for pagination on filtered lists
+                    _params = {}
                     next   = decodeURIComponent(messages.links.next)
                     url    = 'http://localhost' + next
                     url.split('?')[1].split('&').forEach (p) ->
@@ -212,10 +212,15 @@ class MessageStore extends Store
                 sort : newOrder + sort.field
 
         handle ActionTypes.MESSAGE_ACTION, (action) ->
+            action.target = 'message'
             _prevAction = action
 
-        handle ActionTypes.MESSAGE_CURRENT, (messageID) ->
-            @setCurrentID messageID
+        handle ActionTypes.CONVERSATION_ACTION, (action) ->
+            action.target = 'conversation'
+            _prevAction = action
+
+        handle ActionTypes.MESSAGE_CURRENT, (value) ->
+            @setCurrentID value.messageID, value.conv
             @emit 'change'
 
         handle ActionTypes.SELECT_ACCOUNT, (value) ->
@@ -226,6 +231,14 @@ class MessageStore extends Store
 
         handle ActionTypes.RECEIVE_MESSAGE_DELETE, (id) ->
             _messages = _messages.remove id
+            @emit 'change'
+
+        handle ActionTypes.MAILBOX_EXPUNGE, (mailboxID) ->
+            _messages = _messages.filter (message) ->
+                mailboxes = Object.keys message.get 'mailboxIDs'
+                return mailboxID not in mailboxes
+            .toOrderedMap()
+
             @emit 'change'
 
         handle ActionTypes.SET_FETCHING, (fetching) ->
@@ -274,32 +287,77 @@ class MessageStore extends Store
             @setCurrentID _currentMessages.first()?.get 'id'
         return _currentMessages
 
-    getCurrentID: (messageID) ->
+    getCurrentID: ->
         return _currentID
 
-    setCurrentID: (messageID) ->
+    setCurrentID: (messageID, conv) ->
+        if conv?
+            _conversationMemoizeID = @getByID(messageID).get 'conversationID'
         _currentID = messageID
 
-    getPreviousMessage: ->
-        keys = Object.keys _currentMessages.toJS()
-        idx = keys.indexOf _currentID
-        return if idx is -1 then null else keys[idx - 1]
+    getCurrentConversationID: ->
+        return _conversationMemoizeID
 
-    getNextMessage: ->
-        keys = Object.keys _currentMessages.toJS()
-        idx = keys.indexOf _currentID
-        if idx is -1 or idx is (keys.length - 1)
-            return null
+    getPreviousMessage: (isConv) ->
+        if isConv? and isConv
+            if not _conversationMemoize?
+                return null
+            # Conversations displayed
+            idx = _conversationMemoize.findIndex (message) ->
+                return _currentID is message.get 'id'
+            if idx is _conversationMemoize.length - 1
+                # We need first message of previous conversation
+                keys = Object.keys _currentMessages.toJS()
+                idx = keys.indexOf(_conversationMemoize.last().get('id'))
+                if idx < 1
+                    return null
+                else
+                    convID = _currentMessages.get(keys[idx - 1])?.get('conversationID')
+                    return null if not convID?
+                    prev = _messages.filter (message) ->
+                        message.get('conversationID') is convID
+                    .sort reverseDateSort
+                    .first()
+                    return prev
+            else
+                return _conversationMemoize.get(idx + 1)
         else
-            return keys[idx + 1]
+            keys = Object.keys _currentMessages.toJS()
+            idx = keys.indexOf _currentID
+            return if idx is -1 then null else _currentMessages.get keys[idx - 1]
+
+    getNextMessage: (isConv) ->
+        if isConv? and isConv
+            if not _conversationMemoize?
+                return null
+            # Conversations displayed
+            idx = _conversationMemoize.findIndex (message) ->
+                return _currentID is message.get 'id'
+            if idx is 0
+                # We need first message of next conversation
+                keys = Object.keys _currentMessages.toJS()
+                idx = keys.indexOf(_conversationMemoize.last().get('id'))
+                if idx is -1 or idx is (keys.length - 1)
+                    return null
+                else
+                    return _currentMessages.get keys[idx + 1]
+            else
+                return _conversationMemoize.get(idx - 1)
+        else
+            keys = Object.keys _currentMessages.toJS()
+            idx = keys.indexOf _currentID
+            if idx is -1 or idx is (keys.length - 1)
+                return null
+            else
+                return _currentMessages.get keys[idx + 1]
 
     getConversation: (conversationID) ->
-        if conversationID isnt _conversationMemoizeId
-            _conversationMemoize = _messages
-                .filter (message) ->
-                    message.get('conversationID') is conversationID
-                .sort reverseDateSort
-                .toVector()
+        _conversationMemoize = _messages
+            .filter (message) ->
+                message.get('conversationID') is conversationID
+            .sort reverseDateSort
+            .toVector()
+        _conversationMemoizeID = conversationID
 
         return _conversationMemoize
 

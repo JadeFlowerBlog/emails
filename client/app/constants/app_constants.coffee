@@ -14,6 +14,7 @@ module.exports =
         'MAILBOX_CREATE'            : 'MAILBOX_CREATE'
         'MAILBOX_UPDATE'            : 'MAILBOX_UPDATE'
         'MAILBOX_DELETE'            : 'MAILBOX_DELETE'
+        'MAILBOX_EXPUNGE'           : 'MAILBOX_EXPUNGE'
 
         # Message
         'RECEIVE_RAW_MESSAGE'       : 'RECEIVE_RAW_MESSAGE'
@@ -23,6 +24,7 @@ module.exports =
         'MESSAGE_BOXES'             : 'MESSAGE_BOXES'
         'MESSAGE_FLAG'              : 'MESSAGE_FLAG'
         'MESSAGE_ACTION'            : 'MESSAGE_ACTION'
+        'CONVERSATION_ACTION'       : 'CONVERSATION_ACTION'
         'MESSAGE_CURRENT'           : 'MESSAGE_CURRENT'
         'RECEIVE_MESSAGE_DELETE'    : 'RECEIVE_MESSAGE_DELETE'
         'RECEIVE_MAILBOX_UPDATE'    : 'RECEIVE_MAILBOX_UPDATE'
@@ -92,6 +94,7 @@ module.exports =
 
     MessageFilter:
         'ALL'          : 'all'
+        'ATTACH'       : 'attach'
         'FLAGGED'      : 'flagged'
         'UNSEEN'       : 'unseen'
 

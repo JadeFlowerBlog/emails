@@ -24,16 +24,18 @@ if (typeof window.plugins !== "object") {
       if (Array.isArray(binding.alias)) {
         name = name.concat(binding.alias);
       }
-      help.innerHTML += "<dt>" + name.join(', ') + "&nbsp;: </dt><dd>" + binding.name + "</dd>";
+      help.innerHTML += "<dt><kbd>" + name.join(', ') + "&nbsp;: </kbd></dt><dd>" + binding.name + "</dd>";
     });
     container.appendChild(help);
     container.classList.add('mailkeys-container');
     help.classList.add('mailkeys-help');
     document.body.appendChild(container);
-    Mousetrap.bind("esc", function () {
+    function closeHelp(e) {
       document.body.removeChild(container);
       Mousetrap.unbind("esc");
-    });
+    }
+    container.addEventListener('click', closeHelp);
+    Mousetrap.bind("esc", closeHelp);
   }
   function layoutWidth(direction) {
     if (direction !== 1 && direction !== -1) {
@@ -161,18 +163,32 @@ if (typeof window.plugins !== "object") {
       },
       'j': {
         name: "Next Message",
-        alias: ['down', 'right'],
+        alias: ['down'],
         action: function (e) {
           e.preventDefault();
           window.cozyMails.messageNavigate('next');
         }
       },
+      'right': {
+        name: "Next Message in conversation",
+        action: function (e) {
+          e.preventDefault();
+          window.cozyMails.messageNavigate('next', true);
+        }
+      },
       'k': {
         name: "Previous Message",
-        alias: ['up', 'left'],
+        alias: ['up'],
         action: function (e) {
           e.preventDefault();
           window.cozyMails.messageNavigate('prev');
+        }
+      },
+      'left': {
+        name: "Previous Message in conversation",
+        action: function (e) {
+          e.preventDefault();
+          window.cozyMails.messageNavigate('prev', true);
         }
       },
       'ctrl+down': {
@@ -273,6 +289,25 @@ if (typeof window.plugins !== "object") {
           MessageActionCreator.undelete();
         }
       },
+      'r': {
+        name: 'Reply',
+        action: function () {
+          var current, btn;
+          Array.prototype.forEach.call(document.querySelectorAll('.row > .content, .row > .preview'), function (e) {
+            var rect = e.getBoundingClientRect(),
+                visible = rect.bottom >= 0 && rect.top <= (window.innerHeight || document.documentElement.clientHeight)
+            if (visible) {
+              current = e;
+            }
+          });
+          if (typeof current !== 'undefined') {
+            btn = document.querySelector(".thread li.message[data-id='" + current.dataset.messageId + "'] button.btn.reply");
+            if (btn !== null) {
+                btn.dispatchEvent(new MouseEvent('click', { 'view': window, 'bubbles': true, 'cancelable': true }));
+            }
+          }
+        }
+      },
       '?': {
         name: "Toggle display of available bindings",
         action: bindingHelp
@@ -318,6 +353,7 @@ if (typeof window.plugins !== "object") {
     onDeactivate: function () {
       Mousetrap.reset();
     },
+    onHelp: bindingHelp,
     listeners: {
     }
   };

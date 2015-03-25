@@ -43,7 +43,7 @@
             background-color orange
 
     .message-title
-        margin-top 0.5em
+        margin-bottom 0.5em
         line-height 1.4em
         border 0
 
@@ -75,13 +75,13 @@
             .messageNavigation
 
                 .btn-toolbar
-                  margin-right .5em
-                  padding-top 1em
-                  margin-bottom 2em
-                  border-top 1px solid #CCC
+                    margin-right .5em
+                    padding-top 1em
+                    margin-bottom 1em
+                    border-top 1px solid #CCC
 
             .messageToolbox
-                margin-top 2em
+                margin-top 1em
 
                 .btn.btn-default
                     background none
@@ -89,15 +89,23 @@
                     border 0
                     color basecolor
                     transition color 0.3s ease
+                    font-size 14px
 
                     &:hover
                         color actioncolor
+
+                    &:active
+                        color actioncolor - 10%
+
 
                 .btn.btn-default.reply
                     color contrastcolor
 
                     &:hover
                         color actioncolor
+
+                    &:active
+                        color actioncolor - 10%
 
             .messageNavigation
                 margin-bottom 0
@@ -129,7 +137,7 @@
                 background-color white
 
                 body
-                    font-family main
+                    font-family 'Source Sans Pro', sans-serif
 
             .header
                 display flex
@@ -266,6 +274,8 @@
     .att-preview
     .att-preview img
         padding 0.5em
+    .att-preview button
+        margin .5em
 
     #email-compose
         margin-top 2em

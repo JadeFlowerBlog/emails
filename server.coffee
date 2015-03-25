@@ -7,11 +7,9 @@ application = module.exports.start = (options, callback) ->
     options.port ?= process.env.PORT or 9125
     options.host ?= process.env.HOST or '0.0.0.0'
 
-    global.MODEL_MODULE = 'americano-cozy-pouchdb'
-
     callback ?= ->
 
-    americano.start options, (app, server) ->
+    americano.start options, (err, app, server) ->
         callback null, app, server
 
 if not module.parent

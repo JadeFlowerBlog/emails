@@ -24,14 +24,15 @@ module.exports = Compose = React.createClass
     ]
 
     propTypes:
-        selectedAccount: React.PropTypes.object.isRequired
-        layout:          React.PropTypes.string.isRequired
-        accounts:        React.PropTypes.object.isRequired
-        message:         React.PropTypes.object
-        action:          React.PropTypes.string
-        callback:        React.PropTypes.func
-        onCancel:        React.PropTypes.func
-        settings:        React.PropTypes.object.isRequired
+        selectedAccountID:    React.PropTypes.string.isRequired
+        selectedAccountLogin: React.PropTypes.string.isRequired
+        layout:               React.PropTypes.string.isRequired
+        accounts:             React.PropTypes.object.isRequired
+        message:              React.PropTypes.object
+        action:               React.PropTypes.string
+        callback:             React.PropTypes.func
+        onCancel:             React.PropTypes.func
+        settings:             React.PropTypes.object.isRequired
 
     shouldComponentUpdate: (nextProps, nextState) ->
         return not(_.isEqual(nextState, @state)) or not (_.isEqual(nextProps, @props))
@@ -69,10 +70,11 @@ module.exports = Compose = React.createClass
             else
                 a onClick: toggleFullscreen, className: 'close-email pull-right clickable',
                     i className:'fa fa-compress'
-            h3 null,
-                t 'compose'
+            h3
+                'data-message-id': @props.message?.get('id') or ''
+                @state.subject or t 'compose'
             form className: 'form-compose',
-                div className: 'form-group',
+                div className: 'form-group account',
                     label
                         htmlFor: 'compose-from',
                         className: classLabel,
@@ -94,7 +96,6 @@ module.exports = Compose = React.createClass
                         AccountPicker
                             accounts: @props.accounts
                             valueLink: @linkState 'accountID'
-                            type: 'address'
                 div className: 'clearfix', null
 
                 MailsInput
@@ -137,6 +138,7 @@ module.exports = Compose = React.createClass
                         className: classLabel,
                         t "compose content"
                     ComposeEditor
+                        messageID: @props.message?.get 'id'
                         html: @linkState('html')
                         text: @linkState('text')
                         settings: @props.settings
@@ -149,6 +151,7 @@ module.exports = Compose = React.createClass
                         className: ''
                         editable: true
                         valueLink: @linkState 'attachments'
+                        ref: 'attachments'
 
                 div className: 'composeToolbox',
                     div className: 'btn-toolbar', role: 'toolbar',
@@ -233,9 +236,9 @@ module.exports = Compose = React.createClass
 
         # new draft
         else
-            state = MessageUtils.makeReplyMessage @props.inReplyTo, @props.action,
-                @props.settings.get 'composeInHTML'
-            state.accountID ?= @props.selectedAccount.get 'id'
+            state = MessageUtils.makeReplyMessage @props.selectedAccountLogin,
+                @props.inReplyTo, @props.action, @props.settings.get('composeInHTML')
+            state.accountID ?= @props.selectedAccountID
 
         state.sending = false
         state.saving  = false
@@ -254,14 +257,11 @@ module.exports = Compose = React.createClass
 
     _doSend: (isDraft) ->
 
-        account = @props.accounts.get @state.accountID
+        account = @props.accounts[@state.accountID]
 
         from =
-            name: account?.get('name') or undefined
-            address: account.get('login')
-
-        unless ~from.address.indexOf '@'
-            from.address += '@' + account.get('imapServer')
+            name: account.name or undefined
+            address: account.login
 
         message =
             id          : @state.id
@@ -325,9 +325,13 @@ module.exports = Compose = React.createClass
                     msgKo = t "message action sent ko"
                     msgOk = t "message action sent ok"
                 if error?
-                    LayoutActionCreator.alertError "#{msgKo} :  error"
+                    LayoutActionCreator.alertError "#{msgKo} #{error}"
                 else
                     LayoutActionCreator.notify msgOk, autoclose: true
+
+                    if not @state.id?
+                        MessageActionCreator.setCurrent message.id
+
                     @setState message
 
                     if not isDraft
@@ -340,7 +344,12 @@ module.exports = Compose = React.createClass
         @_doSend true
 
     onDelete: (args) ->
-        if window.confirm(t 'mail confirm delete', {subject: @props.message.get('subject')})
+        subject = @props.message.get 'subject'
+        if subject? and subject isnt ''
+            confirmMessage = t 'mail confirm delete', {subject: @props.message.get('subject')}
+        else
+            confirmMessage = t 'mail confirm delete nosubject'
+        if window.confirm confirmMessage
             MessageActionCreator.delete @props.message, (error) =>
                 if error?
                     LayoutActionCreator.alertError "#{t("message action delete ko")} #{error}"
@@ -351,7 +360,7 @@ module.exports = Compose = React.createClass
                         @redirect
                             direction: 'first'
                             action: 'account.mailbox.messages'
-                            parameters: [@props.selectedAccount.get('id'), @props.selectedMailboxID, 1]
+                            parameters: [@props.selectedAccountID, @props.selectedMailboxID]
                             fullWidth: true
 
     onToggleCc: (e) ->
@@ -375,6 +384,10 @@ ComposeEditor = React.createClass
             html: @props.html
             text: @props.text
         }
+
+    componentWillReceiveProps: (nextProps) ->
+        if nextProps.messageID isnt @props.messageID
+            @setState html: nextProps.html, text: nextProps.text
 
     shouldComponentUpdate: (nextProps, nextState) ->
         return not(_.isEqual(nextState, @state)) or not (_.isEqual(nextProps, @props))
@@ -413,9 +426,7 @@ ComposeEditor = React.createClass
                 node = @refs.html?.getDOMNode()
                 if not node?
                     return
-                setTimeout ->
-                    jQuery(node).focus()
-                , 0
+                document.querySelector(".rt-editor").focus()
                 if not @props.settings.get 'composeOnTop'
                     node.innerHTML += "<p><br /></p>"
                     node = node.lastChild
@@ -429,11 +440,12 @@ ComposeEditor = React.createClass
                         s.removeAllRanges()
                         s.addRange(r)
                         document.execCommand('delete', false, null)
+                        node.focus()
 
             # Some DOM manipulation when replying inside the message.
             # When inserting a new line, we must close all blockquotes,
             # insert a blank line and then open again blockquotes
-            jQuery('#email-compose .rt-editor').on('keypress', (e) ->
+            jQuery('.rt-editor').on('keypress', (e) ->
                 if e.keyCode is 13
                     # timeout to let the editor perform its own stuff
                     setTimeout ->
@@ -445,14 +457,19 @@ ComposeEditor = React.createClass
                               document.documentElement.msMatchesSelector
 
                         target = document.getSelection().anchorNode
+                        targetElement = target
+                        while not (targetElement instanceof Element)
+                            targetElement = targetElement.parentNode
                         if not target?
                             return
-                        if matchesSelector? and not matchesSelector.call(target, '.rt-editor blockquote *')
+                        if matchesSelector? and not matchesSelector.call(targetElement, '.rt-editor blockquote *')
                             # we are not inside a blockquote, nothing to do
                             return
 
-                        if target.lastChild
-                            target = target.lastChild.previousElementSibling
+                        if target.lastChild?
+                            target = target.lastChild
+                            if target.previousElementSibling?
+                                target = target.previousElementSibling
                         parent = target
 
                         # alternative 1
@@ -530,9 +547,19 @@ ComposeEditor = React.createClass
                     , 0
             )
             # Allow to hide original message
-            jQuery('#email-compose .rt-editor .originalToggle').on('click', ->
-                jQuery('#email-compose .rt-editor').toggleClass('folded')
-            )
+            if document.querySelector('.rt-editor blockquote') and not document.querySelector('.rt-editor .originalToggle')
+                try
+                    header = jQuery('.rt-editor blockquote').eq(0).prev()
+                    header.text(header.text().replace('…', ''))
+                    header.append('<span class="originalToggle">…</>')
+                    header.on 'click', ->
+                        jQuery('.rt-editor').toggleClass('folded')
+                catch e
+                    console.error e
+            else
+                jQuery('.rt-editor .originalToggle').on 'click', ->
+                    jQuery('.rt-editor').toggleClass('folded')
+
         else
             # Text message
             if @props.focus
@@ -556,8 +583,9 @@ ComposeEditor = React.createClass
     componentDidMount: ->
         @_initCompose()
 
-    #componentDidUpdate: ->
-    #    @_initCompose()
+    componentDidUpdate: (nextProps, nextState) ->
+        if nextProps.messageID isnt @props.messageID
+            @_initCompose()
 
     onKeyDown: (evt) ->
         if evt.ctrlKey and evt.key is 'Enter'

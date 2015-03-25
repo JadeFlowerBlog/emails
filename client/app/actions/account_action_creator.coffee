@@ -105,3 +105,14 @@ module.exports = AccountActionCreator =
                     value: account
             if callback?
                 callback error
+
+    mailboxExpunge: (inputValues, callback) ->
+        # delete message from local store to refresh display, we'll fetch them
+        # again on error
+        AppDispatcher.handleViewAction
+            type: ActionTypes.MAILBOX_EXPUNGE
+            value: inputValues.mailboxID
+
+        XHRUtils.mailboxExpunge inputValues, (error, account) ->
+            if callback?
+                callback error

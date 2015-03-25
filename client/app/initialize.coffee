@@ -26,6 +26,25 @@ window.onload = ->
     try
         window.__DEV__ = window.location.hostname is 'localhost'
 
+        # expose an APi for performance
+        # performance is not defined in phantomJS
+        referencePoint = 0
+        window.start = ->
+            referencePoint = performance.now() if performance?.now?
+            React.addons.Perf.start()
+        window.stop = ->
+            console.log performance.now() - referencePoint if performance?.now?
+            React.addons.Perf.stop()
+        window.printWasted = ->
+            stop()
+            React.addons.Perf.printWasted()
+        window.printInclusive = ->
+            stop()
+            React.addons.Perf.printInclusive()
+        window.printExclusive = ->
+            stop()
+            React.addons.Perf.printExclusive()
+
         # expose an API
         window.cozyMails = require './utils/api_utils'
 
@@ -67,7 +86,7 @@ window.onload = ->
         # Binds the router and flux to the React application
         Application = require './components/application'
         application = Application router: @router
-        React.renderComponent application, document.body
+        window.rootComponent = React.renderComponent application, document.body
 
         # Starts the application by initializing the router
         Backbone.history.start()
@@ -76,7 +95,7 @@ window.onload = ->
         require './utils/socketio_utils'
 
         # Desktop notifications
-        if window.settings.desktopNotifications
+        if window.settings.desktopNotifications and window.Notification?
             Notification.requestPermission (status) ->
                 # This allows to use Notification.permission with Chrome/Safari
                 if Notification.permission isnt status

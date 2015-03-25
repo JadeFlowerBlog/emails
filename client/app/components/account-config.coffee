@@ -23,6 +23,7 @@ module.exports = React.createClass
         'id', 'label', 'name', 'login', 'password',
         'imapServer', 'imapPort', 'imapSSL', 'imapTLS',
         'smtpServer', 'smtpPort', 'smtpSSL', 'smtpTLS',
+        'smtpLogin', 'smtpPassword', 'smtpMethod',
         'accountType'
     ]
     _mailboxesFields: [
@@ -67,6 +68,15 @@ module.exports = React.createClass
             'smtpTLS':
                 allowEmpty: true
                 #type: 'boolean'
+            'smtpLogin':
+                allowEmpty: true
+                #type: 'string'
+            'smtpMethod':
+                allowEmpty: true
+                #type: 'string'
+            'smtpPassword':
+                allowEmpty: true
+                #type: 'string'
             'draftMailbox':
                 allowEmpty: true
                 #type: 'string'
@@ -81,7 +91,8 @@ module.exports = React.createClass
                 #type: 'string'
 
     shouldComponentUpdate: (nextProps, nextState) ->
-        return not(_.isEqual(nextState, @state)) or not (_.isEqual(nextProps, @props))
+        return not(_.isEqual(nextState, @state)) or
+            not (_.isEqual(nextProps, @props))
 
     render: ->
         if @state.id
@@ -198,7 +209,8 @@ module.exports = React.createClass
                     AccountActionCreator.edit accountValue, @state.id
             else
                 AccountActionCreator.create accountValue, (account) =>
-                    LAC.notify t "account creation ok"
+                    LAC.notify t("account creation ok"),
+                        autoclose: true
                     @redirect
                         direction: 'first'
                         action: 'account.config'
@@ -231,7 +243,7 @@ module.exports = React.createClass
                         errors[field] = t 'config error ' + field
                     @setState errors: errors
             else
-                if not props.isWaiting
+                if not props.isWaiting and not _.isEqual(props, @props)
                     @setState @_accountToState null
 
     getInitialState: ->
@@ -254,6 +266,7 @@ module.exports = React.createClass
             if @state.id isnt account.get('id')
                 for field in @_accountFields
                     state[field] = account.get field
+                state.smtpMethod = 'PLAIN' if not state.smtpMethod?
             for field in @_mailboxesFields
                 state[field] = account.get field
             state.newMailboxParent = null
@@ -266,13 +279,14 @@ module.exports = React.createClass
                 state[field] = ''
             init field for field in @_accountFields
             init field for field in @_mailboxesFields
-            state.id       = null
-            state.smtpPort = 465
-            state.smtpSSL  = true
-            state.smtpTLS  = false
-            state.imapPort = 993
-            state.imapSSL  = true
-            state.imapTLS  = false
+            state.id          = null
+            state.smtpPort    = 465
+            state.smtpSSL     = true
+            state.smtpTLS     = false
+            state.smtpMethod  = 'PLAIN'
+            state.imapPort    = 993
+            state.imapSSL     = true
+            state.imapTLS     = false
             state.accountType = 'IMAP'
             state.newMailboxParent  = null
             state.favoriteMailboxes = null
@@ -288,22 +302,23 @@ AccountConfigMain = React.createClass
     ]
 
     shouldComponentUpdate: (nextProps, nextState) ->
-        #return JSON.stringify(nextProps) isnt JSON.stringify(@props) or
-        #       JSON.stringify(nextState) isnt JSON.stringify(@state)
-        return not(_.isEqual(nextState, @state)) or not (_.isEqual(nextProps, @props))
+        return not(_.isEqual(nextState, @state)) or
+            not (_.isEqual(nextProps, @props))
 
     _propsToState: (props) ->
         state = props
         return state
 
     getInitialState: ->
-        @_propsToState(@props)
+        state = @_propsToState(@props)
+        state.smtpAdvanced = false
+        return state
 
     componentWillReceiveProps: (props) ->
         @setState @_propsToState(props)
 
     render: ->
-        if @props.isWaiting then buttonLabel = 'Saving...'
+        if @props.isWaiting then buttonLabel = t 'account saving'
         else if @props.selectedAccount? then buttonLabel = t "account save"
         else buttonLabel = t "account add"
 
@@ -325,7 +340,11 @@ AccountConfigMain = React.createClass
             action: 'default'
             fullWidth: true
 
-        form className: 'form-horizontal', method: 'POST',
+        formClass = classer
+            'form-horizontal': true
+            'form-account': true
+            'waiting': @props.isWaiting
+        form className: formClass, method: 'POST',
             @renderError()
             fieldset null,
                 legend null, t 'account identifiers'
@@ -388,7 +407,7 @@ AccountConfigMain = React.createClass
                     value: @linkState('imapPort').value
                     errors: @state.errors
                     onBlur: @_onimapPort
-                    onInput: -> @setState(imapManualPort: true)
+                    onInput: => @setState(imapManualPort: true)
 
                 AccountInput
                     name: 'imapSSL'
@@ -413,14 +432,14 @@ AccountConfigMain = React.createClass
                     name: 'smtpServer'
                     value: @linkState('smtpServer').value
                     errors: @state.errors
-                    errorField: ['smtp', 'smtpServer', 'smtpPort']
+                    errorField: ['smtp', 'smtpServer', 'smtpPort', 'smtpLogin', 'smtpPassword']
 
                 AccountInput
                     name: 'smtpPort'
                     value: @linkState('smtpPort').value
                     errors: @state.errors
                     onBlur: @_onSMTPPort
-                    onInput: -> @setState(smtpManualPort: true)
+                    onInput: => @setState(smtpManualPort: true)
 
                 AccountInput
                     name: 'smtpSSL'
@@ -438,17 +457,66 @@ AccountConfigMain = React.createClass
                     onClick: (ev) =>
                         @_onServerParam ev.target, 'smtp', 'tls'
 
+                div
+                    className: "form-group",
+                    a
+                        className: "col-sm-3 col-sm-offset-2 control-label clickable",
+                        onClick: @toggleSMTPAdvanced,
+                        t "account smtp #{if @state.smtpAdvanced then 'hide' else 'show'} advanced"
+
+                if @state.smtpAdvanced
+                    div
+                        key: "account-input-smtpMethod",
+                        className: "form-group account-item-smtpMethod ",
+                            label
+                                htmlFor: "mailbox-smtpMethod",
+                                className: "col-sm-2 col-sm-offset-2 control-label",
+                                t "account smtpMethod"
+                            div className: 'col-sm-3',
+                                div className: "dropdown",
+                                    button
+                                        id: "mailbox-smtpMethod",
+                                        name: "mailbox-smtpMethod",
+                                        className: "btn btn-default dropdown-toggle"
+                                        type: "button"
+                                        "data-toggle": "dropdown",
+                                        t "account smtpMethod #{@state.smtpMethod.value}"
+                                    ul className: "dropdown-menu", role: "menu",
+                                        ['PLAIN', 'NONE', 'LOGIN', 'CRAM-MD5'].map (method) =>
+                                            li
+                                                role: "presentation",
+                                                    a
+                                                        'data-value': method,
+                                                        role: "menuitem",
+                                                        onClick: @onMethodChange,
+                                                        t "account smtpMethod #{method}"
+
+                if @state.smtpAdvanced
+                    AccountInput
+                        name: 'smtpLogin'
+                        value: @linkState('smtpLogin').value
+                        errors: @state.errors
+                        errorField: ['smtp', 'smtpServer', 'smtpPort', 'smtpLogin', 'smtpPassword']
+
+                if @state.smtpAdvanced
+                    AccountInput
+                        name: 'smtpPassword'
+                        value: @linkState('smtpPassword').value
+                        type: 'password'
+                        errors: @state.errors
+                        errorField: ['smtp', 'smtpServer', 'smtpPort', 'smtpLogin', 'smtpPassword']
+
             fieldset null,
                 legend null, t 'account actions'
             div className: '',
                 div className: 'col-sm-offset-4',
                     button
-                        className: 'btn btn-cozy',
+                        className: 'btn btn-cozy action-save',
                         onClick: @props.onSubmit,
                         buttonLabel
                     if @state.id?
                         button
-                            className: 'btn btn-cozy-non-default',
+                            className: 'btn btn-cozy-non-default action-check',
                             onClick: @onCheck,
                             t 'account check'
                 if @state.id?
@@ -464,12 +532,18 @@ AccountConfigMain = React.createClass
     onCheck: (event) ->
         @props.onSubmit event, true
 
+    onMethodChange: (event) ->
+        @state.smtpMethod.requestChange event.target.dataset.value
+
     onRemove: (event) ->
         # prevents the page from reloading
         event.preventDefault()
 
         if window.confirm(t 'account remove confirm')
             AccountActionCreator.remove @props.selectedAccount.get('id')
+
+    toggleSMTPAdvanced: ->
+        @setState smtpAdvanced: not @state.smtpAdvanced
 
     renderError: ->
         if @props.error and @props.error.name is 'AccountConfigError'
@@ -602,10 +676,19 @@ AccountConfigMailboxes = React.createClass
     ]
 
     shouldComponentUpdate: (nextProps, nextState) ->
-        return not(_.isEqual(nextState, @state)) or not (_.isEqual(nextProps, @props))
+        return not(_.isEqual(nextState, @state)) or
+            not (_.isEqual(nextProps, @props))
 
     _propsToState: (props) ->
         state = props
+        state.mailboxesFlat = {}
+        if state.mailboxes.value isnt ''
+            state.mailboxes.value.map (mailbox, key) ->
+                id = mailbox.get 'id'
+                state.mailboxesFlat[id] = {}
+                ['id', 'label', 'depth'].map (prop) ->
+                    state.mailboxesFlat[id][prop] = mailbox.get prop
+            .toJS()
         return state
 
     getInitialState: ->
@@ -622,7 +705,7 @@ AccountConfigMailboxes = React.createClass
                     favorite = favorites.get(mailbox.get('id'))?
                     MailboxItem {accountID: @state.id.value, mailbox, favorite}
                 catch error
-                    console.log error, favorites
+                    console.error error, favorites
             .toJS()
         form className: 'form-horizontal',
 
@@ -683,8 +766,8 @@ AccountConfigMailboxes = React.createClass
                     div className: 'col-xs-2 text-center',
                         MailboxList
                             allowUndefined: true
-                            mailboxes: @state.mailboxes.value
-                            selectedMailbox: @state.newMailboxParent
+                            mailboxes: @state.mailboxesFlat
+                            selectedMailboxID: @state.newMailboxParent
                             onChange: (mailbox) =>
                                 @setState newMailboxParent: mailbox
 
@@ -707,12 +790,12 @@ AccountConfigMailboxes = React.createClass
                 div className: 'col-sm-3',
                     MailboxList
                         allowUndefined: true
-                        mailboxes: @state.mailboxes.value
-                        selectedMailbox: @state[box].value
+                        mailboxes: @state.mailboxesFlat
+                        selectedMailboxID: @state[box].value
                         onChange: (mailbox) =>
-                            # requestChange is asynchroneous, so we need to also call
-                            # setState to only call onSubmet once state has really been updated
-                            #@state[box].value = mailbox
+                            # requestChange is asynchroneous, so we need
+                            # to also call setState to only call onSubmet
+                            # once state has really been updated
                             @state[box].requestChange mailbox
                             newState = {}
                             newState[box] =
@@ -737,7 +820,8 @@ AccountConfigMailboxes = React.createClass
             if error?
                 LAC.alertError "#{t("mailbox create ko")} #{error}"
             else
-                LAC.notify t "mailbox create ok"
+                LAC.notify t("mailbox create ok"),
+                    autoclose: true
                 @refs.newmailbox.getDOMNode().value = ''
 
     undoMailbox: (event) ->
@@ -758,7 +842,8 @@ MailboxItem = React.createClass
         mailbox: React.PropTypes.object
 
     shouldComponentUpdate: (nextProps, nextState) ->
-        return not(_.isEqual(nextState, @state)) or not (_.isEqual(nextProps, @props))
+        return not(_.isEqual(nextState, @state)) or
+            not (_.isEqual(nextProps, @props))
 
     #componentWillReceiveProps: (props) ->
     #    @setState edited: false
@@ -861,7 +946,8 @@ MailboxItem = React.createClass
             if error?
                 LAC.alertError "#{t("mailbox update ko")} #{error}"
             else
-                LAC.notify t "mailbox update ok"
+                LAC.notify t("mailbox update ok"),
+                    autoclose: true
                 @setState edited: false
 
     toggleFavorite: (e) ->
@@ -874,7 +960,8 @@ MailboxItem = React.createClass
             if error?
                 LAC.alertError "#{t("mailbox update ko")} #{error}"
             else
-                LAC.notify t "mailbox update ok"
+                LAC.notify t("mailbox update ok"),
+                    autoclose: true
 
         @setState favorite: not @state.favorite
 
@@ -890,7 +977,8 @@ MailboxItem = React.createClass
                 if error?
                     LAC.alertError "#{t("mailbox delete ko")} #{error}"
                 else
-                    LAC.notify t "mailbox delete ok"
+                    LAC.notify t("mailbox delete ok"),
+                        autoclose: true
 
 AccountInput = React.createClass
     displayName: 'AccountInput'

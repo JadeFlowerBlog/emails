@@ -7,7 +7,7 @@ _ = require 'lodash'
 async = require 'async'
 querystring = require 'querystring'
 multiparty = require 'multiparty'
-stream_to_buffer_array = require '../utils/stream_to_array'
+stream_to_buffer = require '../utils/stream_to_array'
 messageUtils = require '../utils/jwz_tools'
 log = require('../utils/logging')(prefix: 'controllers:mesage')
 
@@ -30,14 +30,13 @@ module.exports.fetchMaybe = (req, res, next) ->
 
 # return a message's details
 module.exports.details = (req, res, next) ->
-    res.send 200, req.message.toClientObject()
+    res.send req.message.toClientObject()
 
 module.exports.attachment = (req, res, next) ->
     stream = req.message.getBinary req.params.attachment, (err) ->
         return next err if err
     if req.query?.download
         res.setHeader('Content-disposition', "attachment; filename=#{req.params.attachment}");
-    stream.on 'error', next
     stream.pipe res
 
 # patch a message
@@ -83,6 +82,7 @@ module.exports.listByMailboxOptions = (req, res, next) ->
         'unflagged'  : '!\\Flagged'
         'answered'   : '\\Answered'
         'unanswered' : '!\\Answered'
+        'attach'     : '\\Attachments'
 
     flagcode = req.query.flag
     if flagcode
@@ -143,7 +143,7 @@ module.exports.listByMailbox = (req, res, next) ->
         result.messages = result.messages.map (msg) -> msg.toClientObject()
         result.links = links
 
-        res.send 200, result
+        res.send result
 
 
 
@@ -158,7 +158,7 @@ module.exports.parseSendForm = (req, res, next) ->
         fields[name] = value
 
     form.on 'part', (part) ->
-        stream_to_buffer_array part, (err, bufs) ->
+        stream_to_buffer part, (err, bufs) ->
             return nextonce err if err
 
             files[part.name] =
@@ -184,12 +184,12 @@ contentToBuffer = (req, attachment, callback) ->
     # file in the DS, from a previous save of the draft
     # cache it and pass around
     if attachment.url
-        stream = req.message.getBinary filename, (err) ->
+        fileStream = req.message.getBinary filename, (err) ->
             log.error "Attachment streaming error", err if err
 
-        stream_to_buffer_array stream, (err, buffers) ->
-            return callback err if err
-            callback null, Buffer.concat buffers
+        # we buffer the attachment in RAM to be used in the mailbuilder
+        bufferer = new stream_to_buffer.Bufferer callback
+        fileStream.pipe bufferer
 
     # file just uploaded, take the buffer from the multipart req
     # content is a buffer
@@ -211,7 +211,9 @@ module.exports.send = (req, res, next) ->
 
     message.attachments ?= []
     message.flags = ['\\Seen']
-    if message.isDraft
+    isDraft = message.isDraft
+    delete message.isDraft
+    if isDraft
         message.flags.push '\\Draft'
 
     message.content = message.text
@@ -245,7 +247,7 @@ module.exports.send = (req, res, next) ->
     jdbMessage = null
     uidInDest = null
 
-    unless message.isDraft
+    unless isDraft
         # Send the message first
         steps.push (cb) ->
             log.debug "send#sending"
@@ -267,7 +269,7 @@ module.exports.send = (req, res, next) ->
                 cb()
 
     # If we will need the draftbox
-    if previousUID or message.isDraft
+    if previousUID or isDraft
         steps.push (cb) ->
             log.debug "send#getdraftbox"
             id = account.draftMailbox
@@ -287,12 +289,12 @@ module.exports.send = (req, res, next) ->
 
 
     # Add the message to draft or sent folder (imap)
-    if message.isDraft
+    if isDraft
         steps.push (cb) ->
+            destination = draftBox
             log.debug "send#add_to_draft"
             account.imap_createMail draftBox, message, (err, uid) ->
                 return cb err if err
-                destination = draftBox
                 uidInDest = uid
                 cb null
 
@@ -300,10 +302,10 @@ module.exports.send = (req, res, next) ->
     else
         log.debug "send#add_to_sent"
         steps.push (cb) ->
+            destination = sentBox
             # check if message already created by IMAP/SMTP (gmail)
             sentBox.imap_createMailNoDuplicate account, message, (err, uid) ->
                 return cb err if err
-                destination = sentBox
                 uidInDest = uid
                 cb null
 
@@ -313,6 +315,8 @@ module.exports.send = (req, res, next) ->
         message.text = message.content
         delete message.attachments_backup
         delete message.content
+        # use Date.now to ensure UID is unique
+        uidInDest = Date.now() if account.isTest()
         message.mailboxIDs = {}
         message.mailboxIDs[destination.id] = uidInDest
         message.date = new Date().toISOString()
@@ -347,23 +351,50 @@ module.exports.send = (req, res, next) ->
     async.series steps, (err) ->
         return next err if err
         return next new Error('Server error') unless jdbMessage
-        res.send 200, jdbMessage.toClientObject()
+
+        # returns the message as the client expect it (with isDraft property)
+        out = jdbMessage.toClientObject()
+        out.isDraft = isDraft
+        res.send out
 
 
 module.exports.fetchConversation = (req, res, next) ->
-    Message.byConversationID req.params.conversationID, (err, messages) ->
+    conversationID = req.params.conversationID
+    Message.byConversationID conversationID, (err, messages) ->
         return next err if err
 
-        req.conversation = messages
-        next()
+        # if there is no message, the conversationID is incorrect
+        if messages.length is 0
+            next NotFound "conversation##{conversationID}"
+        else
+            # otherwise, store them with the request and move along
+            log.debug "conversation##{conversationID}", messages.length
+            req.conversation = messages
+            next()
 
 module.exports.conversationGet = (req, res, next) ->
-    res.send 200, req.conversation.map (msg) -> msg.toClientObject()
+    res.send req.conversation.map (msg) -> msg.toClientObject()
 
 module.exports.conversationDelete = (req, res, next) ->
+    accountID = req.conversation[0].accountID
 
-    # @TODO : Delete Conversation
-    res.send 200, []
+    Account.find accountID, (err, account) ->
+        return next err if err
+        return next new NotFound "Account##{accountID}" unless account
+
+        unless account.trashMailbox
+            next new AccountConfigError 'trashMailbox'
+        else
+            messages = []
+            async.eachSeries req.conversation, (message, cb) ->
+                message.moveToTrash account, (err, updated) ->
+                    if not err and updated?
+                        messages.push updated.toClientObject()
+                    cb err
+
+            , (err) ->
+                return next err if err
+                res.send messages
 
 
 module.exports.conversationPatch = (req, res, next) ->
@@ -373,23 +404,27 @@ module.exports.conversationPatch = (req, res, next) ->
     messages = []
     async.eachSeries req.conversation, (message, cb) ->
         message.applyPatchOperations patch, (err, updated) ->
-            messages.push updated.toClientObject()
+            messages.push updated.toClientObject() unless err
             cb err
 
     , (err) ->
         return next err if err
-        res.send 200, messages
+        res.send messages
 
 module.exports.raw = (req, res, next) ->
-    req.mailbox.doASAPWithBox (imap, imapbox, cb) ->
-        try
-            imap.fetchOneMailRaw req.params.messageID, (err, message) ->
-                cb()
-                return next err if err
-                # should be message/rfc822 but text/plain allow to read the
-                # raw message in the browser
-                res.type 'text/plain'
-                res.send 200, message
-        catch e
-            cb()
-            return next e
+
+    boxID = Object.keys(req.message.mailboxIDs)[0]
+    uid = req.message.mailboxIDs[boxID]
+
+    Mailbox.find boxID, (err, mailbox) ->
+        return next err if err
+
+        mailbox.doASAPWithBox (imap, imapbox, cbRelease) ->
+            try imap.fetchOneMailRaw uid, cbRelease
+            catch err then cbRelease err
+        , (err, message) ->
+            return next err if err
+            # should be message/rfc822 but text/plain allow to read the
+            # raw message in the browser
+            res.type 'text/plain'
+            res.send message

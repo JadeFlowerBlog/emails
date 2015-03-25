@@ -1,5 +1,9 @@
-require = patchRequire global.require
-init = require("../common").init
+if global?
+    require = patchRequire global.require
+else
+    require = patchRequire this.require
+    require.globals.casper = casper
+init = require(fs.workingDirectory + "/client/tests/casper/common").init
 nbContacts = 0
 contacts = [
     {name: "Dr Claude Lambda"   , address: "claude.lambda@cozytest.cc"},
@@ -65,6 +69,7 @@ casper.test.begin 'Test Activities', (test) ->
                 window.test1 = this
             activity.onerror = ->
                 window.test1 = this
+            return null
         casper.waitFor ->
             return casper.getGlobal 'test1'
         , ->
@@ -95,6 +100,7 @@ casper.test.begin 'Test Activities', (test) ->
                 window.test2 = this
             activity.onerror = ->
                 window.test2 = this
+            return null
         casper.waitFor ->
             return casper.getGlobal 'test2'
         , ->
@@ -114,6 +120,7 @@ casper.test.begin 'Test Activities', (test) ->
                 window.test3 = this
             activity.onerror = ->
                 window.test3 = this
+            return null
         casper.waitFor ->
             return casper.getGlobal 'test3'
         , ->
@@ -144,21 +151,19 @@ casper.test.begin 'Test Activities', (test) ->
             res = res.shift()
             test.assert (not res.error?), "No error"
             test.assert Array.isArray(res.result), "Got contacts"
-            test.assert res.result.length is (nbContacts + contacts.length),
-                "Contact added"
+            test.assertEquals res.result.length, (nbContacts + contacts.length), "Contact added"
 
             for contact in res.result
                 test.assert /^Dr /.test(contact.fn), "Name ok"
 
     casper.then ->
         test.comment "Search by address for contacts created"
-        options = getOptions 'search', 'query', 'cozytest'
+        options = getOptions 'search', 'query', 'cozytest.cc'
         doActivity options, (res) ->
             res = res.shift()
             test.assert (not res.error?), "No error"
             test.assert Array.isArray(res.result), "Got contacts"
-            test.assert res.result.length is (nbContacts + contacts.length),
-                "Contact added"
+            test.assertEquals res.result.length, (nbContacts + contacts.length), "Contact added"
 
             toDelete = []
             for contact in res.result
@@ -183,6 +188,7 @@ casper.test.begin 'Test Activities', (test) ->
                         window.test6 = this
                     activity.onerror = ->
                         window.test6 = this
+                    return null
                 casper.waitFor ->
                     return casper.getGlobal 'test6'
                 , ->

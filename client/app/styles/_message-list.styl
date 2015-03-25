@@ -10,10 +10,6 @@
     &.disable
         display none
 
-    &.col-md-6
-    &.col-md-12
-        transition width 0.2s ease-out
-
     .pagination-box
         text-align center
 
@@ -29,7 +25,8 @@
     .message
         cursor pointer
         font-size 0.8em
-        border: 0
+        border 0
+        height 2.4rem
 
         > a
         > span
@@ -173,15 +170,33 @@
       display flex
       justify-content flex-start
       align-items left
-
-      //.message-list-action
-      //  margin 0 1em 0 0
+      /* Fixed toolbar, see https://github.com/cozy/cozy-emails/issues/191
+      position fixed
+      background-color white
+      top 0
+      padding .5em 0
+      z-index 1000
+      */
 
     .message-list-actions + *
         clear both
-        margin-top 1em
+        margin-top 2.5em
+
+/* Fixed toolbar, see https://github.com/cozy/cozy-emails/issues/191
+#panels.three .message-list-actions
+  width 34%
+#panels.three.full .message-list-actions
+  width 72%
+#panels.vertical .message-list-actions
+  width 43%
+#panels.horizontal .message-list-actions,
+#panels.vertical.full .message-list-actions
+  width 89%
+*/
 
 .message-list.compact
+    .message
+        height 1.75em
     .message a.wrapper
     .message span.wrapper
         padding 1px 0
@@ -189,8 +204,8 @@
     .avatar
     .select
         font-size 1.5em
-        width 1em
-        height 1.1em
+        width 1.2em
+        height 1.2em
         margin -.1em 0
         padding-top 0.1em
     input[type="checkbox"]
@@ -198,24 +213,33 @@
     .avatar-wrapper:hover .select
         height auto
         width auto
-        margin 0 0.1em 0 0.2em
+        margin 0 0.2em 0 0.3em
         cursor pointer
 
 .message-list-option
 
     .btn.btn-default
-        font-size: 1em
+        font-size: 1.1em
         transition: color 0.2s ease
         background: none
         box-shadow: none
         border: 0
         color: basecolor
 
+        &:active
+            color actioncolor - 10%
+
     .btn.btn-default.shown
     .btn.btn-default:hover
         color: actioncolor
 
+        &:active
+            color actioncolor - 10%
+
 .message-list-actions
+
+    .toggle-menu-button
+        display none
 
     .btn.btn-default.dropdown-toggle.move
     .btn.btn-default.dropdown-toggle.more

@@ -1,6 +1,6 @@
-americano = require MODEL_MODULE
+cozydb = require 'cozydb'
 
-module.exports = Account = americano.getModel 'Account',
+module.exports = Account = cozydb.getModel 'Account',
     label: String               # human readable label for the account
     name: String                # user name to put in sent mails
     login: String               # IMAP & SMTP login
@@ -10,17 +10,21 @@ module.exports = Account = americano.getModel 'Account',
     smtpPort: Number            # SMTP port
     smtpSSL: Boolean            # Use SSL
     smtpTLS: Boolean            # Use STARTTLS
+    smtpLogin: String           # SMTP login, if different from default
+    smtpPassword: String        # SMTP password, if different from default
+    smtpMethod: String          # SMTP Auth Method
     imapServer: String          # IMAP host
     imapPort: Number            # IMAP port
     imapSSL: Boolean            # Use SSL
     imapTLS: Boolean            # Use STARTTLS
     inboxMailbox: String        # INBOX Maibox id
+    flaggedMailbox: String      # \Flag Mailbox id
     draftMailbox: String        # \Draft Maibox id
     sentMailbox: String         # \Sent Maibox id
     trashMailbox: String        # \Trash Maibox id
     junkMailbox: String         # \Junk Maibox id
     allMailbox: String          # \All Maibox id
-    favorites: (x) -> x         # [String] Maibox id of displayed boxes
+    favorites: [String]         # [String] Maibox id of displayed boxes
 
 
 
@@ -38,6 +42,7 @@ SMTPConnection = require 'nodemailer/node_modules/' +
 log = require('../utils/logging')(prefix: 'models:account')
 _ = require 'lodash'
 async = require 'async'
+CONSTANTS = require '../utils/constants'
 require('../utils/socket_handler').wrapModel Account, 'account'
 
 
@@ -58,7 +63,12 @@ Account::setRefreshing = (value) ->
 Account.refreshAllAccounts = (limit, onlyFavorites, callback) ->
     Account.request 'all', (err, accounts) ->
         return callback err if err
-        Account.refreshAccounts accounts, limit, onlyFavorites, callback
+        options =
+            accounts: accounts
+            limitByBox: limit
+            onlyFavorites: onlyFavorites
+            firstImport: false
+        Account.refreshAccounts options, callback
 
 
 Account.removeOrphansAndRefresh = (limitByBox, onlyFavorites, callback) ->
@@ -69,16 +79,38 @@ Account.removeOrphansAndRefresh = (limitByBox, onlyFavorites, callback) ->
             return callback err if err
             Message.removeOrphans existingMailboxIDs, (err) ->
                 return callback err if err
-                Account.refreshAccounts accounts, limitByBox,
-                                                    onlyFavorites, callback
+                options =
+                    accounts: accounts
+                    limitByBox: limitByBox
+                    onlyFavorites: onlyFavorites
+                    firstImport: false
+                    periodic: CONSTANTS.REFRESH_INTERVAL
+                Account.refreshAccounts options, callback
 
-Account.refreshAccounts = (accounts, limitByBox, onlyFavorites, callback) ->
+
+Account.refreshAccounts = (options, callback) ->
+    {accounts, limitByBox, onlyFavorites, firstImport, periodic} = options
     async.eachSeries accounts, (account, cb) ->
         log.debug "refreshing account #{account.label}"
         return cb null if account.isTest()
         return cb null if account.isRefreshing()
-        account.imap_fetchMails limitByBox, onlyFavorites, cb
-    , callback
+        account.imap_fetchMails limitByBox, onlyFavorites, firstImport, (err) ->
+            log.debug "done refreshing account #{account.label}"
+            if err
+                log.error "CANT REFRESH ACCOUNT", account.id, account.label, err
+            # refresh all accounts even if one fails
+            cb null
+    , (err) ->
+        if periodic?
+            setTimeout ->
+                log.debug "doing periodic refresh"
+                # periodic refresh should only check new messages on favorites mailboxes
+                options.onlyFavorites = true
+                options.limitByBox    = CONSTANTS.LIMIT_BY_BOX
+                Account.refreshAccounts options
+            , periodic
+        if callback?
+            callback err
 
 
 # Public: fetch the mailbox tree of a new {Account}
@@ -262,7 +294,7 @@ Account::imap_refreshBoxes = (callback) ->
 # onlyFavorites - {Boolean} fetch messages only for favorite mailboxes
 #
 # Returns a task completion
-Account::imap_fetchMails = (limitByBox, onlyFavorites, callback) ->
+Account::imap_fetchMails = (limitByBox, onlyFavorites, firstImport, callback) ->
     log.debug "account#imap_fetchMails", limitByBox, onlyFavorites
     account = this
     account.setRefreshing true
@@ -280,7 +312,8 @@ Account::imap_fetchMails = (limitByBox, onlyFavorites, callback) ->
 
         log.info "FETCHING ACCOUNT #{account.label} : #{toFetch.length} BOXES"
         log.info "   ", toDestroy.length, "BOXES TO DESTROY"
-        reporter = ImapReporter.accountFetch account, toFetch.length + 1
+        numToFetch = toFetch.length + 1
+        reporter = ImapReporter.accountFetch account, numToFetch, firstImport
 
         # fetch INBOX first
         toFetch.sort (a, b) ->
@@ -288,7 +321,7 @@ Account::imap_fetchMails = (limitByBox, onlyFavorites, callback) ->
             else return 1
 
         async.eachSeries toFetch, (box, cb) ->
-            box.imap_fetchMails limitByBox, (err) ->
+            box.imap_fetchMails limitByBox, firstImport, (err) ->
                 # @TODO : Figure out how to distinguish a mailbox that
                 # is not selectable but not marked as such. In the meantime
                 # dont pop the error to the client
@@ -313,9 +346,9 @@ Account::imap_fetchMails = (limitByBox, onlyFavorites, callback) ->
 
 Account::imap_fetchMailsTwoSteps = (callback) ->
     log.debug "account#imap_fetchMails2Steps"
-    @imap_fetchMails 100, true, (err) =>
+    @imap_fetchMails 100, true, true, (err) =>
         return callback err if err
-        @imap_fetchMails null, false, (err) ->
+        @imap_fetchMails null, false, true, (err) ->
             return callback err if err
             callback null
 
@@ -407,15 +440,20 @@ Account::imap_scanBoxesForSpecialUse = (boxes, callback) ->
 # Returns void
 Account::sendMessage = (message, callback) ->
     return callback null, messageId: 66 if @isTest()
-    transport = nodemailer.createTransport
+    options =
         port: @smtpPort
         host: @smtpServer
         secure: @smtpSSL
         ignoreTLS: not @smtpTLS
         tls: rejectUnauthorized: false
-        auth:
-            user: @login
-            pass: @password
+    if @smtpMethod? and @smtpMethod isnt 'NONE'
+        options.authMethod = @smtpMethod
+    if @smtpMethod isnt 'NONE'
+        options.auth =
+            user: @smtpLogin or @login
+            pass: @smtpPassword or @password
+
+    transport = nodemailer.createTransport options
 
     transport.sendMail message, callback
 
@@ -430,17 +468,21 @@ Account::testSMTPConnection = (callback) ->
 
     reject = _.once callback
 
-
-    connection = new SMTPConnection
+    options =
         port: @smtpPort
         host: @smtpServer
         secure: @smtpSSL
         ignoreTLS: not @smtpTLS
         tls: rejectUnauthorized: false
+    if @smtpMethod? and @smtpMethod isnt 'NONE'
+        options.authMethod = @smtpMethod
 
-    auth =
-        user: @login
-        pass: @password
+    connection = new SMTPConnection options
+
+    if @smtpMethod isnt 'NONE'
+        auth =
+            user: @smtpLogin or @login
+            pass: @smtpPassword or @password
 
     connection.once 'error', (err) ->
         log.warn "SMTP CONNECTION ERROR", err
@@ -452,11 +494,15 @@ Account::testSMTPConnection = (callback) ->
         connection.close()
     , 10000
 
-    connection.connect (err) ->
+    connection.connect (err) =>
         return reject new AccountConfigError 'smtpServer' if err
         clearTimeout timeout
 
-        connection.login auth, (err) ->
-            if err then reject new AccountConfigError 'auth'
-            else callback null
+        if @smtpMethod isnt 'NONE'
+            connection.login auth, (err) ->
+                if err then reject new AccountConfigError 'auth'
+                else callback null
+                connection.close()
+        else
+            callback null
             connection.close()

@@ -9,7 +9,7 @@ Conversation  = require './conversation'
 Menu          = require './menu'
 MessageList   = require './message-list'
 Settings      = require './settings'
-SearchForm = require './search-form'
+SearchForm    = require './search-form'
 
 # React addons
 ReactCSSTransitionGroup = React.addons.CSSTransitionGroup
@@ -70,6 +70,9 @@ module.exports = Application = React.createClass
         panelsClasses = classer
             row: true
             horizontal: disposition.type is Dispositions.HORIZONTAL
+            three: disposition.type is Dispositions.THREE
+            vertical: disposition.type is Dispositions.VERTICAL
+            full: isFullWidth
         # css classes are a bit long so we use a subfunction to get them
         panelClasses = @getPanelClasses isFullWidth
 
@@ -94,6 +97,10 @@ module.exports = Application = React.createClass
         keyFirst = 'left-panel-' + layout.firstPanel.action.split('.')[0]
         if layout.secondPanel?
             keySecond = 'right-panel-' + layout.secondPanel.action.split('.')[0]
+            # update current message id
+            # this need to be done here, so MessageList get the good message ID
+            if layout.secondPanel.parameters.messageID?
+                MessageStore.setCurrentID layout.secondPanel.parameters.messageID
 
         # Actual layout
         div className: 'container-fluid',
@@ -102,6 +109,7 @@ module.exports = Application = React.createClass
                 # Menu is self-managed because this part of the layout
                 # is always the same.
                 Menu
+                    ref: 'menu'
                     accounts: @state.accounts
                     refreshes: @state.refreshes
                     selectedAccount: @state.selectedAccount
@@ -119,11 +127,13 @@ module.exports = Application = React.createClass
                     Alert { alert }
                     ToastContainer()
 
-                    a onClick: @toggleMenu, className: 'responsive-handler hidden-md hidden-lg',
-                        i className: 'fa fa-bars pull-left'
-                        t "app menu"
+                    #a onClick: @toggleMenu,
+                    #    className: 'responsive-handler hidden-md hidden-lg',
+                            #i className: 'fa fa-bars pull-left'
+                            #t "app menu"
                     # The quick actions bar
                     #Topbar
+                    #    ref: 'topbar'
                     #    layout: @props.router.current
                     #    mailboxes: @state.mailboxes
                     #    selectedAccount: @state.selectedAccount
@@ -223,7 +233,8 @@ module.exports = Application = React.createClass
                 mailboxID = null
                 messages  = SearchStore.getResults()
                 messagesCount    = messages.count()
-                emptyListMessage = t 'list search empty', query: @state.searchQuery
+                emptyListMessage = t 'list search empty',
+                    query: @state.searchQuery
                 counterMessage   = t 'list search count', messagesCount
             else
                 accountID = panelInfo.parameters.accountID
@@ -231,7 +242,8 @@ module.exports = Application = React.createClass
                 account   = AccountStore.getByID accountID
                 if account?
                     mailbox   = account.get('mailboxes').get mailboxID
-                    messages  = MessageStore.getMessagesByMailbox mailboxID, @state.settings.get('displayConversation')
+                    messages  = MessageStore.getMessagesByMailbox mailboxID,
+                        @state.settings.get('displayConversation')
                     messagesCount = mailbox?.get('nbTotal') or 0
                     emptyListMessage = switch MessageStore.getCurrentFilter()
                         when MessageFilter.FLAGGED
@@ -256,33 +268,43 @@ module.exports = Application = React.createClass
 
             fetching = MessageStore.isFetching()
             if @state.settings.get 'displayConversation'
+                # select first conversation to allow navigation to start
+                conversationID = MessageStore.getCurrentConversationID()
+                if not conversationID? and messages.length > 0
+                    conversationID = messages.first().get 'conversationID'
+                    conversation = MessageStore.getConversation conversationID
                 conversationLengths = MessageStore.getConversationsLength()
 
             query = _.clone(MessageStore.getParams())
             query.accountID = accountID
             query.mailboxID = mailboxID
-            #paginationUrl = @buildUrl
-            #    direction: 'first'
-            #    action: 'account.mailbox.messages.full'
-            #    parameters: query
+
+            isTrash = @state.selectedAccount?.get('trashMailbox') is mailboxID
+
             return MessageList
                 messages:      messages
                 messagesCount: messagesCount
                 accountID:     accountID
                 mailboxID:     mailboxID
                 messageID:     messageID
-                mailboxes:     @state.mailboxes
+                conversationID: conversationID
+                login:         AccountStore.getByID(accountID).get 'login'
+                mailboxes:     @state.mailboxesFlat
                 settings:      @state.settings
                 fetching:      fetching
+                refreshes:     @state.refreshes
                 query:         query
+                isTrash:       isTrash
                 conversationLengths: conversationLengths
                 emptyListMessage: emptyListMessage
                 counterMessage:   counterMessage
-                #paginationUrl: paginationUrl
+                ref:           'messageList'
+                toggleMenu: @toggleMenu
 
         # -- Generates a configuration window for a given account
         else if panelInfo.action is 'account.config'
             # don't use @state.selectedAccount
+            ref               = "accountConfig"
             selectedAccount   = AccountStore.getSelected()
             error             = AccountStore.getError()
             isWaiting         = AccountStore.isWaiting()
@@ -295,18 +317,13 @@ module.exports = Application = React.createClass
                     field: 'nomailboxes'
 
             return AccountConfig {error, isWaiting, selectedAccount,
-                mailboxes, favoriteMailboxes, tab}
+                mailboxes, favoriteMailboxes, tab, ref}
 
         else if panelInfo.action is 'account.new'
             return AccountConfig
+                ref: "accountConfig"
                 error: AccountStore.getError()
                 isWaiting: AccountStore.isWaiting()
-
-        # -- Generates a configuration window to create a new account
-        #else if panelInfo.action is 'account.new'
-        #    error = AccountStore.getError()
-        #    isWaiting = AccountStore.isWaiting()
-        #    return AccountConfig {layout, error, isWaiting}
 
         # -- Generates a conversation
         else if panelInfo.action is 'message' or
@@ -320,34 +337,42 @@ module.exports = Application = React.createClass
                 lengths = MessageStore.getConversationsLength()
                 conversationLength = lengths.get conversationID
                 conversation = MessageStore.getConversation conversationID
-                MessageStore.setCurrentID message.get('id')
                 selectedMailboxID ?= Object.keys(message.get('mailboxIDs'))[0]
+
+            prevMessage = MessageStore.getPreviousMessage()
+            nextMessage = MessageStore.getNextMessage()
 
             return Conversation
                 key: 'conversation-' + conversationID
-                layout            : layout
-                settings          : @state.settings
-                accounts          : @state.accounts
-                mailboxes         : @state.mailboxes
-                selectedAccount   : @state.selectedAccount
-                selectedMailboxID : selectedMailboxID
-                message           : message
-                conversation      : conversation
-                conversationLength: conversationLength
-                prevID            : MessageStore.getPreviousMessage()
-                nextID            : MessageStore.getNextMessage()
+                layout               : layout
+                settings             : @state.settings
+                accounts             : @state.accountsFlat
+                mailboxes            : @state.mailboxesFlat
+                selectedAccountID    : @state.selectedAccount.get 'id'
+                selectedAccountLogin : @state.selectedAccount.get 'login'
+                selectedMailboxID    : selectedMailboxID
+                message              : message
+                conversation         : conversation
+                conversationLength   : conversationLength
+                prevMessageID        : prevMessage?.get 'id'
+                prevConversationID   : prevMessage?.get 'conversationID'
+                nextMessageID        : nextMessage?.get 'id'
+                nextConversationID   : nextMessage?.get 'conversationID'
+                ref                  : 'conversation'
 
         # -- Generates the new message composition form
         else if panelInfo.action is 'compose'
 
             return Compose
-                layout          : layout
-                action          : null
-                inReplyTo       : null
-                settings        : @state.settings
-                accounts        : @state.accounts
-                selectedAccount : @state.selectedAccount
-                message         : null
+                layout               : layout
+                action               : null
+                inReplyTo            : null
+                settings             : @state.settings
+                accounts             : @state.accountsFlat
+                selectedAccountID    : @state.selectedAccount.get 'id'
+                selectedAccountLogin : @state.selectedAccount.get 'login'
+                message              : null
+                ref                  : 'compose'
 
         # -- Generates the edit draft composition form
         else if panelInfo.action is 'edit'
@@ -356,18 +381,23 @@ module.exports = Application = React.createClass
             message = MessageStore.getByID messageID
 
             return Compose
-                layout          : layout
-                action          : null
-                inReplyTo       : null
-                settings        : @state.settings
-                accounts        : @state.accounts
-                selectedAccount : @state.selectedAccount
-                message         : message
+                layout               : layout
+                action               : null
+                inReplyTo            : null
+                settings             : @state.settings
+                accounts             : @state.accountsFlat
+                selectedAccountID    : @state.selectedAccount.get 'id'
+                selectedAccountLogin : @state.selectedAccount.get 'login'
+                selectedMailboxID    : @state.selectedMailboxID
+                message              : message
+                ref                  : 'compose'
 
         # -- Display the settings form
         else if panelInfo.action is 'settings'
             settings = @state.settings
-            return Settings {settings}
+            return Settings
+                ref     : 'settings'
+                settings: @state.settings
 
         # -- Error case, shouldn't happen. Might be worth to make it pretty.
         else return div null, 'Unknown component'
@@ -387,13 +417,37 @@ module.exports = Application = React.createClass
         else
             selectedMailboxID = null
 
+        accounts  = AccountStore.getAll()
+        mailboxes = AccountStore.getSelectedMailboxes()
+
+        # Flat copies of accounts and mailboxes
+        # This prevents components to refresh when properties they don't use are
+        # updated (unread counts, timestamp of last refresh…)
+        accountsFlat = {}
+        accounts.map (account) ->
+            accountsFlat[account.get 'id'] =
+                name:  account.get 'name'
+                label: account.get 'label'
+                login: account.get 'login'
+        .toJS()
+
+        mailboxesFlat = {}
+        mailboxes.map (mailbox) ->
+            id = mailbox.get 'id'
+            mailboxesFlat[id] = {}
+            ['id', 'label', 'depth'].map (prop) ->
+                mailboxesFlat[id][prop] = mailbox.get prop
+        .toJS()
+
         return {
-            accounts: AccountStore.getAll()
+            accounts: accounts
+            accountsFlat: accountsFlat
             selectedAccount: selectedAccount
             isResponsiveMenuShown: false
             alertMessage: LayoutStore.getAlert()
-            mailboxes: AccountStore.getSelectedMailboxes()
+            mailboxes: mailboxes
             mailboxesSorted: AccountStore.getSelectedMailboxes true
+            mailboxesFlat: mailboxesFlat
             selectedMailboxID: selectedMailboxID
             selectedMailbox: AccountStore.getSelectedMailbox selectedMailboxID
             favoriteMailboxes: AccountStore.getSelectedFavorites()

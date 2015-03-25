@@ -1,4 +1,5 @@
 fs = require 'fs'
+path = require 'path'
 loremIpsum = require 'lorem-ipsum'
 moment = require 'moment'
 
@@ -6,14 +7,15 @@ mailboxUID = {}
 
 names = ['alice', 'bob', 'natacha', 'mark', 'zoey', 'john', 'felicia' ,'max']
 priorities = ['low', 'normal', 'high']
-provider = 'cozycloud.cc'
+provider = 'cozytest.cc'
 
 accounts = require './accounts.json'
 mailboxes = {}
 for box in require './mailboxes.json'
     mailboxes[box.accountID] = [] unless mailboxes[box.accountID]?
     # test folder will only be used for loaded messages
-    mailboxes[box.accountID].push box unless box.label is "Test Folder"
+    # we don't want messages in trash to make testing message deletion easier
+    mailboxes[box.accountID].push box unless box.label is "Test Folder" or box.label is "Trash"
 
 numberOfEmails = process.argv[2] or 100
 
@@ -69,9 +71,9 @@ for i in [1..numberOfEmails] by 1
     content = loremIpsum count: getRandom(10), units: 'paragraphs', random: randomWithSeed
 
     # simulate email thread
-    if getRandom(10) > 3
-        inReplyTo  = "generated_id_#{i - 1}"
-        references = "generated_id_#{i - 2} generated_id_#{i - 1}"
+    if getRandom(10) > 3 and i > 2
+        inReplyTo  = ["generated_id_#{i - 1}"]
+        references = ["generated_id_#{i - 2}", "generated_id_#{i - 1}"]
     else
         inReplyTo  = null
         references = null
@@ -116,8 +118,8 @@ for i in [1..numberOfEmails] by 1
         "conversationID": "conversation_id_#{i}"
 
 
-targetFile = './tests/fixtures/messages_generated.json'
+targetFile = path.resolve __dirname, 'messages_generated.json'
 json = JSON.stringify messages, null, '  '
-fs.writeFile targetFile, json, flag: 'w', (err) ->
+fs.writeFile targetFile, json, flag: 'w+', (err) ->
     console.log err if err?
 console.log "Done generating #{numberOfEmails} messages"

@@ -96,14 +96,20 @@ Participant = React.createClass
             node.addEventListener 'mouseover', ->
                 delay = setTimeout ->
                     addTooltip()
-                , 1000
+                , 5000
             node.addEventListener 'mouseout', ->
                 clearTimeout delay
+            node.addEventListener 'click', (event) ->
+                event.stopPropagation()
+                addTooltip()
 
     componentDidMount: ->
-        @tooltip()
+        if @props.tooltip
+            @tooltip()
+
     componentDidUpdate: ->
-        @tooltip()
+        if @props.tooltip
+            @tooltip()
 
 Participants = React.createClass
     displayName: 'Participants'
@@ -113,7 +119,7 @@ Participants = React.createClass
             if @props.participants
                 for address, key in @props.participants
                     span key: key, className: null,
-                        Participant {key, address, onAdd: @props.onAdd}
+                        Participant {key, address, onAdd: @props.onAdd, tooltip: @props.tooltip}
                         if key < ( @props.participants.length - 1)
                             span null, ', '
 

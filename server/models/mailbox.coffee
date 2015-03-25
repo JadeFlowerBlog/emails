@@ -1,14 +1,14 @@
-americano = require MODEL_MODULE
+cozydb = require 'cozydb'
 
-module.exports = Mailbox = americano.getModel 'Mailbox',
+module.exports = Mailbox = cozydb.getModel 'Mailbox',
     accountID: String        # Parent account
     label: String            # Human readable label
     path: String             # IMAP path
-    lastsync: String         # Date.ISOString of last full box synchro
-    tree: (x) -> x           # Normalized path as Array
+    lastSync: String         # Date.ISOString of last full box synchro
+    tree: [String]           # Normalized path as Array
     delimiter: String        # delimiter between this box and its children
     uidvalidity: Number      # Imap UIDValidity
-    attribs: (x) -> x        # [String] Attributes of this folder
+    attribs: [String]        # [String] Attributes of this folder
 
 Message = require './message'
 log = require('../utils/logging')(prefix: 'models:mailbox')
@@ -29,7 +29,7 @@ Mailbox.RFC6154 =
     sentMailbox:    '\\Sent'
     trashMailbox:   '\\Trash'
     allMailbox:     '\\All'
-    spamMailbox:    '\\Junk'
+    junkMailbox:    '\\Junk'
     flaggedMailbox: '\\Flagged'
 
 Mailbox::isInbox = -> @path is 'INBOX'
@@ -95,6 +95,22 @@ Mailbox.getBoxes = (accountID, callback) ->
             new Mailbox row.doc
 
         callback null, rows
+
+# Public: find selectable mailbox for an account ID
+# as an id indexed object with only path attributes
+# @TODO : optimize this with a map/reduce request
+#
+# accountID - id of the account
+#
+# Returns  [{Mailbox}]
+Mailbox.getBoxesIndexedByID = (accountID, callback) ->
+    Mailbox.getBoxes accountID, (err, boxes) =>
+        return callback err if err
+        boxIndex = {}
+        boxIndex[box.id] = path: box.path for box in boxes
+        callback null, boxIndex
+
+
 
 # Public: get this mailbox's children mailboxes
 #
@@ -218,9 +234,9 @@ Mailbox::destroyAndRemoveAllMessages = (callback) ->
         , callback
 
 
-Mailbox::imap_fetchMails = (limitByBox, callback) ->
+Mailbox::imap_fetchMails = (limitByBox, firstImport, callback) ->
     log.debug "imap_fetchMails", limitByBox
-    @imap_refreshStep limitByBox, null, (err) =>
+    @imap_refreshStep limitByBox, null, firstImport, (err) =>
         log.debug "imap_fetchMailsEnd", limitByBox
         return callback err if err
         unless limitByBox
@@ -329,7 +345,7 @@ Mailbox::applyToFetch = (toFetch, reporter, callback) ->
             cb null
     , callback
 
-Mailbox::imap_refreshStep = (limitByBox, laststep, callback) ->
+Mailbox::imap_refreshStep = (limitByBox, laststep, firstImport, callback) ->
     log.debug "imap_refreshStep", limitByBox, laststep
     box = this
     @getDiff laststep, limitByBox, (err, ops) =>
@@ -340,7 +356,7 @@ Mailbox::imap_refreshStep = (limitByBox, laststep, callback) ->
 
         nbTasks = ops.toFetch.length + ops.toRemove.length +
                                                         ops.flagsChange.length
-        reporter = ImapReporter.boxFetch @, nbTasks if nbTasks > 0
+        reporter = ImapReporter.boxFetch @, nbTasks, firstImport if nbTasks > 0
 
         async.series [
             (cb) => @applyToRemove     ops.toRemove,    reporter, cb
@@ -352,7 +368,7 @@ Mailbox::imap_refreshStep = (limitByBox, laststep, callback) ->
             if limitByBox
                 callback null
             else
-                @imap_refreshStep null, ops.step, callback
+                @imap_refreshStep null, ops.step, firstImport, callback
 
 
 Mailbox::imap_UIDByMessageID = (messageID, callback) ->
@@ -414,6 +430,22 @@ Mailbox::recoverChangedUIDValidity = (imap, callback) ->
                 reporter.onDone()
                 callback null
 
+Mailbox::imap_expungeMails = (callback) ->
+    box = this
+    @doASAPWithBox (imap, imapbox, cbRelease) ->
+        imap.fetchBoxMessageUIDs (err, uids) ->
+            return cbRelease err if err
+            return cbRelease null if uids.length is 0
+            async.series [
+                (cb) -> imap.addFlags uids, '\\Deleted', cb
+                (cb) -> imap.expunge uids, cb
+                (cb) -> imap.closeBox cb
+                (cb) -> Message.safeRemoveAllFromBox box.id, (err) ->
+                    log.error "fail to remove msg of box #{box.id}", err if err
+                    # loop anyway
+                    cb()
+            ], cbRelease
+    , callback
 
 Mailbox.removeOrphans = (existings, callback) ->
     log.debug "removeOrphans"

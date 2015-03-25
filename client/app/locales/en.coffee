@@ -40,6 +40,7 @@ module.exports =
       "compose draft deleted"     : "Draft deleted"
 
       # Menu
+      "menu show"               : "Show menu"
       "menu compose"            : "Compose"
       "menu account new"        : "New Mailbox"
       "menu settings"           : "Parameters"
@@ -48,11 +49,13 @@ module.exports =
       "menu mailbox new"        : " and %{smart_count} new message|||| and %{smart_count} new messages "
       "menu favorites on"       : "Favorites"
       "menu favorites off"      : "All"
+      "menu toggle"             : "Toggle Menu"
 
       # List
       "list empty"              : "No email in this box."
-      "no flagged message"        : "No Important email in this box."
-      "no unseen message"         : "All emails have been read in this box"
+      "no flagged message"      : "No Important email in this box."
+      "no unseen message"       : "All emails have been read in this box"
+      "no attach message"       : "No message with attachments"
       "no filter message"       : "No email for this filter."
       "list fetching"           : "Loading…"
       "list search empty"       : "No result found for the query \"%{query}\"."
@@ -66,6 +69,8 @@ module.exports =
       "list filter unseen title"  : "Show only unread messages"
       "list filter flagged"       : "Important"
       "list filter flagged title" : "Show only Important messages"
+      "list filter attach"        : "Attachments"
+      "list filter attach title"  : "Show only messages with attachments"
       "list sort"                 : "Sort"
       "list sort date"            : "Date"
       "list sort subject"         : "Subject"
@@ -73,7 +78,14 @@ module.exports =
       "list next page"            : "More messages"
       "list end"                  : "This is the end of the road"
       "list mass no message"      : "No message selected"
-      "list delete confirm"       : "Do you really want to delete %{nb} messages?"
+      "list delete confirm"       : """
+                                    Do you really want to delete this message ? ||||
+                                    Do you really want to delete %{smart_count} messages?
+                                    """
+      "list delete conv confirm"  : """
+                                    Do you really want to delete this conversation ? ||||
+                                    Do you really want to delete %{smart_count} conversation?
+                                    """
 
       # Mail
       "mail receivers"          : "To: "
@@ -95,6 +107,7 @@ module.exports =
       "mail mark read"          : "Read"
       "mail mark unread"        : "Unread"
       "mail confirm delete"     : "Do you really want to delete message “%{subject}”?"
+      "mail confirm delete nosubject" : "Do you really want to delete this message?"
       "mail action conversation delete" : "Delete conversation"
       "mail action conversation move"   : "Move conversation"
       "mail action conversation seen"   : "Mark conversation as read"
@@ -109,15 +122,16 @@ module.exports =
       "account edit"                : "Edit account"
       "account add"                 : "Add"
       "account save"                : "Save"
+      "account saving"              : "Saving"
       "account check"               : "Check connection"
       "account accountType short"   : "IMAP"
       "account accountType"         : "Account type"
       "account imapPort short"      : "993"
       "account imapPort"            : "Port"
       "account imapSSL"             : "Use SSL"
-      "account imapTLS"             : "Use TLS"
       "account imapServer short"    : "imap.provider.tld"
       "account imapServer"          : "IMAP server"
+      "account imapTLS"             : "Use TLS"
       "account label short"         : "A short mailbox name"
       "account label"               : "Account label"
       "account login short" : "Your email address"
@@ -127,11 +141,20 @@ module.exports =
       "account password"            : "Password"
       "account receiving server"    : "Receiving server"
       "account sending server"      : "Sending server"
+      "account smtpLogin short"     : "SMTP user"
+      "account smtpLogin"           : "SMTP user (if different from main login)"
+      "account smtpMethod"          : "Authentification method"
+      "account smtpMethod NONE"     : "None"
+      "account smtpMethod PLAIN"    : "Plain"
+      "account smtpMethod LOGIN"    : "Login"
+      "account smtpMethod CRAM-MD5" : "Cram-MD5"
+      "account smtpPassword short"  : "SMTP password"
+      "account smtpPassword"        : "SMTP password (if different from main password)"
       "account smtpPort short"      : "465"
       "account smtpPort"            : "Port"
+      "account smtpSSL"             : "Use SSL"
       "account smtpServer short"    : "smtp.provider.tld"
       "account smtpServer"          : "SMTP server"
-      "account smtpSSL"             : "Use SSL"
       "account smtpTLS"             : "Use STARTTLS"
       "account remove"              : "Remove this account"
       "account remove confirm"      : "Do you really want to remove this
@@ -144,8 +167,8 @@ module.exports =
       "account newmailbox label"    : "New Folder"
       "account newmailbox placeholder" : "Name"
       "account newmailbox parent"   : "Parent:"
-      "account confirm delbox"      : "Do you really want to delete this box
-                                        and everything in it?"
+      "account confirm delbox"      : "Do you really want to delete all
+                                        messages in this box?"
       "account tab account"         : "Account"
       "account tab mailboxes"       : "Folders"
       "account errors"              : "Some data are missing or invalid"
@@ -160,12 +183,16 @@ module.exports =
       "account actions"             : "Actions"
       "account danger zone"         : "Danger Zone"
       "account no special mailboxes": "Please configure special folders first"
+      "account smtp hide advanced"  : "Hide advanced parameters"
+      "account smtp show advanced"  : "Show advanced parameters"
       "mailbox create ok"           : "Folder created"
       "mailbox create ko"           : "Error creating folder"
       "mailbox update ok"           : "Folder updated"
       "mailbox update ko"           : "Error updating folder"
       "mailbox delete ok"           : "Folder deleted"
       "mailbox delete ko"           : "Error deleting folder"
+      "mailbox expunge ok"          : "Folder expunged"
+      "mailbox expunge ko"          : "Error expunging folder"
       "mailbox title edit"          : "Rename folder"
       "mailbox title delete"        : "Delete folder"
       "mailbox title edit save"     : "Save"
@@ -199,20 +226,24 @@ module.exports =
       "message action mark ko"      : "Error marking message: "
       "conversation move ok"        : "Conversation moved"
       "conversation move ko"        : "Error moving conversation"
-      "conversation delete ok"      : "Conversation deleted"
+      "conversation delete ok"      : "Conversation “%{subject}” deleted"
       "conversation delete ko"      : "Error deleting conversation"
       "conversation seen ok"        : "Conversation marked as read"
       "conversation seen ko"        : "Error"
       "conversation unseen ok"      : "Conversation marked as unread"
       "conversation unseen ko"      : "Error"
+      "conversation undelete"       : "Undo conversation deletion"
       "message images warning"      : "Display of images inside message has
                                         been blocked"
       "message images display"      : "Display images"
       "message html display"        : "Display HTML"
       "message delete no trash"     : "Please select a Trash folder"
+      "message delete already"      : "Message already in trash folder"
+      "message move already"        : "Message already in this folder"
       "message undelete"            : "Undo message deletion"
       "message undelete ok"         : "Message undeleted"
-      "message undelete error"      : "Undo not available"
+      "message undelete error"      : "Error undoing some action"
+      "message undelete unnavalable": "Undo not available"
       "message preview title"       : "View attachments"
 
       # Settings
@@ -223,6 +254,7 @@ module.exports =
       "settings plugins"           : "Modules complémentaires"
       "settings plugin add"        : "Add"
       "settings plugin del"        : "Delete"
+      "settings plugin help"       : "Help"
       "settings plugin new name"   : "Plugin Name"
       "settings plugin new url"    : "Plugin URL"
       # SETTINGS
@@ -302,3 +334,9 @@ module.exports =
       'plugin name Sample JS'          : 'Sample'
       'plugin name Keyboard shortcuts' : 'Keyboard shortcuts'
       'plugin name VCard'              : 'Contacts VCards'
+      'plugin modal close'             : 'Close'
+
+      # Misc
+      'calendar unknown format' : """
+            This message contains an invite to an event in a currently unknown format.
+            """

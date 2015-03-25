@@ -1,5 +1,8 @@
 {ComposeActions} = require '../constants/app_constants'
 ContactStore     = require '../stores/contact_store'
+MessageStore     = require '../stores/message_store'
+ConversationActionCreator = require '../actions/conversation_action_creator'
+MessageActionCreator      = require '../actions/message_action_creator'
 
 module.exports = MessageUtils =
 
@@ -26,6 +29,16 @@ module.exports = MessageUtils =
             res.push(MessageUtils.displayAddress item, full)
         return res.join ", "
 
+    parseAddress: (text) ->
+        text = text.trim()
+        if match = text.match /"{0,1}(.*)"{0,1} <(.*)>/
+            address =
+                name: match[1]
+                address: match[2]
+        else
+            address =
+                address: text.replace(/^\s*/, '')
+
     getReplyToAddress: (message) ->
         reply = message.get 'replyTo'
         from = message.get 'from'
@@ -34,7 +47,7 @@ module.exports = MessageUtils =
         else
             return from
 
-    makeReplyMessage: (inReplyTo, action, inHTML) ->
+    makeReplyMessage: (myAddress, inReplyTo, action, inHTML) ->
         message =
             composeInHTML: inHTML
             attachments: Immutable.Vector.empty()
@@ -51,8 +64,8 @@ module.exports = MessageUtils =
                 try
                     html = markdown.toHTML text
                 catch e
-                    console.log "Error converting text message to Markdown: #{e}"
-                    html = "<div class='text'>#{text}</div>" #markdown.toHTML text
+                    console.log "Error converting message to Markdown: #{e}"
+                    html = "<div class='text'>#{text}</div>"
 
             if html and not text and not inHTML
                 text = toMarkdown html
@@ -63,38 +76,53 @@ module.exports = MessageUtils =
 
         switch action
             when ComposeActions.REPLY
+                separator = t('compose reply separator',
+                    {date: dateHuman, sender: sender})
                 message.to = @getReplyToAddress inReplyTo
                 message.cc = []
                 message.bcc = []
-                message.subject = "#{t 'compose reply prefix'}#{inReplyTo.get 'subject'}"
-                message.text = t('compose reply separator', {date: dateHuman, sender: sender}) +
-                    @generateReplyText(text) + "\n"
+                message.subject = """
+                    #{t 'compose reply prefix'}#{inReplyTo.get 'subject'}
+                    """
+                message.text = separator + @generateReplyText(text) + "\n"
                 message.html = """
                     <p><br /></p>
-                    <p>#{t('compose reply separator', {date: dateHuman, sender: sender})}<span class="originalToggle"> … </span></p>
+                    <p>#{separator}<span class="originalToggle"> … </span></p>
                     <blockquote>#{html}</blockquote>
                     <p><br /></p>
                     """
             when ComposeActions.REPLY_ALL
+                separator = t('compose reply separator',
+                    {date: dateHuman, sender: sender})
                 message.to = @getReplyToAddress inReplyTo
-                message.cc = [].concat inReplyTo.get('to'), inReplyTo.get('cc')
+                # filter to don't have same address twice
+                toAddresses = message.to.map (dest) -> return dest.address
+                message.cc = [].concat(inReplyTo.get('from'),
+                    inReplyTo.get('to'),
+                    inReplyTo.get('cc')).filter (dest) ->
+                    return dest? and toAddresses.indexOf(dest.address) is -1
                 message.bcc = []
-                message.subject = "#{t 'compose reply prefix'}#{inReplyTo.get 'subject'}"
-                message.text = t('compose reply separator', {date: dateHuman, sender: sender}) +
-                    @generateReplyText(text) + "\n"
+                message.subject = """
+                    #{t 'compose reply prefix'}#{inReplyTo.get 'subject'}
+                    """
+                message.text = separator + @generateReplyText(text) + "\n"
                 message.html = """
                     <p><br /></p>
-                    <p>#{t('compose reply separator', {date: dateHuman, sender: sender})}<span class="originalToggle"> … </span></p>
+                    <p>#{separator}<span class="originalToggle"> … </span></p>
                     <blockquote>#{html}</blockquote>
                     <p><br /></p>
                     """
             when ComposeActions.FORWARD
+                separator = t('compose forward separator',
+                    {date: dateHuman, sender: sender})
                 message.to = []
                 message.cc = []
                 message.bcc = []
-                message.subject = "#{t 'compose forward prefix'}#{inReplyTo.get 'subject'}"
-                message.text = t('compose forward separator', {date: dateHuman, sender: sender}) + text
-                message.html = "<p>#{t('compose forward separator', {date: dateHuman, sender: sender})}</p>" + html
+                message.subject = """
+                    #{t 'compose forward prefix'}#{inReplyTo.get 'subject'}
+                    """
+                message.text = separator + text
+                message.html = "<p>#{separator}</p>" + html
 
                 # Add original message attachments
                 message.attachments = inReplyTo.get 'attachments'
@@ -104,8 +132,13 @@ module.exports = MessageUtils =
                 message.cc      = []
                 message.bcc     = []
                 message.subject = ''
-                message.text    = t 'compose default'
+                message.text    = ''
+                message.html    = ''
 
+        # remove my address from dests
+        notMe = (dest) -> return dest.address isnt myAddress
+        message.to = message.to.filter notMe
+        message.cc = message.cc.filter notMe
         return message
 
     generateReplyText: (text) ->
@@ -163,3 +196,70 @@ module.exports = MessageUtils =
             return ContactStore.getAvatar message.get('from')[0].address
         else
             return null
+
+    # Delete message(s) or conversations
+    #
+    # @params {Mixed}    ids          messageID or Message or array of messageIDs or Messages
+    # @params {Boolean}  conversation true to delete whole conversation
+    # @params {Boolean}  confirm      true to ask user to confirm
+    # @params {Function} cb           callback
+    delete: (ids, conversation, confirm, cb) ->
+        if Array.isArray ids
+            mass = ids.length
+            selected = ids
+        else
+            mass = 1
+            selected = [ids]
+
+        if selected.length > 1
+            window.cozyMails.messageClose()
+
+        # Called one every message has been deleted
+        onDeleted = _.after selected.length, ->
+            # If we deleted only one message, navigate to the next one,
+            # otherwise close preview panel and select first message
+            if selected.length is 1
+                window.cozyMails.messageNavigate()
+            if typeof cb is 'function'
+                cb()
+
+        # Delete one message
+        deleteMessage = (messageID) ->
+            MessageActionCreator.delete messageID, (error) ->
+                if error?
+                    alertError "#{t("message action delete ko")} #{error}"
+                onDeleted()
+
+        # Delete one conversation
+        deleteConversation = (messageID) ->
+            if typeof messageID is 'string'
+                message = MessageStore.getByID messageID
+            else
+                message   = messageID
+                messageID = message.get 'id'
+            # sometime, draft messages don't have a conversationID
+            conversationID = message.get 'conversationID'
+            if conversationID?
+                ConversationActionCreator.delete conversationID, (error) ->
+                    if error?
+                        alertError "#{t("conversation delete ko")} #{error}"
+                    onDeleted()
+            else
+                deleteMessage(messageID)
+
+        if conversation
+            confirmMessage = t 'list delete conv confirm',
+                smart_count: selected.length
+        else
+            confirmMessage = t 'list delete confirm',
+                smart_count: selected.length
+
+        if (not confirm) or
+        window.confirm confirmMessage
+            selected.forEach (messageID) ->
+                if conversation
+                    deleteConversation messageID
+                else
+                    if typeof messageID isnt 'string'
+                        messageID = messageID.get 'id'
+                    deleteMessage messageID

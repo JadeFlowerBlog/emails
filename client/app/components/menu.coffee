@@ -4,7 +4,8 @@ classer = React.addons.classSet
 
 RouterMixin          = require '../mixins/router_mixin'
 LayoutActionCreator  = require '../actions/layout_action_creator'
-MessageActionCreator = require '../actions/message_action_creator'
+ConversationActionCreator = require '../actions/conversation_action_creator'
+MessageActionCreator      = require '../actions/message_action_creator'
 AccountStore         = require '../stores/account_store'
 Modal                = require './modal'
 ThinProgress         = require './thin_progress'
@@ -131,12 +132,13 @@ module.exports = Menu = React.createClass
                     i className: 'fa fa-inbox'
                     span className: 'item-label', t 'menu account new'
 
-            a
-                href: settingsUrl,
-                onClick: @_hideMenu
-                className: 'menu-item settings-action ' + settingsClass,
-                    i className: 'fa fa-cog'
-                    span className: 'item-label', t 'menu settings'
+            # #201: remove settings panel
+            #a
+            #    href: settingsUrl,
+            #    onClick: @_hideMenu
+            #    className: 'menu-item settings-action ' + settingsClass,
+            #        i className: 'fa fa-cog'
+            #        span className: 'item-label', t 'menu settings'
 
 
     # renders a single account and its submenu
@@ -205,11 +207,12 @@ module.exports = Menu = React.createClass
                         className: 'item-label',
                         account.get 'label'
 
-                if progress = refreshes.get accountID
+                if progress = refreshes.get(accountID)
                     if progress.get('errors').length
                         span className: 'refresh-error',
                             i className: 'fa warning', onClick: @displayErrors.bind null, progress
-                    ThinProgress done: progress.get('done'), total: progress.get('total')
+                    if progress.get('firstImport')
+                        ThinProgress done: progress.get('done'), total: progress.get('total')
 
             if isSelected
                 ul className: 'list-unstyled submenu mailbox-list',
@@ -311,7 +314,7 @@ MenuMailboxItem = React.createClass
                         className: 'item-label',
                         "#{pusher}#{@props.mailbox.get 'label'}"
 
-                if progress
+                if progress and progress.get('firstImport')
                     ThinProgress done: progress.get('done'), total: progress.get('total')
 
                 if progress?.get('errors').length
@@ -330,11 +333,20 @@ MenuMailboxItem = React.createClass
         e.preventDefault()
 
     onDrop: (event) ->
-        {messageID, mailboxID} = JSON.parse(event.dataTransfer.getData 'text')
+        {messageID, mailboxID, conversation} = JSON.parse(event.dataTransfer.getData 'text')
         newID = event.currentTarget.dataset.mailboxId
         @setState target: false
-        MessageActionCreator.move messageID, mailboxID, newID, (error) ->
-            if error?
-                LayoutActionCreator.alertError "#{t("message action move ko")} #{error}"
-            else
-                LayoutActionCreator.notify t "message action move ok"
+        if conversation
+            ConversationActionCreator.move messageID, mailboxID, newID, (error) ->
+                if error?
+                    LayoutActionCreator.alertError "#{t("conversation move ko")} #{error}"
+                else
+                    LayoutActionCreator.notify t("conversation move ok"),
+                        autoclose: true
+        else
+            MessageActionCreator.move messageID, mailboxID, newID, (error) ->
+                if error?
+                    LayoutActionCreator.alertError "#{t("message action move ko")} #{error}"
+                else
+                    LayoutActionCreator.notify t("message action move ok"),
+                        autoclose: true

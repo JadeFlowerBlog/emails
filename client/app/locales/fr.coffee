@@ -40,6 +40,7 @@ module.exports =
       "compose draft deleted"     : "Brouillon supprimé"
 
       # Menu
+      "menu show"               : "Montrer le menu"
       "menu compose"            : "Nouveau"
       "menu account new"        : "Ajouter un compte"
       "menu settings"           : "Paramètres"
@@ -48,11 +49,13 @@ module.exports =
       "menu mailbox new"        : " et %{smart_count} nouveaux |||| et %{smart_count} nouveaux "
       "menu favorites on"       : "Favorites"
       "menu favorites off"      : "Toutes"
+      "menu toggle"             : "Menu"
 
       # List
       "list empty"              : "Pas d'email dans cette boîte.."
       "no flagged message"      : "Pas d'email important dans cette boîte."
       "no unseen message"       : "Pas d'email non-lu dans cette boîte."
+      "no attach message"       : "Pas d'email avec des pièces-jointes."
       "no filter message"       : "Pas d'email pour ce filtre."
       "list fetching"           : "Chargement…"
       "list search empty"       : "Aucun résultat trouvé pour la requête
@@ -67,6 +70,8 @@ module.exports =
       "list filter unseen title"  : "N'afficher que les messages non lus"
       "list filter flagged"       : "Importants"
       "list filter flagged title" : "N'afficher que les messages importants"
+      "list filter attach"        : "Pièces-jointes"
+      "list filter attach title"  : "N'afficher que les messages avec des pièces-jointes"
       "list sort"                 : "Trier"
       "list sort date"            : "Date"
       "list sort subject"         : "Sujet"
@@ -74,7 +79,14 @@ module.exports =
       "list next page"            : "Davantage de messages"
       "list end"                  : "FIN"
       "list mass no message"      : "Aucun message sélectionné"
-      "list delete confirm"       : "Voulez-vous vraiment supprimer %{nb} messages ?"
+      "list delete confirm"       : """
+                                    Voulez-vous vraiment supprimer ce message ?||||
+                                    Voulez-vous vraiment supprimer %{smart_count} messages ?
+                                    """
+      "list delete conv confirm"  : """
+                                    Voulez-vous vraiment supprimer cette conversation ?||||
+                                    Voulez-vous vraiment supprimer %{smart_count} conversations ?
+                                    """
 
       # Mail
       "mail receivers"          : "À "
@@ -97,6 +109,7 @@ module.exports =
       "mail mark unread"        : "Non lu"
       "mail confirm delete"     : "Voulez-vous vraiment supprimer le message
                                     « %{subject} » ?"
+      "mail confirm delete nosubject"   : "Voulez-vous vraiment supprimer ce message"
       "mail action conversation delete" : "Supprimer la conversation"
       "mail action conversation move"   : "Déplacer la conversation"
       "mail action conversation seen"   : "Marquer la conversation comme lue"
@@ -112,6 +125,7 @@ module.exports =
       "account edit"                : "Modifier le compte"
       "account add"                 : "Créer"
       "account save"                : "Enregistrer"
+      "account saving"              : "En cours…"
       "account check"               : "Tester la connexion"
       "account accountType short"   : "IMAP"
       "account accountType"         : "Type de compte"
@@ -130,6 +144,15 @@ module.exports =
       "account password"            : "Mot de passe"
       "account receiving server"    : "Serveur de réception"
       "account sending server"      : "Serveur d'envoi"
+      "account smtpLogin short"     : "Utilisateur SMTP"
+      "account smtpLogin"           : "Utilisateur SMTP (s'il est différent)"
+      "account smtpMethod"          : "Méthode d'authentification"
+      "account smtpMethod NONE"     : "Aucune"
+      "account smtpMethod PLAIN"    : "Plain"
+      "account smtpMethod LOGIN"    : "Login"
+      "account smtpMethod CRAM-MD5" : "Cram-MD5"
+      "account smtpPassword short"  : "Mot de passe SMTP"
+      "account smtpPassword"        : "Mot de passe SMTP (s'il est différent)"
       "account smtpPort short"      : "465"
       "account smtpPort"            : "Port"
       "account smtpSSL"             : "Utiliser SSL"
@@ -147,8 +170,8 @@ module.exports =
       "account newmailbox label"    : "Nouveaux dossier"
       "account newmailbox placeholder" : "Nom"
       "account newmailbox parent"   : "Créer sous"
-      "account confirm delbox"      : "Voulez-vous vraiment supprimer ce
-                                        dossier et tout son contenu ?"
+      "account confirm delbox"      : "Voulez-vous vraiment supprimer
+                                        tous les messages de la corbeille ?"
       "account tab account"         : "Compte"
       "account tab mailboxes"       : "Dossiers"
       "account errors"              : "Certaines informations manquent ou
@@ -165,12 +188,16 @@ module.exports =
       "account danger zone"         : "Zone dangereuse"
       "account actions"             : "Actions"
       "account no special mailboxes": "Vous n'avez pas configuré les dossiers spéciaux"
+      "account smtp hide advanced"  : "Masquer les paramètres avancés"
+      "account smtp show advanced"  : "Afficher les paramètres avancés"
       "mailbox create ok"           : "Dossier créé"
       "mailbox create ko"           : "Erreur de création du dossier"
       "mailbox update ok"           : "Dossier mis à jour"
       "mailbox update ko"           : "Erreur de mise à jour"
       "mailbox delete ok"           : "Dossier supprimé"
       "mailbox delete ko"           : "Erreur de suppression du dossier"
+      "mailbox expunge ok"          : "Corbeille vidée"
+      "mailbox expunge ko"          : "Erreur de suppression des messages"
       "mailbox title edit"          : "Renommer le dossier"
       "mailbox title delete"        : "Supprimer le dossier"
       "mailbox title edit save"     : "Enregistrer"
@@ -205,20 +232,24 @@ module.exports =
       "message action mark ko"      : "L'opération a échoué"
       "conversation move ok"        : "Conversation déplacée"
       "conversation move ko"        : "L'opération a échoué"
-      "conversation delete ok"      : "Conversation supprimée"
+      "conversation delete ok"      : "Conversation « %{subject} » supprimée"
       "conversation delete ko"      : "L'opération a échoué"
       "conversation seen ok"        : "Ok"
       "conversation seen ko"        : "L'opération a échoué"
       "conversation unseen ok"      : "Ok"
       "conversation unseen ko"      : "L'opération a échoué"
+      "conversation undelete"       : "Annuler la suppression"
       "message images warning"      : "L'affichage des images du message a été
                                         bloqué"
       "message images display"      : "Afficher les images"
       "message html display"        : "Afficher en HTML"
       "message delete no trash"     : "Choisissez d'abord un dossier Corbeille"
+      "message delete already"      : "Ce message est déjà dans la corbeille"
+      "message move already"        : "Ce message est déjà dans ce dossier"
       "message undelete"            : "Annuler la suppression"
       "message undelete ok"         : "Message restauré"
       "message undelete error"      : "Impossible d'annuler l'action"
+      "message undelete unavailable": "Impossible d'annuler l'action"
       "message preview title"       : "Voir les pièces jointes"
 
       # Settings
@@ -228,6 +259,7 @@ module.exports =
       "settings plugins"           : "Modules complémentaires"
       "settings plugin add"        : "Ajouter"
       "settings plugin del"        : "Supprimer"
+      "settings plugin help"       : "Documentation"
       "settings plugin new name"   : "Nom du plugin"
       "settings plugin new url"    : "Url du plugin"
       # SETTINGS
@@ -308,9 +340,16 @@ module.exports =
       """
 
       # Plugins
-      'plugin name Gallery'            : 'Gallerie de pièces jointes'
+      'plugin name Gallery'            : 'Galerie de pièces jointes'
       'plugin name medium-editor'      : 'Éditeur Medium'
       'plugin name MiniSlate'          : 'Éditeur MiniSlate'
-      'plugin name Sample JS'          : 'Example'
+      'plugin name Sample JS'          : 'Exemple'
       'plugin name Keyboard shortcuts' : 'Raccourcis clavier'
       'plugin name VCard'              : 'Affichage de VCard'
+      'plugin modal close'             : 'Fermer'
+
+      # Misc
+      'calendar unknown format' : """
+            Ce message contient une invitation à un évènement
+            dans un format actuellement non pris en charge.
+            """

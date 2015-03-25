@@ -1,16 +1,16 @@
-americano = require 'americano'
+cozydb = require 'cozydb'
 emit = null # jslint
 
 module.exports =
     settings:
-        all: americano.defaultRequests.all
+        all: cozydb.defaultRequests.all
 
     account:
-        all: americano.defaultRequests.all
+        all: cozydb.defaultRequests.all
 
     contact:
-        all: americano.defaultRequests.all
-        byName: (doc) ->
+        all: cozydb.defaultRequests.all
+        mailByName: (doc) ->
             if doc.fn? and doc.fn.length > 0
                 emit doc.fn, doc
             if doc.n?
@@ -19,7 +19,7 @@ module.exports =
                 if dp.name is 'email'
                     emit dp.value, doc
                     emit dp.value.split('@')[1], doc
-        byEmail: (doc) ->
+        mailByEmail: (doc) ->
             for dp in doc.datapoints
                 if dp.name is 'email'
                     emit dp.value, doc
@@ -46,6 +46,9 @@ module.exports =
 
                         emit ['date', boxid, xflag, docDate], null
                         emit ['subject', boxid, xflag, doc.normSubject], null
+                    if doc.attachments?.length > 0
+                        emit ['date', boxid, '\\Attachments', docDate], null
+                        emit ['subject', boxid, '\\Attachments', doc.normSubject], null
                 undefined # prevent coffeescript comprehension
 
         # this map is used to dedup by message-id

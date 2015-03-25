@@ -1,3 +1,4 @@
+MessageUtils  = require './message_utils'
 AccountStore  = require '../stores/account_store'
 MessageStore  = require '../stores/message_store'
 SettingsStore = require '../stores/settings_store'
@@ -20,7 +21,7 @@ module.exports =
     getCurrentMessage: ->
         messageID = MessageStore.getCurrentID()
         message = MessageStore.getByID messageID
-        return message.toJS()
+        return message?.toJS()
 
     getCurrentActions: ->
         res = []
@@ -60,67 +61,75 @@ module.exports =
         AppDispatcher = require '../app_dispatcher'
         {ActionTypes} = require '../constants/app_constants'
         settings = SettingsStore.get().toJS()
-        settings[key] = value
+        if typeof key is 'object'
+            for own k, v of key
+                settings[k] = v
+        else
+            settings[key] = value
         AppDispatcher.handleViewAction
             type: ActionTypes.SETTINGS_UPDATED
             value: settings
 
-    messageNavigate: (direction, nextID) ->
+    messageNavigate: (direction, inConv) ->
         if not onMessageList()
             return
-        if not nextID?
-            if direction is 'prev'
-                nextID = MessageStore.getPreviousMessage()
-            else
-                nextID = MessageStore.getNextMessage()
-        if not nextID?
+        conv = inConv and SettingsStore.get('displayConversation') and
+            SettingsStore.get('displayPreview')
+        if direction is 'prev'
+            next = MessageStore.getPreviousMessage conv
+        else
+            next = MessageStore.getNextMessage conv
+        if not next?
             return
 
         MessageActionCreator = require '../actions/message_action_creator'
-        MessageActionCreator.setCurrent nextID
+
+        MessageActionCreator.setCurrent next.get('id'), true
 
         if SettingsStore.get('displayPreview')
-            @messageDisplay nextID
+            @messageDisplay next
 
-    messageDisplay: (messageID) ->
-        if not messageID
-            messageID = MessageStore.getCurrentID()
-        action = 'message'
+    messageDisplay: (message) ->
+        if not message?
+            message = MessageStore.getById(MessageStore.getCurrentID())
+        if not message?
+            return
         if SettingsStore.get('displayConversation')
-            message = MessageStore.getByID messageID
-            if not message?
-                return
-            conversationID = message.get 'conversationID'
+            action = 'conversation'
+            params =
+                messageID: message.get 'id'
+                conversationID: message.get 'conversationID'
+        else
+            action = 'message'
+            params =
+                messageID: message.get 'id'
 
-            if conversationID
-                action = 'conversation'
-
-        url = window.router.buildUrl direction: 'second', action: action, parameters: messageID
+        urlOptions =
+            direction: 'second'
+            action: action
+            parameters: params
+        url = window.router.buildUrl urlOptions
         window.router.navigate url, {trigger: true}
 
     messageClose: ->
         closeUrl = window.router.buildUrl
             direction: 'first'
             action: 'account.mailbox.messages'
-            parameters: AccountStore.getSelected().get 'id'
+            parameters:
+                accountID: AccountStore.getSelected().get 'id'
+                mailboxID: AccountStore.getSelectedMailbox().get 'id'
             fullWidth: true
         window.router.navigate closeUrl, {trigger: true}
 
     messageDeleteCurrent: ->
         if not onMessageList()
             return
-        MessageActionCreator = require '../actions/message_action_creator'
-        alertError   = LayoutActionCreator.alertError
-        message = MessageStore.getByID MessageStore.getCurrentID()
-        if not message?
+        messageID = MessageStore.getCurrentID()
+        if not messageID?
             return
-        if (not SettingsStore.get('messageConfirmDelete')) or
-        window.confirm(t 'mail confirm delete', {subject: message.get('subject')})
-            nextID = MessageStore.getNextMessage()
-            @messageNavigate(null, nextID)
-            MessageActionCreator.delete message, (error) ->
-                if error?
-                    alertError "#{t("message action delete ko")} #{error}"
+        settings = SettingsStore.get()
+        MessageUtils.delete messageID, settings.get 'displayConversation',
+            settings.get 'messageConfirmDelete'
 
     messageUndo: ->
         MessageActionCreator = require '../actions/message_action_creator'
@@ -135,8 +144,8 @@ module.exports =
         AppDispatcher = require '../app_dispatcher'
         window.setInterval ->
             content =
-                "accountID": AccountStore.getDefault().get('id'),
-                "id": AccountStore.getDefaultMailbox().get('id'),
+                "accountID": AccountStore.getDefault()?.get('id'),
+                "id": AccountStore.getDefaultMailbox()?.get('id'),
                 "label": "INBOX",
                 "path": "INBOX",
                 "tree": ["INBOX"],
@@ -156,11 +165,46 @@ module.exports =
         , 5000
 
     notify: (title, options) ->
-        if SettingsStore.get 'desktopNotifications'
+        if window.Notification? and SettingsStore.get 'desktopNotifications'
             new Notification title, options
         else
+            # If no option given, use title as notification body
+            if not options?
+                options =
+                    body: title
             # prevent dispatching when already dispatching
             window.setTimeout ->
                 LayoutActionCreator.notify "#{title} - #{options.body}"
             , 0
+
+    # Send errors to serveur
+    # Usage: window.cozyMails.log(new Error('message'))
+    log: (error) ->
+        url = error.stack.split('\n')[0].split('@')[1]
+            .split(/:\d/)[0].split('/').slice(0, -2).join('/')
+        window.onerror error.name, url, error.lineNumber, error.colNumber, error
+
+    # Debug: allow to dump component tree
+    dump: ->
+        _dump = (root) ->
+            res =
+                children: {}
+                state: {}
+                props: {}
+            for key, value of root.state
+                if (typeof root.state[key] is 'object')
+                    res.state[key] = '{object}'
+                else
+                    res.state[key] = value
+            for key, value of root.props
+                if (typeof root.props[key] is 'object')
+                    res.props[key] = '{object}'
+                else
+                    res.props[key] = value
+            for key, value of root.refs
+                res.children[key] = _dump root.refs[key]
+
+            return res
+
+        _dump window.rootComponent
 

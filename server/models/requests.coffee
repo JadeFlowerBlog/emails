@@ -1,4 +1,4 @@
-cozydb = require 'cozydb'
+cozydb = require 'cozy-db-pouchdb'
 emit = null # jslint
 
 module.exports =

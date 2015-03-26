@@ -1,4 +1,4 @@
-cozydb = require 'cozydb'
+cozydb = require 'cozy-db-pouchdb'
 async = require 'async'
 stream_to_buffer_array = require '../utils/stream_to_array'
 log = require('../utils/logging')(prefix: 'models:contact')

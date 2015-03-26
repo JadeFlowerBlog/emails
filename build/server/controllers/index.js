@@ -13,7 +13,7 @@ CONSTANTS = require('../utils/constants');
 
 async = require('async');
 
-cozydb = require('cozydb');
+cozydb = require('cozy-db-pouchdb');
 
 log = require('../utils/logging')({
   prefix: 'controllers:index'

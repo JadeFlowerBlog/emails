@@ -1,4 +1,4 @@
-cozydb = require 'cozydb'
+cozydb = require 'cozy-db-pouchdb'
 
 module.exports = Account = cozydb.getModel 'Account',
     label: String               # human readable label for the account

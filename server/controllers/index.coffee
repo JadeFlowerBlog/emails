@@ -4,7 +4,7 @@ Contact      = require '../models/contact'
 Settings     = require '../models/settings'
 CONSTANTS    = require '../utils/constants'
 async        = require 'async'
-cozydb       = require 'cozydb'
+cozydb       = require 'cozy-db-pouchdb'
 log          = require('../utils/logging')(prefix: 'controllers:index')
 
 

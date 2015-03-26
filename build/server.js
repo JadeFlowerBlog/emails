@@ -20,7 +20,7 @@ application = module.exports.start = function(options, callback) {
   if (callback == null) {
     callback = function() {};
   }
-  return americano.start(options, function(app, server) {
+  return americano.start(options, function(err, app, server) {
     return callback(null, app, server);
   });
 };

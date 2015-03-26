@@ -1,4 +1,4 @@
-cozydb = require 'cozydb'
+cozydb = require 'cozy-db-pouchdb'
 _ = require 'lodash'
 
 Any = (x) -> x

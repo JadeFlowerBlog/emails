@@ -2,7 +2,7 @@
 var Account, AccountConfigError, CONSTANTS, Compiler, ImapPool, ImapReporter, Mailbox, Message, SMTPConnection, async, cozydb, log, nodemailer, _,
   __indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
-cozydb = require('cozydb');
+cozydb = require('cozy-db-pouchdb');
 
 module.exports = Account = cozydb.getModel('Account', {
   label: String,

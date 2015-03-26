@@ -1,6 +1,6 @@
 async = require 'async'
 Account = require '../models/account'
-cozydb = require 'cozydb'
+cozydb = require 'cozy-db-pouchdb'
 
 module.exports.main = (req, res, next) ->
     async.series [

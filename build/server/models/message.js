@@ -4,7 +4,7 @@ var CONCURRENT_DESTROY, CONSTANTS, ImapPool, LIMIT_DESTROY, LIMIT_UPDATE, MSGBYP
   __hasProp = {}.hasOwnProperty,
   __indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
-cozydb = require('cozydb');
+cozydb = require('cozy-db-pouchdb');
 
 MailAdress = (function(_super) {
   __extends(MailAdress, _super);

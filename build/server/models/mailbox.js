@@ -2,7 +2,7 @@
 var Break, FETCH_AT_ONCE, ImapPool, ImapReporter, Mailbox, Message, NotFound, async, computeNextStep, cozydb, log, mailutils, _, _ref,
   __indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
-cozydb = require('cozydb');
+cozydb = require('cozy-db-pouchdb');
 
 module.exports = Mailbox = cozydb.getModel('Mailbox', {
   accountID: String,

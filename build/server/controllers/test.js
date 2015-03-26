@@ -5,7 +5,7 @@ async = require('async');
 
 Account = require('../models/account');
 
-cozydb = require('cozydb');
+cozydb = require('cozy-db-pouchdb');
 
 module.exports.main = function(req, res, next) {
   return async.series([

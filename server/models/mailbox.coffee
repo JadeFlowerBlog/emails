@@ -1,4 +1,4 @@
-cozydb = require 'cozydb'
+cozydb = require 'cozy-db-pouchdb'
 
 module.exports = Mailbox = cozydb.getModel 'Mailbox',
     accountID: String        # Parent account

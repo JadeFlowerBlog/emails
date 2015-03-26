@@ -42,7 +42,7 @@ config =
     ]
 
     plugins: [
-        'cozydb'
+        'cozy-db-pouchdb'
     ]
 
 module.exports = config

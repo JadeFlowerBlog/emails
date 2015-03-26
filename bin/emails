@@ -15,4 +15,4 @@ var root = path.join(__dirname, '..', 'build');
 var start = require(path.join(root, 'server')).start;
 var port = process.env.PORT || 9125;
 
-start({root: root, port: port}, function() {});
+start({root: root, port: port, dbName: 'db'}, function() {});

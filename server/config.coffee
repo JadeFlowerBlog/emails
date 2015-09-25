@@ -46,3 +46,4 @@ config =
     ]
 
 module.exports = config
+

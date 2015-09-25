@@ -6,6 +6,8 @@ application = module.exports.start = (options, callback) ->
     options.root ?= __dirname
     options.port ?= process.env.PORT or 9125
     options.host ?= process.env.HOST or '0.0.0.0'
+    options.dbName = process.env.POUCHDB_NAME or 'db'
+
 
     callback ?= ->
 
@@ -14,3 +16,4 @@ application = module.exports.start = (options, callback) ->
 
 if not module.parent
     application()
+

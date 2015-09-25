@@ -1,41 +1,24 @@
-{NotFound, AccountConfigError, TimeoutError} = require '../utils/errors'
+errors =  require '../utils/errors'
+{AccountConfigError, TimeoutError, PasswordEncryptedError} = errors
 log = require('../utils/logging')(prefix: 'imap:pool')
 rawImapLog = require('../utils/logging')(prefix: 'imap:raw')
 Account = require '../models/account'
 Imap = require './connection'
+xoauth2 = require 'xoauth2'
+async = require "async"
+accountConfigTools = require '../imap/account2config'
+{makeIMAPConfig, forceOauthRefresh, forceAccountFetch} = accountConfigTools
+Scheduler = require '../processes/_scheduler'
+RecoverChangedUIDValidity = require '../processes/recover_change_uidvalidity'
 
 connectionID = 1
 
-class ImapPool
+module.exports = class ImapPool
 
-    # static methods
-
-    @instances = {}
-
-    # get the pool for a given account
-    @get: (accountID) ->
-        @instances[accountID] ?= new ImapPool accountID
-        return @instances[accountID]
-
-    # create a temporary pool to test a connection
-    @test: (account, callback) ->
-        pool = new ImapPool account
-        pool.doASAP (imap, cbRelease) ->
-            cbRelease null, 'OK'
-        , (err) ->
-            pool.destroy()
-            callback err
-
-
-    constructor: (accountOrID) ->
-        if typeof accountOrID is 'string'
-            log.debug @id, "new pool #{accountOrID}"
-            @id = @accountID = accountOrID
-            @account = null
-        else
-            log.debug @id, "new pool Object##{accountOrID.id}"
-            @id = @accountID = accountOrID.id
-            @account = accountOrID
+    constructor: (account) ->
+        log.debug @id, "new pool Object##{account.id}"
+        @id = account.id or 'tmp'
+        @account = account
 
         @parallelism = 1
         @tasks = []             # tasks waiting to be processed
@@ -49,7 +32,6 @@ class ImapPool
         log.debug @id, "destroy"
         clearTimeout @closingTimer if @closingTimer
         @_closeConnections()
-        delete ImapPool.instances[@accountID]
 
     _removeFromPool: (connection) ->
         log.debug @id, "remove #{connection.connectionID} from pool"
@@ -58,62 +40,72 @@ class ImapPool
         index = @freeConnections.indexOf connection
         @freeConnections.splice index, 1
 
-    _getAccount: ->
-        log.debug @id, "getAccount"
-        Account.find @accountID, (err, account) =>
-            return @_giveUp err if err
-            return @_giveUp new NotFound "Account #{@accountID}" unless account
-            @account = account
-            @_deQueue()
-
     _makeConnection: ->
         log.debug @id, "makeConnection"
         @connecting++
 
-        options =
-            user       : @account.login
-            password   : @account.password
-            host       : @account.imapServer
-            port       : parseInt @account.imapPort
-            tls        : not @account.imapSSL? or @account.imapSSL
-            tlsOptions : rejectUnauthorized : false
-            # debug      : (content) -> rawImapLog.debug content
+        makeIMAPConfig @account, (err, options) =>
+            log.error "oauth generation error", err if err
+            return @_onConnectionError connectionName: '', err if err
 
-        imap = new Imap options
+            log.debug "Attempting connection"
+            password = options.password
+            if password then options.password = "****"
+            log.debug options
+            if password then options.password = password
 
-        onConnError = @_onConnectionError.bind this, imap
-        imap.connectionID = 'conn' + connectionID++
-        imap.connectionName = "#{options.host}:#{options.port}"
+            imap = new Imap options
+            onConnError = @_onConnectionError.bind this, imap
+            imap.connectionID = 'conn' + connectionID++
+            imap.connectionName = "#{options.host}:#{options.port}"
 
-        imap.on 'error', onConnError
-        imap.once 'ready', =>
-            log.debug @id, "imap ready"
-            imap.removeListener 'error', onConnError
-            clearTimeout wrongPortTimeout
-            @_onConnectionSuccess imap
+            imap.on 'error', onConnError
+            imap.once 'ready', =>
+                imap.removeListener 'error', onConnError
+                clearTimeout @wrongPortTimeout
+                @_onConnectionSuccess imap
 
-        imap.connect()
+            imap.connect()
 
-        # timeout when wrong port is too high
-        # bring it to 10s
-        wrongPortTimeout = setTimeout =>
-            log.debug @id, "timeout 10s"
-            imap.removeListener 'error', onConnError
-            onConnError new TimeoutError "Timeout connecting to #{@account?.imapServer}:#{@account?.imapPort}"
-            imap.destroy()
+            # timeout when wrong port is too high
+            # bring it to 10s
+            @wrongPortTimeout = setTimeout =>
+                log.debug @id, "timeout 10s"
+                imap.removeListener 'error', onConnError
+                onConnError new TimeoutError "Timeout connecting to " +
+                    "#{@account?.imapServer}:#{@account?.imapPort}"
+                imap.destroy()
 
-        ,10000
+            , 10000
 
 
     _onConnectionError: (connection, err) ->
         log.debug @id, "connection error on #{connection.connectionName}"
+        log.debug "RAW ERROR", err
         # we failed to establish a new connection
+        clearTimeout @wrongPortTimeout
         @connecting--
         @failConnectionCounter++
-        # try again in 5s
-        if @failConnectionCounter > 2
+
+        isAuth = err.textCode is 'AUTHENTICATIONFAILED'
+
+        if err instanceof PasswordEncryptedError
+            @_giveUp err
+
+        else if @failConnectionCounter > 2
+            # give up
             @_giveUp _typeConnectionError err
+        else if err.source is 'autentification' and
+                                             @account.oauthProvider is 'GMAIL'
+            # refresh accessToken
+            forceOauthRefresh @account, @_deQueue
+
+        # TMP : this should be removed when data-system#161 is widely deployed
+        else if isAuth and @account.id and @failConnectionCounter is 1
+            forceAccountFetch @account, @_deQueue
+
         else
+            # try again in 5s
             setTimeout @_deQueue, 5000
 
     _onConnectionSuccess: (connection) ->
@@ -128,12 +120,13 @@ class ImapPool
         process.nextTick @_deQueue
 
     _onActiveError: (connection, err) ->
-        log.error "error on active imap socket on #{connection.connectionName}", err.stack
+        name = connection.connectionName
+        log.error "error on active imap socket on #{name}", err
         @_removeFromPool connection
         try connection.destroy()
 
     _onActiveClose: (connection, err) ->
-        log.error "active connection #{connection.connectionName} closed", err.stack
+        log.error "active connection #{connection.connectionName} closed", err
         task = @pending[connection.connectionID]
         if task
             delete @pending[connection.connectionID]
@@ -155,7 +148,6 @@ class ImapPool
 
     _giveUp: (err) ->
         log.debug @id, "giveup", err
-        delete @account
         task = @tasks.pop()
         while task
             task.callback err
@@ -166,12 +158,8 @@ class ImapPool
         full = @connections.length + @connecting >= @parallelism
         moreTasks = @tasks.length > 0
 
-        unless @account
-            log.debug @id, "_deQueue/needaccount"
-            return @_getAccount()
-
         if @account.isTest()
-            log.debug @id, "_deQueue/test"
+            # log.debug @id, "_deQueue/test"
             if moreTasks
                 task = @tasks.pop()
                 task.callback? null
@@ -181,11 +169,11 @@ class ImapPool
 
         if moreTasks
             if @closingTimer
-                log.debug @id, "_deQueue/stopTimer"
+                # log.debug @id, "_deQueue/stopTimer"
                 clearTimeout @closingTimer
 
             if free
-                log.debug @id, "_deQueue/free"
+                # log.debug @id, "_deQueue/free"
                 imap = @freeConnections.pop()
                 task = @tasks.pop()
 
@@ -205,13 +193,13 @@ class ImapPool
                     process.nextTick @_deQueue
 
             else if not full
-                log.debug @id, "_deQueue/notfull"
+                # log.debug @id, "_deQueue/notfull"
                 @_makeConnection()
 
             # else queue is full, just wait
 
         else
-            log.debug @id, "_deQueue/startTimer"
+            # log.debug @id, "_deQueue/startTimer"
             @closingTimer ?= setTimeout @_closeConnections, 5000
 
 
@@ -223,29 +211,32 @@ class ImapPool
         typed = err
 
         if err.textCode is 'AUTHENTICATIONFAILED'
-            typed =  new AccountConfigError 'auth'
+            typed =  new AccountConfigError 'auth', err
 
         if err.code is 'ENOTFOUND' and err.syscall is 'getaddrinfo'
-            typed = new AccountConfigError 'imapServer'
+            typed = new AccountConfigError 'imapServer', err
+
+        if err.code is 'EHOSTUNREACH'
+            typed = new AccountConfigError 'imapServer', err
 
         if err.source is 'timeout-auth'
             # @TODO : this can happen for other reason,
             # we need to retry before throwing
-            typed = new AccountConfigError 'imapTLS'
+            typed = new AccountConfigError 'imapTLS', err
 
         if err instanceof TimeoutError
-            typed = new AccountConfigError 'imapPort'
+            typed = new AccountConfigError 'imapPort', err
 
-        return err
+        return typed
 
 
     _wrapOpenBox: (cozybox, operation) ->
 
         return wrapped = (imap, callback) =>
-            log.debug @id, "begin wrapped task"
+            # log.debug @id, "begin wrapped task"
 
             imap.openBox cozybox.path, (err, imapbox) =>
-                log.debug @id, "wrapped box opened", err
+                # log.debug @id, "wrapped box opened", err
                 return callback err if err
 
                 unless imapbox.persistentUIDs
@@ -257,13 +248,14 @@ class ImapPool
                 if oldUidvalidity and oldUidvalidity isnt newUidvalidity
                     log.error "uidvalidity has changed"
 
-                    # we got a problem, recover
-                    # @TODO : this can be long, prevent timeout
-                    cozybox.recoverChangedUIDValidity imap, (err) ->
-                        changes = uidvalidity: newUidvalidity
-                        cozybox.updateAttributes changes, (err) ->
-                            # we have recovered, try again
-                            wrapped imap, callback
+                    recover = new RecoverChangedUIDValidity
+                        newUidvalidity: newUidvalidity
+                        mailbox: cozybox
+                        imap: imap
+
+                    recover.run (err) ->
+                        log.error err if err
+                        wrapped imap, callback
 
                 else
                     # perform the wrapped operation
@@ -301,22 +293,3 @@ class ImapPool
         @tasks.push {operation, callback}
         @_deQueue()
 
-
-
-module.exports =
-    get: (accountID) -> ImapPool.get accountID
-    test: (accountID, cb) -> ImapPool.test accountID, cb
-
-
-
-
-# use me
-# ImapPool = require 'this-file'
-# pool = ImapPool.get(accountID)
-# pool.doASAP (imap, cb) ->
-#     imap.doStuff cb
-# , callback
-
-# pool.usingBox box, (imap, cb) ->
-#     imap.doStuff cb
-# , callback

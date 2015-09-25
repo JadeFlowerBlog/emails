@@ -2,6 +2,7 @@ Store = require '../libs/flux/store/store'
 
 {ActionTypes} = require '../constants/app_constants'
 
+
 class SearchStore extends Store
 
     ###
@@ -20,7 +21,7 @@ class SearchStore extends Store
     __bindHandlers: (handle) ->
 
         handle ActionTypes.RECEIVE_RAW_SEARCH_RESULTS, (rawResults) ->
-            if rawResult?
+            if rawResults?
                 _results = _results.withMutations (map) ->
                     rawResults.forEach (rawResult) ->
                         message = Immutable.Map rawResult
@@ -42,8 +43,11 @@ class SearchStore extends Store
     ###
         Public API
     ###
-    getResults: -> return _results
+    getResults: ->
+        return _results
 
-    getQuery: -> return _query
+    getQuery: ->
+        return _query
+
 
 module.exports = new SearchStore()

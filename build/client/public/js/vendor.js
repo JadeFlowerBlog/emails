@@ -1,42 +1,59 @@
-(function(/*! Brunch !*/) {
+(function() {
   'use strict';
 
-  var globals = typeof window !== 'undefined' ? window : global;
+  var globals = typeof window === 'undefined' ? global : window;
   if (typeof globals.require === 'function') return;
 
   var modules = {};
   var cache = {};
+  var has = ({}).hasOwnProperty;
 
-  var has = function(object, name) {
-    return ({}).hasOwnProperty.call(object, name);
+  var aliases = {};
+
+  var endsWith = function(str, suffix) {
+    return str.indexOf(suffix, str.length - suffix.length) !== -1;
   };
 
-  var expand = function(root, name) {
-    var results = [], parts, part;
-    if (/^\.\.?(\/|$)/.test(name)) {
-      parts = [root, name].join('/').split('/');
-    } else {
-      parts = name.split('/');
-    }
-    for (var i = 0, length = parts.length; i < length; i++) {
-      part = parts[i];
-      if (part === '..') {
-        results.pop();
-      } else if (part !== '.' && part !== '') {
-        results.push(part);
+  var unalias = function(alias, loaderPath) {
+    var start = 0;
+    if (loaderPath) {
+      if (loaderPath.indexOf('components/' === 0)) {
+        start = 'components/'.length;
+      }
+      if (loaderPath.indexOf('/', start) > 0) {
+        loaderPath = loaderPath.substring(start, loaderPath.indexOf('/', start));
       }
     }
-    return results.join('/');
+    var result = aliases[alias + '/index.js'] || aliases[loaderPath + '/deps/' + alias + '/index.js'];
+    if (result) {
+      return 'components/' + result.substring(0, result.length - '.js'.length);
+    }
+    return alias;
   };
 
+  var expand = (function() {
+    var reg = /^\.\.?(\/|$)/;
+    return function(root, name) {
+      var results = [], parts, part;
+      parts = (reg.test(name) ? root + '/' + name : name).split('/');
+      for (var i = 0, length = parts.length; i < length; i++) {
+        part = parts[i];
+        if (part === '..') {
+          results.pop();
+        } else if (part !== '.' && part !== '') {
+          results.push(part);
+        }
+      }
+      return results.join('/');
+    };
+  })();
   var dirname = function(path) {
     return path.split('/').slice(0, -1).join('/');
   };
 
   var localRequire = function(path) {
     return function(name) {
-      var dir = dirname(path);
-      var absolute = expand(dir, name);
+      var absolute = expand(dirname(path), name);
       return globals.require(absolute, path);
     };
   };
@@ -51,21 +68,26 @@
   var require = function(name, loaderPath) {
     var path = expand(name, '.');
     if (loaderPath == null) loaderPath = '/';
+    path = unalias(name, loaderPath);
 
-    if (has(cache, path)) return cache[path].exports;
-    if (has(modules, path)) return initModule(path, modules[path]);
+    if (has.call(cache, path)) return cache[path].exports;
+    if (has.call(modules, path)) return initModule(path, modules[path]);
 
     var dirIndex = expand(path, './index');
-    if (has(cache, dirIndex)) return cache[dirIndex].exports;
-    if (has(modules, dirIndex)) return initModule(dirIndex, modules[dirIndex]);
+    if (has.call(cache, dirIndex)) return cache[dirIndex].exports;
+    if (has.call(modules, dirIndex)) return initModule(dirIndex, modules[dirIndex]);
 
     throw new Error('Cannot find module "' + name + '" from '+ '"' + loaderPath + '"');
   };
 
-  var define = function(bundle, fn) {
+  require.alias = function(from, to) {
+    aliases[to] = from;
+  };
+
+  require.register = require.define = function(bundle, fn) {
     if (typeof bundle === 'object') {
       for (var key in bundle) {
-        if (has(bundle, key)) {
+        if (has.call(bundle, key)) {
           modules[key] = bundle[key];
         }
       }
@@ -74,21 +96,18 @@
     }
   };
 
-  var list = function() {
+  require.list = function() {
     var result = [];
     for (var item in modules) {
-      if (has(modules, item)) {
+      if (has.call(modules, item)) {
         result.push(item);
       }
     }
     return result;
   };
 
+  require.brunch = true;
   globals.require = require;
-  globals.require.define = define;
-  globals.require.register = define;
-  globals.require.list = list;
-  globals.require.brunch = true;
 })();
 var isFunction = function(o) {
   return typeof o == 'function';
@@ -392,7 +411,7 @@ if (!isFunction(window.CustomEvent)) {
   });
   global.EventEmitter = require('/index.js');
 }.call(this, this));
-;/**
+/**
  * React (with addons) v0.11.1
  */
 !function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.React=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(_dereq_,module,exports){
@@ -20643,7 +20662,7 @@ module.exports = warning;
 },{"./emptyFunction":116}]},{},[88])
 (88)
 });
-;/*!
+/*!
  * jQuery JavaScript Library v2.1.1
  * http://jquery.com/
  *
@@ -29834,7 +29853,7 @@ return jQuery;
 
 }));
 
-;//     Underscore.js 1.6.0
+//     Underscore.js 1.6.0
 //     http://underscorejs.org
 //     (c) 2009-2014 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
 //     Underscore may be freely distributed under the MIT license.
@@ -31178,7 +31197,7 @@ return jQuery;
   }
 }).call(this);
 
-;//     Backbone.js 1.1.2
+//     Backbone.js 1.1.2
 
 //     (c) 2010-2014 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
 //     Backbone may be freely distributed under the MIT license.
@@ -32787,7 +32806,7 @@ return jQuery;
 
 }));
 
-;;(function(){
+;(function(){
 
 /**
  * Require the given path.
@@ -34303,13 +34322,13 @@ require.alias("superagent/lib/client.js", "superagent/index.js");if (typeof expo
 } else {
   this["superagent"] = require("superagent");
 }})();
-;/*!
+/*!
  * Bootstrap v3.1.1 (http://getbootstrap.com)
  * Copyright 2011-2014 Twitter, Inc.
  * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
  */
 if("undefined"==typeof jQuery)throw new Error("Bootstrap's JavaScript requires jQuery");+function(a){"use strict";function b(){var a=document.createElement("bootstrap"),b={WebkitTransition:"webkitTransitionEnd",MozTransition:"transitionend",OTransition:"oTransitionEnd otransitionend",transition:"transitionend"};for(var c in b)if(void 0!==a.style[c])return{end:b[c]};return!1}a.fn.emulateTransitionEnd=function(b){var c=!1,d=this;a(this).one(a.support.transition.end,function(){c=!0});var e=function(){c||a(d).trigger(a.support.transition.end)};return setTimeout(e,b),this},a(function(){a.support.transition=b()})}(jQuery),+function(a){"use strict";var b='[data-dismiss="alert"]',c=function(c){a(c).on("click",b,this.close)};c.prototype.close=function(b){function c(){f.trigger("closed.bs.alert").remove()}var d=a(this),e=d.attr("data-target");e||(e=d.attr("href"),e=e&&e.replace(/.*(?=#[^\s]*$)/,""));var f=a(e);b&&b.preventDefault(),f.length||(f=d.hasClass("alert")?d:d.parent()),f.trigger(b=a.Event("close.bs.alert")),b.isDefaultPrevented()||(f.removeClass("in"),a.support.transition&&f.hasClass("fade")?f.one(a.support.transition.end,c).emulateTransitionEnd(150):c())};var d=a.fn.alert;a.fn.alert=function(b){return this.each(function(){var d=a(this),e=d.data("bs.alert");e||d.data("bs.alert",e=new c(this)),"string"==typeof b&&e[b].call(d)})},a.fn.alert.Constructor=c,a.fn.alert.noConflict=function(){return a.fn.alert=d,this},a(document).on("click.bs.alert.data-api",b,c.prototype.close)}(jQuery),+function(a){"use strict";var b=function(c,d){this.$element=a(c),this.options=a.extend({},b.DEFAULTS,d),this.isLoading=!1};b.DEFAULTS={loadingText:"loading..."},b.prototype.setState=function(b){var c="disabled",d=this.$element,e=d.is("input")?"val":"html",f=d.data();b+="Text",f.resetText||d.data("resetText",d[e]()),d[e](f[b]||this.options[b]),setTimeout(a.proxy(function(){"loadingText"==b?(this.isLoading=!0,d.addClass(c).attr(c,c)):this.isLoading&&(this.isLoading=!1,d.removeClass(c).removeAttr(c))},this),0)},b.prototype.toggle=function(){var a=!0,b=this.$element.closest('[data-toggle="buttons"]');if(b.length){var c=this.$element.find("input");"radio"==c.prop("type")&&(c.prop("checked")&&this.$element.hasClass("active")?a=!1:b.find(".active").removeClass("active")),a&&c.prop("checked",!this.$element.hasClass("active")).trigger("change")}a&&this.$element.toggleClass("active")};var c=a.fn.button;a.fn.button=function(c){return this.each(function(){var d=a(this),e=d.data("bs.button"),f="object"==typeof c&&c;e||d.data("bs.button",e=new b(this,f)),"toggle"==c?e.toggle():c&&e.setState(c)})},a.fn.button.Constructor=b,a.fn.button.noConflict=function(){return a.fn.button=c,this},a(document).on("click.bs.button.data-api","[data-toggle^=button]",function(b){var c=a(b.target);c.hasClass("btn")||(c=c.closest(".btn")),c.button("toggle"),b.preventDefault()})}(jQuery),+function(a){"use strict";var b=function(b,c){this.$element=a(b),this.$indicators=this.$element.find(".carousel-indicators"),this.options=c,this.paused=this.sliding=this.interval=this.$active=this.$items=null,"hover"==this.options.pause&&this.$element.on("mouseenter",a.proxy(this.pause,this)).on("mouseleave",a.proxy(this.cycle,this))};b.DEFAULTS={interval:5e3,pause:"hover",wrap:!0},b.prototype.cycle=function(b){return b||(this.paused=!1),this.interval&&clearInterval(this.interval),this.options.interval&&!this.paused&&(this.interval=setInterval(a.proxy(this.next,this),this.options.interval)),this},b.prototype.getActiveIndex=function(){return this.$active=this.$element.find(".item.active"),this.$items=this.$active.parent().children(),this.$items.index(this.$active)},b.prototype.to=function(b){var c=this,d=this.getActiveIndex();return b>this.$items.length-1||0>b?void 0:this.sliding?this.$element.one("slid.bs.carousel",function(){c.to(b)}):d==b?this.pause().cycle():this.slide(b>d?"next":"prev",a(this.$items[b]))},b.prototype.pause=function(b){return b||(this.paused=!0),this.$element.find(".next, .prev").length&&a.support.transition&&(this.$element.trigger(a.support.transition.end),this.cycle(!0)),this.interval=clearInterval(this.interval),this},b.prototype.next=function(){return this.sliding?void 0:this.slide("next")},b.prototype.prev=function(){return this.sliding?void 0:this.slide("prev")},b.prototype.slide=function(b,c){var d=this.$element.find(".item.active"),e=c||d[b](),f=this.interval,g="next"==b?"left":"right",h="next"==b?"first":"last",i=this;if(!e.length){if(!this.options.wrap)return;e=this.$element.find(".item")[h]()}if(e.hasClass("active"))return this.sliding=!1;var j=a.Event("slide.bs.carousel",{relatedTarget:e[0],direction:g});return this.$element.trigger(j),j.isDefaultPrevented()?void 0:(this.sliding=!0,f&&this.pause(),this.$indicators.length&&(this.$indicators.find(".active").removeClass("active"),this.$element.one("slid.bs.carousel",function(){var b=a(i.$indicators.children()[i.getActiveIndex()]);b&&b.addClass("active")})),a.support.transition&&this.$element.hasClass("slide")?(e.addClass(b),e[0].offsetWidth,d.addClass(g),e.addClass(g),d.one(a.support.transition.end,function(){e.removeClass([b,g].join(" ")).addClass("active"),d.removeClass(["active",g].join(" ")),i.sliding=!1,setTimeout(function(){i.$element.trigger("slid.bs.carousel")},0)}).emulateTransitionEnd(1e3*d.css("transition-duration").slice(0,-1))):(d.removeClass("active"),e.addClass("active"),this.sliding=!1,this.$element.trigger("slid.bs.carousel")),f&&this.cycle(),this)};var c=a.fn.carousel;a.fn.carousel=function(c){return this.each(function(){var d=a(this),e=d.data("bs.carousel"),f=a.extend({},b.DEFAULTS,d.data(),"object"==typeof c&&c),g="string"==typeof c?c:f.slide;e||d.data("bs.carousel",e=new b(this,f)),"number"==typeof c?e.to(c):g?e[g]():f.interval&&e.pause().cycle()})},a.fn.carousel.Constructor=b,a.fn.carousel.noConflict=function(){return a.fn.carousel=c,this},a(document).on("click.bs.carousel.data-api","[data-slide], [data-slide-to]",function(b){var c,d=a(this),e=a(d.attr("data-target")||(c=d.attr("href"))&&c.replace(/.*(?=#[^\s]+$)/,"")),f=a.extend({},e.data(),d.data()),g=d.attr("data-slide-to");g&&(f.interval=!1),e.carousel(f),(g=d.attr("data-slide-to"))&&e.data("bs.carousel").to(g),b.preventDefault()}),a(window).on("load",function(){a('[data-ride="carousel"]').each(function(){var b=a(this);b.carousel(b.data())})})}(jQuery),+function(a){"use strict";var b=function(c,d){this.$element=a(c),this.options=a.extend({},b.DEFAULTS,d),this.transitioning=null,this.options.parent&&(this.$parent=a(this.options.parent)),this.options.toggle&&this.toggle()};b.DEFAULTS={toggle:!0},b.prototype.dimension=function(){var a=this.$element.hasClass("width");return a?"width":"height"},b.prototype.show=function(){if(!this.transitioning&&!this.$element.hasClass("in")){var b=a.Event("show.bs.collapse");if(this.$element.trigger(b),!b.isDefaultPrevented()){var c=this.$parent&&this.$parent.find("> .panel > .in");if(c&&c.length){var d=c.data("bs.collapse");if(d&&d.transitioning)return;c.collapse("hide"),d||c.data("bs.collapse",null)}var e=this.dimension();this.$element.removeClass("collapse").addClass("collapsing")[e](0),this.transitioning=1;var f=function(){this.$element.removeClass("collapsing").addClass("collapse in")[e]("auto"),this.transitioning=0,this.$element.trigger("shown.bs.collapse")};if(!a.support.transition)return f.call(this);var g=a.camelCase(["scroll",e].join("-"));this.$element.one(a.support.transition.end,a.proxy(f,this)).emulateTransitionEnd(350)[e](this.$element[0][g])}}},b.prototype.hide=function(){if(!this.transitioning&&this.$element.hasClass("in")){var b=a.Event("hide.bs.collapse");if(this.$element.trigger(b),!b.isDefaultPrevented()){var c=this.dimension();this.$element[c](this.$element[c]())[0].offsetHeight,this.$element.addClass("collapsing").removeClass("collapse").removeClass("in"),this.transitioning=1;var d=function(){this.transitioning=0,this.$element.trigger("hidden.bs.collapse").removeClass("collapsing").addClass("collapse")};return a.support.transition?void this.$element[c](0).one(a.support.transition.end,a.proxy(d,this)).emulateTransitionEnd(350):d.call(this)}}},b.prototype.toggle=function(){this[this.$element.hasClass("in")?"hide":"show"]()};var c=a.fn.collapse;a.fn.collapse=function(c){return this.each(function(){var d=a(this),e=d.data("bs.collapse"),f=a.extend({},b.DEFAULTS,d.data(),"object"==typeof c&&c);!e&&f.toggle&&"show"==c&&(c=!c),e||d.data("bs.collapse",e=new b(this,f)),"string"==typeof c&&e[c]()})},a.fn.collapse.Constructor=b,a.fn.collapse.noConflict=function(){return a.fn.collapse=c,this},a(document).on("click.bs.collapse.data-api","[data-toggle=collapse]",function(b){var c,d=a(this),e=d.attr("data-target")||b.preventDefault()||(c=d.attr("href"))&&c.replace(/.*(?=#[^\s]+$)/,""),f=a(e),g=f.data("bs.collapse"),h=g?"toggle":d.data(),i=d.attr("data-parent"),j=i&&a(i);g&&g.transitioning||(j&&j.find('[data-toggle=collapse][data-parent="'+i+'"]').not(d).addClass("collapsed"),d[f.hasClass("in")?"addClass":"removeClass"]("collapsed")),f.collapse(h)})}(jQuery),+function(a){"use strict";function b(b){a(d).remove(),a(e).each(function(){var d=c(a(this)),e={relatedTarget:this};d.hasClass("open")&&(d.trigger(b=a.Event("hide.bs.dropdown",e)),b.isDefaultPrevented()||d.removeClass("open").trigger("hidden.bs.dropdown",e))})}function c(b){var c=b.attr("data-target");c||(c=b.attr("href"),c=c&&/#[A-Za-z]/.test(c)&&c.replace(/.*(?=#[^\s]*$)/,""));var d=c&&a(c);return d&&d.length?d:b.parent()}var d=".dropdown-backdrop",e="[data-toggle=dropdown]",f=function(b){a(b).on("click.bs.dropdown",this.toggle)};f.prototype.toggle=function(d){var e=a(this);if(!e.is(".disabled, :disabled")){var f=c(e),g=f.hasClass("open");if(b(),!g){"ontouchstart"in document.documentElement&&!f.closest(".navbar-nav").length&&a('<div class="dropdown-backdrop"/>').insertAfter(a(this)).on("click",b);var h={relatedTarget:this};if(f.trigger(d=a.Event("show.bs.dropdown",h)),d.isDefaultPrevented())return;f.toggleClass("open").trigger("shown.bs.dropdown",h),e.focus()}return!1}},f.prototype.keydown=function(b){if(/(38|40|27)/.test(b.keyCode)){var d=a(this);if(b.preventDefault(),b.stopPropagation(),!d.is(".disabled, :disabled")){var f=c(d),g=f.hasClass("open");if(!g||g&&27==b.keyCode)return 27==b.which&&f.find(e).focus(),d.click();var h=" li:not(.divider):visible a",i=f.find("[role=menu]"+h+", [role=listbox]"+h);if(i.length){var j=i.index(i.filter(":focus"));38==b.keyCode&&j>0&&j--,40==b.keyCode&&j<i.length-1&&j++,~j||(j=0),i.eq(j).focus()}}}};var g=a.fn.dropdown;a.fn.dropdown=function(b){return this.each(function(){var c=a(this),d=c.data("bs.dropdown");d||c.data("bs.dropdown",d=new f(this)),"string"==typeof b&&d[b].call(c)})},a.fn.dropdown.Constructor=f,a.fn.dropdown.noConflict=function(){return a.fn.dropdown=g,this},a(document).on("click.bs.dropdown.data-api",b).on("click.bs.dropdown.data-api",".dropdown form",function(a){a.stopPropagation()}).on("click.bs.dropdown.data-api",e,f.prototype.toggle).on("keydown.bs.dropdown.data-api",e+", [role=menu], [role=listbox]",f.prototype.keydown)}(jQuery),+function(a){"use strict";var b=function(b,c){this.options=c,this.$element=a(b),this.$backdrop=this.isShown=null,this.options.remote&&this.$element.find(".modal-content").load(this.options.remote,a.proxy(function(){this.$element.trigger("loaded.bs.modal")},this))};b.DEFAULTS={backdrop:!0,keyboard:!0,show:!0},b.prototype.toggle=function(a){return this[this.isShown?"hide":"show"](a)},b.prototype.show=function(b){var c=this,d=a.Event("show.bs.modal",{relatedTarget:b});this.$element.trigger(d),this.isShown||d.isDefaultPrevented()||(this.isShown=!0,this.escape(),this.$element.on("click.dismiss.bs.modal",'[data-dismiss="modal"]',a.proxy(this.hide,this)),this.backdrop(function(){var d=a.support.transition&&c.$element.hasClass("fade");c.$element.parent().length||c.$element.appendTo(document.body),c.$element.show().scrollTop(0),d&&c.$element[0].offsetWidth,c.$element.addClass("in").attr("aria-hidden",!1),c.enforceFocus();var e=a.Event("shown.bs.modal",{relatedTarget:b});d?c.$element.find(".modal-dialog").one(a.support.transition.end,function(){c.$element.focus().trigger(e)}).emulateTransitionEnd(300):c.$element.focus().trigger(e)}))},b.prototype.hide=function(b){b&&b.preventDefault(),b=a.Event("hide.bs.modal"),this.$element.trigger(b),this.isShown&&!b.isDefaultPrevented()&&(this.isShown=!1,this.escape(),a(document).off("focusin.bs.modal"),this.$element.removeClass("in").attr("aria-hidden",!0).off("click.dismiss.bs.modal"),a.support.transition&&this.$element.hasClass("fade")?this.$element.one(a.support.transition.end,a.proxy(this.hideModal,this)).emulateTransitionEnd(300):this.hideModal())},b.prototype.enforceFocus=function(){a(document).off("focusin.bs.modal").on("focusin.bs.modal",a.proxy(function(a){this.$element[0]===a.target||this.$element.has(a.target).length||this.$element.focus()},this))},b.prototype.escape=function(){this.isShown&&this.options.keyboard?this.$element.on("keyup.dismiss.bs.modal",a.proxy(function(a){27==a.which&&this.hide()},this)):this.isShown||this.$element.off("keyup.dismiss.bs.modal")},b.prototype.hideModal=function(){var a=this;this.$element.hide(),this.backdrop(function(){a.removeBackdrop(),a.$element.trigger("hidden.bs.modal")})},b.prototype.removeBackdrop=function(){this.$backdrop&&this.$backdrop.remove(),this.$backdrop=null},b.prototype.backdrop=function(b){var c=this.$element.hasClass("fade")?"fade":"";if(this.isShown&&this.options.backdrop){var d=a.support.transition&&c;if(this.$backdrop=a('<div class="modal-backdrop '+c+'" />').appendTo(document.body),this.$element.on("click.dismiss.bs.modal",a.proxy(function(a){a.target===a.currentTarget&&("static"==this.options.backdrop?this.$element[0].focus.call(this.$element[0]):this.hide.call(this))},this)),d&&this.$backdrop[0].offsetWidth,this.$backdrop.addClass("in"),!b)return;d?this.$backdrop.one(a.support.transition.end,b).emulateTransitionEnd(150):b()}else!this.isShown&&this.$backdrop?(this.$backdrop.removeClass("in"),a.support.transition&&this.$element.hasClass("fade")?this.$backdrop.one(a.support.transition.end,b).emulateTransitionEnd(150):b()):b&&b()};var c=a.fn.modal;a.fn.modal=function(c,d){return this.each(function(){var e=a(this),f=e.data("bs.modal"),g=a.extend({},b.DEFAULTS,e.data(),"object"==typeof c&&c);f||e.data("bs.modal",f=new b(this,g)),"string"==typeof c?f[c](d):g.show&&f.show(d)})},a.fn.modal.Constructor=b,a.fn.modal.noConflict=function(){return a.fn.modal=c,this},a(document).on("click.bs.modal.data-api",'[data-toggle="modal"]',function(b){var c=a(this),d=c.attr("href"),e=a(c.attr("data-target")||d&&d.replace(/.*(?=#[^\s]+$)/,"")),f=e.data("bs.modal")?"toggle":a.extend({remote:!/#/.test(d)&&d},e.data(),c.data());c.is("a")&&b.preventDefault(),e.modal(f,this).one("hide",function(){c.is(":visible")&&c.focus()})}),a(document).on("show.bs.modal",".modal",function(){a(document.body).addClass("modal-open")}).on("hidden.bs.modal",".modal",function(){a(document.body).removeClass("modal-open")})}(jQuery),+function(a){"use strict";var b=function(a,b){this.type=this.options=this.enabled=this.timeout=this.hoverState=this.$element=null,this.init("tooltip",a,b)};b.DEFAULTS={animation:!0,placement:"top",selector:!1,template:'<div class="tooltip"><div class="tooltip-arrow"></div><div class="tooltip-inner"></div></div>',trigger:"hover focus",title:"",delay:0,html:!1,container:!1},b.prototype.init=function(b,c,d){this.enabled=!0,this.type=b,this.$element=a(c),this.options=this.getOptions(d);for(var e=this.options.trigger.split(" "),f=e.length;f--;){var g=e[f];if("click"==g)this.$element.on("click."+this.type,this.options.selector,a.proxy(this.toggle,this));else if("manual"!=g){var h="hover"==g?"mouseenter":"focusin",i="hover"==g?"mouseleave":"focusout";this.$element.on(h+"."+this.type,this.options.selector,a.proxy(this.enter,this)),this.$element.on(i+"."+this.type,this.options.selector,a.proxy(this.leave,this))}}this.options.selector?this._options=a.extend({},this.options,{trigger:"manual",selector:""}):this.fixTitle()},b.prototype.getDefaults=function(){return b.DEFAULTS},b.prototype.getOptions=function(b){return b=a.extend({},this.getDefaults(),this.$element.data(),b),b.delay&&"number"==typeof b.delay&&(b.delay={show:b.delay,hide:b.delay}),b},b.prototype.getDelegateOptions=function(){var b={},c=this.getDefaults();return this._options&&a.each(this._options,function(a,d){c[a]!=d&&(b[a]=d)}),b},b.prototype.enter=function(b){var c=b instanceof this.constructor?b:a(b.currentTarget)[this.type](this.getDelegateOptions()).data("bs."+this.type);return clearTimeout(c.timeout),c.hoverState="in",c.options.delay&&c.options.delay.show?void(c.timeout=setTimeout(function(){"in"==c.hoverState&&c.show()},c.options.delay.show)):c.show()},b.prototype.leave=function(b){var c=b instanceof this.constructor?b:a(b.currentTarget)[this.type](this.getDelegateOptions()).data("bs."+this.type);return clearTimeout(c.timeout),c.hoverState="out",c.options.delay&&c.options.delay.hide?void(c.timeout=setTimeout(function(){"out"==c.hoverState&&c.hide()},c.options.delay.hide)):c.hide()},b.prototype.show=function(){var b=a.Event("show.bs."+this.type);if(this.hasContent()&&this.enabled){if(this.$element.trigger(b),b.isDefaultPrevented())return;var c=this,d=this.tip();this.setContent(),this.options.animation&&d.addClass("fade");var e="function"==typeof this.options.placement?this.options.placement.call(this,d[0],this.$element[0]):this.options.placement,f=/\s?auto?\s?/i,g=f.test(e);g&&(e=e.replace(f,"")||"top"),d.detach().css({top:0,left:0,display:"block"}).addClass(e),this.options.container?d.appendTo(this.options.container):d.insertAfter(this.$element);var h=this.getPosition(),i=d[0].offsetWidth,j=d[0].offsetHeight;if(g){var k=this.$element.parent(),l=e,m=document.documentElement.scrollTop||document.body.scrollTop,n="body"==this.options.container?window.innerWidth:k.outerWidth(),o="body"==this.options.container?window.innerHeight:k.outerHeight(),p="body"==this.options.container?0:k.offset().left;e="bottom"==e&&h.top+h.height+j-m>o?"top":"top"==e&&h.top-m-j<0?"bottom":"right"==e&&h.right+i>n?"left":"left"==e&&h.left-i<p?"right":e,d.removeClass(l).addClass(e)}var q=this.getCalculatedOffset(e,h,i,j);this.applyPlacement(q,e),this.hoverState=null;var r=function(){c.$element.trigger("shown.bs."+c.type)};a.support.transition&&this.$tip.hasClass("fade")?d.one(a.support.transition.end,r).emulateTransitionEnd(150):r()}},b.prototype.applyPlacement=function(b,c){var d,e=this.tip(),f=e[0].offsetWidth,g=e[0].offsetHeight,h=parseInt(e.css("margin-top"),10),i=parseInt(e.css("margin-left"),10);isNaN(h)&&(h=0),isNaN(i)&&(i=0),b.top=b.top+h,b.left=b.left+i,a.offset.setOffset(e[0],a.extend({using:function(a){e.css({top:Math.round(a.top),left:Math.round(a.left)})}},b),0),e.addClass("in");var j=e[0].offsetWidth,k=e[0].offsetHeight;if("top"==c&&k!=g&&(d=!0,b.top=b.top+g-k),/bottom|top/.test(c)){var l=0;b.left<0&&(l=-2*b.left,b.left=0,e.offset(b),j=e[0].offsetWidth,k=e[0].offsetHeight),this.replaceArrow(l-f+j,j,"left")}else this.replaceArrow(k-g,k,"top");d&&e.offset(b)},b.prototype.replaceArrow=function(a,b,c){this.arrow().css(c,a?50*(1-a/b)+"%":"")},b.prototype.setContent=function(){var a=this.tip(),b=this.getTitle();a.find(".tooltip-inner")[this.options.html?"html":"text"](b),a.removeClass("fade in top bottom left right")},b.prototype.hide=function(){function b(){"in"!=c.hoverState&&d.detach(),c.$element.trigger("hidden.bs."+c.type)}var c=this,d=this.tip(),e=a.Event("hide.bs."+this.type);return this.$element.trigger(e),e.isDefaultPrevented()?void 0:(d.removeClass("in"),a.support.transition&&this.$tip.hasClass("fade")?d.one(a.support.transition.end,b).emulateTransitionEnd(150):b(),this.hoverState=null,this)},b.prototype.fixTitle=function(){var a=this.$element;(a.attr("title")||"string"!=typeof a.attr("data-original-title"))&&a.attr("data-original-title",a.attr("title")||"").attr("title","")},b.prototype.hasContent=function(){return this.getTitle()},b.prototype.getPosition=function(){var b=this.$element[0];return a.extend({},"function"==typeof b.getBoundingClientRect?b.getBoundingClientRect():{width:b.offsetWidth,height:b.offsetHeight},this.$element.offset())},b.prototype.getCalculatedOffset=function(a,b,c,d){return"bottom"==a?{top:b.top+b.height,left:b.left+b.width/2-c/2}:"top"==a?{top:b.top-d,left:b.left+b.width/2-c/2}:"left"==a?{top:b.top+b.height/2-d/2,left:b.left-c}:{top:b.top+b.height/2-d/2,left:b.left+b.width}},b.prototype.getTitle=function(){var a,b=this.$element,c=this.options;return a=b.attr("data-original-title")||("function"==typeof c.title?c.title.call(b[0]):c.title)},b.prototype.tip=function(){return this.$tip=this.$tip||a(this.options.template)},b.prototype.arrow=function(){return this.$arrow=this.$arrow||this.tip().find(".tooltip-arrow")},b.prototype.validate=function(){this.$element[0].parentNode||(this.hide(),this.$element=null,this.options=null)},b.prototype.enable=function(){this.enabled=!0},b.prototype.disable=function(){this.enabled=!1},b.prototype.toggleEnabled=function(){this.enabled=!this.enabled},b.prototype.toggle=function(b){var c=b?a(b.currentTarget)[this.type](this.getDelegateOptions()).data("bs."+this.type):this;c.tip().hasClass("in")?c.leave(c):c.enter(c)},b.prototype.destroy=function(){clearTimeout(this.timeout),this.hide().$element.off("."+this.type).removeData("bs."+this.type)};var c=a.fn.tooltip;a.fn.tooltip=function(c){return this.each(function(){var d=a(this),e=d.data("bs.tooltip"),f="object"==typeof c&&c;(e||"destroy"!=c)&&(e||d.data("bs.tooltip",e=new b(this,f)),"string"==typeof c&&e[c]())})},a.fn.tooltip.Constructor=b,a.fn.tooltip.noConflict=function(){return a.fn.tooltip=c,this}}(jQuery),+function(a){"use strict";var b=function(a,b){this.init("popover",a,b)};if(!a.fn.tooltip)throw new Error("Popover requires tooltip.js");b.DEFAULTS=a.extend({},a.fn.tooltip.Constructor.DEFAULTS,{placement:"right",trigger:"click",content:"",template:'<div class="popover"><div class="arrow"></div><h3 class="popover-title"></h3><div class="popover-content"></div></div>'}),b.prototype=a.extend({},a.fn.tooltip.Constructor.prototype),b.prototype.constructor=b,b.prototype.getDefaults=function(){return b.DEFAULTS},b.prototype.setContent=function(){var a=this.tip(),b=this.getTitle(),c=this.getContent();a.find(".popover-title")[this.options.html?"html":"text"](b),a.find(".popover-content")[this.options.html?"string"==typeof c?"html":"append":"text"](c),a.removeClass("fade top bottom left right in"),a.find(".popover-title").html()||a.find(".popover-title").hide()},b.prototype.hasContent=function(){return this.getTitle()||this.getContent()},b.prototype.getContent=function(){var a=this.$element,b=this.options;return a.attr("data-content")||("function"==typeof b.content?b.content.call(a[0]):b.content)},b.prototype.arrow=function(){return this.$arrow=this.$arrow||this.tip().find(".arrow")},b.prototype.tip=function(){return this.$tip||(this.$tip=a(this.options.template)),this.$tip};var c=a.fn.popover;a.fn.popover=function(c){return this.each(function(){var d=a(this),e=d.data("bs.popover"),f="object"==typeof c&&c;(e||"destroy"!=c)&&(e||d.data("bs.popover",e=new b(this,f)),"string"==typeof c&&e[c]())})},a.fn.popover.Constructor=b,a.fn.popover.noConflict=function(){return a.fn.popover=c,this}}(jQuery),+function(a){"use strict";function b(c,d){var e,f=a.proxy(this.process,this);this.$element=a(a(c).is("body")?window:c),this.$body=a("body"),this.$scrollElement=this.$element.on("scroll.bs.scroll-spy.data-api",f),this.options=a.extend({},b.DEFAULTS,d),this.selector=(this.options.target||(e=a(c).attr("href"))&&e.replace(/.*(?=#[^\s]+$)/,"")||"")+" .nav li > a",this.offsets=a([]),this.targets=a([]),this.activeTarget=null,this.refresh(),this.process()}b.DEFAULTS={offset:10},b.prototype.refresh=function(){var b=this.$element[0]==window?"offset":"position";this.offsets=a([]),this.targets=a([]);{var c=this;this.$body.find(this.selector).map(function(){var d=a(this),e=d.data("target")||d.attr("href"),f=/^#./.test(e)&&a(e);return f&&f.length&&f.is(":visible")&&[[f[b]().top+(!a.isWindow(c.$scrollElement.get(0))&&c.$scrollElement.scrollTop()),e]]||null}).sort(function(a,b){return a[0]-b[0]}).each(function(){c.offsets.push(this[0]),c.targets.push(this[1])})}},b.prototype.process=function(){var a,b=this.$scrollElement.scrollTop()+this.options.offset,c=this.$scrollElement[0].scrollHeight||this.$body[0].scrollHeight,d=c-this.$scrollElement.height(),e=this.offsets,f=this.targets,g=this.activeTarget;if(b>=d)return g!=(a=f.last()[0])&&this.activate(a);if(g&&b<=e[0])return g!=(a=f[0])&&this.activate(a);for(a=e.length;a--;)g!=f[a]&&b>=e[a]&&(!e[a+1]||b<=e[a+1])&&this.activate(f[a])},b.prototype.activate=function(b){this.activeTarget=b,a(this.selector).parentsUntil(this.options.target,".active").removeClass("active");var c=this.selector+'[data-target="'+b+'"],'+this.selector+'[href="'+b+'"]',d=a(c).parents("li").addClass("active");d.parent(".dropdown-menu").length&&(d=d.closest("li.dropdown").addClass("active")),d.trigger("activate.bs.scrollspy")};var c=a.fn.scrollspy;a.fn.scrollspy=function(c){return this.each(function(){var d=a(this),e=d.data("bs.scrollspy"),f="object"==typeof c&&c;e||d.data("bs.scrollspy",e=new b(this,f)),"string"==typeof c&&e[c]()})},a.fn.scrollspy.Constructor=b,a.fn.scrollspy.noConflict=function(){return a.fn.scrollspy=c,this},a(window).on("load",function(){a('[data-spy="scroll"]').each(function(){var b=a(this);b.scrollspy(b.data())})})}(jQuery),+function(a){"use strict";var b=function(b){this.element=a(b)};b.prototype.show=function(){var b=this.element,c=b.closest("ul:not(.dropdown-menu)"),d=b.data("target");if(d||(d=b.attr("href"),d=d&&d.replace(/.*(?=#[^\s]*$)/,"")),!b.parent("li").hasClass("active")){var e=c.find(".active:last a")[0],f=a.Event("show.bs.tab",{relatedTarget:e});if(b.trigger(f),!f.isDefaultPrevented()){var g=a(d);this.activate(b.parent("li"),c),this.activate(g,g.parent(),function(){b.trigger({type:"shown.bs.tab",relatedTarget:e})})}}},b.prototype.activate=function(b,c,d){function e(){f.removeClass("active").find("> .dropdown-menu > .active").removeClass("active"),b.addClass("active"),g?(b[0].offsetWidth,b.addClass("in")):b.removeClass("fade"),b.parent(".dropdown-menu")&&b.closest("li.dropdown").addClass("active"),d&&d()}var f=c.find("> .active"),g=d&&a.support.transition&&f.hasClass("fade");g?f.one(a.support.transition.end,e).emulateTransitionEnd(150):e(),f.removeClass("in")};var c=a.fn.tab;a.fn.tab=function(c){return this.each(function(){var d=a(this),e=d.data("bs.tab");e||d.data("bs.tab",e=new b(this)),"string"==typeof c&&e[c]()})},a.fn.tab.Constructor=b,a.fn.tab.noConflict=function(){return a.fn.tab=c,this},a(document).on("click.bs.tab.data-api",'[data-toggle="tab"], [data-toggle="pill"]',function(b){b.preventDefault(),a(this).tab("show")})}(jQuery),+function(a){"use strict";var b=function(c,d){this.options=a.extend({},b.DEFAULTS,d),this.$window=a(window).on("scroll.bs.affix.data-api",a.proxy(this.checkPosition,this)).on("click.bs.affix.data-api",a.proxy(this.checkPositionWithEventLoop,this)),this.$element=a(c),this.affixed=this.unpin=this.pinnedOffset=null,this.checkPosition()};b.RESET="affix affix-top affix-bottom",b.DEFAULTS={offset:0},b.prototype.getPinnedOffset=function(){if(this.pinnedOffset)return this.pinnedOffset;this.$element.removeClass(b.RESET).addClass("affix");var a=this.$window.scrollTop(),c=this.$element.offset();return this.pinnedOffset=c.top-a},b.prototype.checkPositionWithEventLoop=function(){setTimeout(a.proxy(this.checkPosition,this),1)},b.prototype.checkPosition=function(){if(this.$element.is(":visible")){var c=a(document).height(),d=this.$window.scrollTop(),e=this.$element.offset(),f=this.options.offset,g=f.top,h=f.bottom;"top"==this.affixed&&(e.top+=d),"object"!=typeof f&&(h=g=f),"function"==typeof g&&(g=f.top(this.$element)),"function"==typeof h&&(h=f.bottom(this.$element));var i=null!=this.unpin&&d+this.unpin<=e.top?!1:null!=h&&e.top+this.$element.height()>=c-h?"bottom":null!=g&&g>=d?"top":!1;if(this.affixed!==i){this.unpin&&this.$element.css("top","");var j="affix"+(i?"-"+i:""),k=a.Event(j+".bs.affix");this.$element.trigger(k),k.isDefaultPrevented()||(this.affixed=i,this.unpin="bottom"==i?this.getPinnedOffset():null,this.$element.removeClass(b.RESET).addClass(j).trigger(a.Event(j.replace("affix","affixed"))),"bottom"==i&&this.$element.offset({top:c-h-this.$element.height()}))}}};var c=a.fn.affix;a.fn.affix=function(c){return this.each(function(){var d=a(this),e=d.data("bs.affix"),f="object"==typeof c&&c;e||d.data("bs.affix",e=new b(this,f)),"string"==typeof c&&e[c]()})},a.fn.affix.Constructor=b,a.fn.affix.noConflict=function(){return a.fn.affix=c,this},a(window).on("load",function(){a('[data-spy="affix"]').each(function(){var b=a(this),c=b.data();c.offset=c.offset||{},c.offsetBottom&&(c.offset.bottom=c.offsetBottom),c.offsetTop&&(c.offset.top=c.offsetTop),b.affix(c)})})}(jQuery);
-;//! moment.js
+//! moment.js
 //! version : 2.8.1
 //! authors : Tim Wood, Iskren Chernev, Moment.js contributors
 //! license : MIT
@@ -43382,7 +43401,7 @@ if("undefined"==typeof jQuery)throw new Error("Bootstrap's JavaScript requires j
     }
 }).call(this);
 
-;//     (c) 2012 Airbnb, Inc.
+//     (c) 2012 Airbnb, Inc.
 //
 //     polyglot.js may be freely distributed under the terms of the BSD
 //     license. For all licensing information, details, and documention:
@@ -43620,7 +43639,7 @@ if("undefined"==typeof jQuery)throw new Error("Bootstrap's JavaScript requires j
 }(this);
 
 
-;(function (exports) {
+(function (exports) {
   exports.validate = validate;
   exports.mixin = mixin;
 
@@ -44078,14 +44097,14 @@ if("undefined"==typeof jQuery)throw new Error("Bootstrap's JavaScript requires j
 
 })(typeof module === 'object' && module && module.exports ? module.exports : window);
 
-;/*!
+/*!
  * baguetteBox.js
  * @author  feimosi
  * @version 1.1.1
  * @url https://github.com/feimosi/baguetteBox.js
  */
 var baguetteBox=function(){function t(t,n){L.transforms=f(),L.svg=p(),e(),D=document.querySelectorAll(t),[].forEach.call(D,function(t){var e=t.getElementsByTagName("a");e=[].filter.call(e,function(t){return j.test(t.href)});var o=S.length;S.push(e),S[o].options=n,[].forEach.call(S[o],function(t,e){h(t,"click",function(t){t.preventDefault?t.preventDefault():t.returnValue=!1,i(o),a(e)})})})}function e(){return(b=v("baguetteBox-overlay"))?(k=v("baguetteBox-slider"),w=v("previous-button"),C=v("next-button"),void(T=v("close-button"))):(b=y("div"),b.id="baguetteBox-overlay",document.getElementsByTagName("body")[0].appendChild(b),k=y("div"),k.id="baguetteBox-slider",b.appendChild(k),w=y("button"),w.id="previous-button",w.innerHTML=L.svg?E:"&lt;",b.appendChild(w),C=y("button"),C.id="next-button",C.innerHTML=L.svg?x:"&gt;",b.appendChild(C),T=y("button"),T.id="close-button",T.innerHTML=L.svg?B:"X",b.appendChild(T),w.className=C.className=T.className="baguetteBox-button",void n())}function n(){h(b,"click",function(t){t.target&&"IMG"!==t.target.nodeName&&"FIGCAPTION"!==t.target.nodeName&&s()}),h(w,"click",function(t){t.stopPropagation?t.stopPropagation():t.cancelBubble=!0,c()}),h(C,"click",function(t){t.stopPropagation?t.stopPropagation():t.cancelBubble=!0,u()}),h(T,"click",function(t){t.stopPropagation?t.stopPropagation():t.cancelBubble=!0,s()}),h(b,"touchstart",function(t){N=t.changedTouches[0].pageX}),h(b,"touchmove",function(t){H||(t.preventDefault?t.preventDefault():t.returnValue=!1,touch=t.touches[0]||t.changedTouches[0],touch.pageX-N>40?(H=!0,c()):touch.pageX-N<-40&&(H=!0,u()))}),h(b,"touchend",function(){H=!1}),h(document,"keydown",function(t){switch(t.keyCode){case 37:c();break;case 39:u();break;case 27:s()}})}function i(t){if(A!==t){for(A=t,o(S[t].options);k.firstChild;)k.removeChild(k.firstChild);X.length=0;for(var e,n=0;n<S[t].length;n++)e=y("div"),e.className="full-image",e.id="baguette-img-"+n,X.push(e),k.appendChild(X[n])}}function o(t){t||(t={});for(var e in P)I[e]=P[e],"undefined"!=typeof t[e]&&(I[e]=t[e]);k.style.transition=k.style.webkitTransition="fadeIn"===I.animation?"opacity .4s ease":"slideIn"===I.animation?"":"none","auto"===I.buttons&&("ontouchstart"in window||1===S[A].length)&&(I.buttons=!1),w.style.display=C.style.display=I.buttons?"":"none"}function a(t){"block"!==b.style.display&&(M=t,r(M,function(){g(M),m(M)}),d(),b.style.display="block",setTimeout(function(){b.className="visible"},50))}function s(){"none"!==b.style.display&&(b.className="",setTimeout(function(){b.style.display="none"},500))}function r(t,e){var n=X[t];if("undefined"!=typeof n){if(n.getElementsByTagName("img")[0])return void(e&&e());imageElement=S[A][t],imageCaption=imageElement.getAttribute("data-caption")||imageElement.title,imageSrc=l(imageElement);var i=y("figure"),o=y("img"),a=y("figcaption");n.appendChild(i),i.innerHTML='<div class="spinner"><div class="double-bounce1"></div><div class="double-bounce2"></div></div>',o.onload=function(){var n=document.querySelector("#baguette-img-"+t+" .spinner");i.removeChild(n),!I.async&&e&&e()},o.setAttribute("src",imageSrc),i.appendChild(o),I.captions&&imageCaption&&(a.innerHTML=imageCaption,i.appendChild(a)),I.async&&e&&e()}}function l(t){var e=imageElement.href;if(t.dataset){var n=[];for(var i in t.dataset)"at-"!==i.substring(0,3)||isNaN(i.substring(3))||(n[i.replace("at-","")]=t.dataset[i]);keys=Object.keys(n).sort(function(t,e){return parseInt(t)<parseInt(e)?-1:1});for(var o=window.innerWidth*window.devicePixelRatio,a=0;a<keys.length-1&&keys[a]<o;)a++;e=n[keys[a]]||e}return e}function u(){M<=X.length-2?(M++,d(),g(M)):I.animation&&(k.className="bounce-from-right",setTimeout(function(){k.className=""},400))}function c(){M>=1?(M--,d(),m(M)):I.animation&&(k.className="bounce-from-left",setTimeout(function(){k.className=""},400))}function d(){var t=100*-M+"%";"fadeIn"===I.animation?(k.style.opacity=0,setTimeout(function(){L.transforms?k.style.transform=k.style.webkitTransform="translate3d("+t+",0,0)":k.style.left=t,k.style.opacity=1},400)):L.transforms?k.style.transform=k.style.webkitTransform="translate3d("+t+",0,0)":k.style.left=t}function f(){var t=y("div");return"undefined"!=typeof t.style.perspective||"undefined"!=typeof t.style.webkitPerspective}function p(){var t=y("div");return t.innerHTML="<svg/>","http://www.w3.org/2000/svg"==(t.firstChild&&t.firstChild.namespaceURI)}function g(t){t-M>=I.preload||r(t+1,function(){g(t+1)})}function m(t){M-t>=I.preload||r(t-1,function(){m(t-1)})}function h(t,e,n){t.addEventListener?t.addEventListener(e,n,!1):t.attachEvent("on"+e,n)}function v(t){return document.getElementById(t)}function y(t){return document.createElement(t)}var b,k,w,C,T,N,E='<svg width="44" height="60"><polyline points="30 10 10 30 30 50" stroke="rgba(255,255,255,0.5)" stroke-width="4"stroke-linecap="butt" fill="none" stroke-linejoin="round"/></svg>',x='<svg width="44" height="60"><polyline points="14 10 34 30 14 50" stroke="rgba(255,255,255,0.5)" stroke-width="4"stroke-linecap="butt" fill="none" stroke-linejoin="round"/></svg>',B='<svg width="30" height="30"><g stroke="rgb(160, 160, 160)" stroke-width="4"><line x1="5" y1="5" x2="25" y2="25"/><line x1="5" y1="25" x2="25" y2="5"/></g></svg>',I={},P={captions:!0,buttons:"auto",async:!1,preload:2,animation:"slideIn"},L={},M=0,A=-1,H=!1,j=/.+\.(gif|jpe?g|png|webp)/i,D=[],S=[],X=[];return[].forEach||(Array.prototype.forEach=function(t,e){for(var n=0;n<this.length;n++)t.call(e,this[n],n,this)}),[].filter||(Array.prototype.filter=function(t,e,n,i,o){for(n=this,i=[],o=0;o<n.length;o++)t.call(e,n[o],o,n)&&i.push(n[o]);return i}),{run:t}}();
-;//jshint browser: true, strict: false
+//jshint browser: true, strict: false
 if (typeof window.plugins !== "object") {
   window.plugins = {};
 }
@@ -44186,28 +44205,29 @@ window.plugins.gallery = {
   }
 };
 
-;//jshint browser: true, strict: false
+//jshint browser: true, strict: false
 /*global require, Mousetrap */
 if (typeof window.plugins !== "object") {
   window.plugins = {};
 }
 (function (root) {
-  function bindingNew() {
+  "use strict";
+  function bindingNew(e) {
+    if (e && e instanceof Event) { e.preventDefault(); }
     window.cozyMails.messageNew();
   }
   function bindingHelp() {
-    var self, container, help;
+    var container, help;
     container = document.getElementById('mailkeysHelp');
     if (container) {
       document.body.removeChild(container);
       return;
     }
-    self      = this;
     container = document.createElement('div');
     help      = document.createElement('dl');
     container.id = 'mailkeysHelp';
-    Object.keys(this._binding).forEach(function (key) {
-      var binding = self._binding[key],
+    Object.keys(root.mailkeys._binding).forEach(function (key) {
+      var binding = root.mailkeys._binding[key],
           name = [key];
       if (Array.isArray(binding.alias)) {
         name = name.concat(binding.alias);
@@ -44225,65 +44245,31 @@ if (typeof window.plugins !== "object") {
     container.addEventListener('click', closeHelp);
     Mousetrap.bind("esc", closeHelp);
   }
-  function layoutWidth(direction) {
-    if (direction !== 1 && direction !== -1) {
-      direction = 1;
+  function layoutRatio(direction) {
+    var layoutAction = require('actions/layout_action_creator');
+    if (direction > 0) {
+      layoutAction.increasePreviewPanel(direction);
+    } else if (direction < 0) {
+      layoutAction.decreasePreviewPanel(direction);
+    } else {
+      layoutAction.resetPreviewPanel();
     }
-    var layoutStore  = require('stores/layout_store'),
-        layoutAction = require('actions/layout_action_creator'),
-        disposition  = layoutStore.getDisposition();
-    layoutAction.setDisposition('vertical', disposition.width - direction);
-    /*
-    var panels, w1;
-    panels = document.querySelectorAll('#panels > .panel');
-    function updateClass(panel, nb) {
-      var cl, res;
-      cl = Array.prototype.slice.call(panel.classList).filter(function (c) {
-        return c.substr(0, 6) === 'col-md';
-      })[0];
-      panel.classList.remove(cl);
-      res = (parseInt(cl.split('-')[2], 10) + nb);
-      panel.classList.add('col-md-' + res);
-      return res;
-    }
-    w1 = updateClass(panels[0], -1 * direction);
-    updateClass(panels[1], 1 * direction);
-    panels[1].style.left = (100 / 12 * w1) + '%';
-    */
   }
-  function layoutHeight(direction) {
-    if (direction !== 1 && direction !== -1) {
-      direction = 1;
-    }
-    var layoutStore  = require('stores/layout_store'),
-        layoutAction = require('actions/layout_action_creator'),
-        disposition  = layoutStore.getDisposition();
-    layoutAction.setDisposition('horizontal', disposition.height - direction);
-    /*
-    var panels;
-    panels = document.querySelectorAll('#panels > .panel');
-    function updateClass(panel, nb) {
-      var cl, res;
-      cl = Array.prototype.slice.call(panel.classList).filter(function (c) {
-        return c.substr(0, 4) === 'row-';
-      })[0];
-      panel.classList.remove(cl);
-      res = (parseInt(cl.split('-')[1], 10) + nb);
-      panel.classList.add('row-' + res);
-      cl = Array.prototype.slice.call(panel.classList).filter(function (c) {
-        return c.substr(0, 11) === 'row-offset-';
-      })[0];
-      if (cl) {
-        panel.classList.remove(cl);
-        res = (parseInt(cl.split('-')[2], 10) - nb);
-        panel.classList.add('row-offset-' + res);
+  function mailAction(action) {
+    var current, btn;
+    Array.prototype.forEach.call(document.querySelectorAll('article.message .content, article.message .preview'), function (e) {
+      var rect = e.getBoundingClientRect(),
+          visible = rect.bottom >= 0 && rect.top <= (window.innerHeight || document.documentElement.clientHeight);
+      if (visible) {
+        current = e;
       }
-      return res;
+    });
+    if (typeof current !== 'undefined') {
+      btn = document.querySelector("section.conversation article.message[data-id='" + current.dataset.messageId + "'] button.btn.mail-" + action);
+      if (btn !== null) {
+        btn.dispatchEvent(new MouseEvent('click', { 'view': window, 'bubbles': true, 'cancelable': true }));
+      }
     }
-    var height = updateClass(panels[0], -1 * direction);
-    updateClass(panels[1], 1 * direction);
-    require('actions/layout_action_creator').setDisposition('vertical', height);
-    */
   }
   function menuNavigate() {
     var links, prev, next;
@@ -44304,10 +44290,15 @@ if (typeof window.plugins !== "object") {
       'enter': {
         name: "Display current message",
         action: function (e) {
-          if (window.cozyMails.getCurrentActions().indexOf('account.mailbox.messages') === 0 &&
-             ['INPUT', 'BUTTON'].indexOf(document.activeElement.tagName) === -1) {
-            e.preventDefault();
-            window.cozyMails.messageDisplay();
+          var btnConfirm = document.querySelector('.modal .modal-footer .modal-action');
+          if (btnConfirm !== null) {
+            btnConfirm.dispatchEvent(new MouseEvent('click', { 'view': window, 'bubbles': true, 'cancelable': true }));
+          } else {
+            if (window.cozyMails.getCurrentActions().indexOf('account.mailbox.messages') === 0 &&
+               ['INPUT', 'BUTTON'].indexOf(document.activeElement.tagName) === -1) {
+              if (e && e instanceof Event) { e.preventDefault(); }
+              window.cozyMails.messageDisplay();
+            }
           }
         }
       },
@@ -44315,14 +44306,19 @@ if (typeof window.plugins !== "object") {
         name: "Close current message",
         alias: ['x'],
         action: function (e) {
-          e.preventDefault();
-          window.cozyMails.messageClose();
+          var btnClose = document.querySelector('.modal .modal-header button.close');
+          if (btnClose !== null) {
+            btnClose.dispatchEvent(new MouseEvent('click', { 'view': window, 'bubbles': true, 'cancelable': true }));
+          } else {
+            if (e && e instanceof Event) { e.preventDefault(); }
+            window.cozyMails.messageClose();
+          }
         }
       },
       'h': {
         name: "Previous mailbox",
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           var prev = menuNavigate()[0];
           if (prev) {
             window.location = prev.href;
@@ -44337,7 +44333,7 @@ if (typeof window.plugins !== "object") {
       'l': {
         name: "Next mailbox",
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           var next = menuNavigate()[1];
           if (next) {
             window.location = next.href;
@@ -44353,14 +44349,14 @@ if (typeof window.plugins !== "object") {
         name: "Next Message",
         alias: ['down'],
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           window.cozyMails.messageNavigate('next');
         }
       },
       'right': {
         name: "Next Message in conversation",
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           window.cozyMails.messageNavigate('next', true);
         }
       },
@@ -44368,79 +44364,86 @@ if (typeof window.plugins !== "object") {
         name: "Previous Message",
         alias: ['up'],
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           window.cozyMails.messageNavigate('prev');
         }
       },
       'left': {
         name: "Previous Message in conversation",
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           window.cozyMails.messageNavigate('prev', true);
         }
       },
       'ctrl+down': {
         name: 'Scroll message down',
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           var panel = document.querySelector("#panels > .panel:nth-of-type(2)");
           if (panel) {
             panel.scrollTop += panel.clientHeight * 0.8;
           }
         }
       },
-      'alt+left': {
-        name: 'Increase message layout width',
+      '(': {
+        name: 'Increase message layout size',
         action: function (e) {
-          e.preventDefault();
-          layoutWidth(1);
+          if (e && e instanceof Event) { e.preventDefault(); }
+          layoutRatio(1);
         }
       },
-      'alt+right': {
-        name: 'Decrease message layout width',
+      'alt+(': {
+        name: 'Increase by 10 message layout size',
         action: function (e) {
-          e.preventDefault();
-          layoutWidth(-1);
+          if (e && e instanceof Event) { e.preventDefault(); }
+          layoutRatio(10);
         }
       },
-      'alt+up': {
-        name: 'Increase message layout height',
+      ')': {
+        name: 'Decrease message layout size',
         action: function (e) {
-          e.preventDefault();
-          layoutHeight(1);
+          if (e && e instanceof Event) { e.preventDefault(); }
+          layoutRatio(-1);
         }
       },
-      'alt+down': {
-        name: 'Decrease message layout height',
+      'alt+)': {
+        name: 'Decrease by 10 message layout size',
         action: function (e) {
-          e.preventDefault();
-          layoutHeight(-1);
+          if (e && e instanceof Event) { e.preventDefault(); }
+          layoutRatio(-10);
         }
       },
-      'f': {
+      '=': {
+        name: 'Reset message layout size',
+        action: function (e) {
+          if (e && e instanceof Event) { e.preventDefault(); }
+          layoutRatio();
+        }
+      },
+      'F': {
         name: "Toggle fullscreen",
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           require('actions/layout_action_creator').toggleFullscreen();
         }
       },
       'w': {
         name: "Toggle layout",
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           var layoutStore  = require('stores/layout_store'),
               layoutAction = require('actions/layout_action_creator'),
-              disposition  = layoutStore.getDisposition();
+              dispositions = require('constants/app_constants').Dispositions;
 
-          switch (disposition.type) {
-          case 'horizontal':
-            layoutAction.setDisposition('three');
+          switch (layoutStore.getDisposition()) {
+          case dispositions.RROW:
+            layoutAction.setDisposition(dispositions.COL);
             break;
-          case 'vertical':
-            layoutAction.setDisposition('horizontal');
+          case dispositions.COL:
+            layoutAction.setDisposition(dispositions.ROW);
             break;
-          case 'three':
-            layoutAction.setDisposition('vertical');
+          case dispositions.ROW:
+            layoutAction.setDisposition(dispositions.RROW);
             break;
           }
 
@@ -44449,7 +44452,7 @@ if (typeof window.plugins !== "object") {
       'ctrl+up': {
         name: 'Scroll message up',
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           var panel = document.querySelector("#panels > .panel:nth-of-type(2)");
           if (panel) {
             panel.scrollTop -= panel.clientHeight * 0.8;
@@ -44457,6 +44460,7 @@ if (typeof window.plugins !== "object") {
         }
       },
       'n': {
+        alias: ['ctrl+n'],
         name: "New message",
         action: bindingNew
       },
@@ -44464,7 +44468,7 @@ if (typeof window.plugins !== "object") {
         name: "Delete message",
         alias: ['backspace', 'del'],
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           window.cozyMails.messageDeleteCurrent();
         }
       },
@@ -44472,28 +44476,30 @@ if (typeof window.plugins !== "object") {
         name: 'Undelete message',
         alias: ['u'],
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           var MessageActionCreator = window.require('actions/message_action_creator');
           MessageActionCreator.undelete();
         }
       },
       'r': {
         name: 'Reply',
-        action: function () {
-          var current, btn;
-          Array.prototype.forEach.call(document.querySelectorAll('.row > .content, .row > .preview'), function (e) {
-            var rect = e.getBoundingClientRect(),
-                visible = rect.bottom >= 0 && rect.top <= (window.innerHeight || document.documentElement.clientHeight)
-            if (visible) {
-              current = e;
-            }
-          });
-          if (typeof current !== 'undefined') {
-            btn = document.querySelector(".thread li.message[data-id='" + current.dataset.messageId + "'] button.btn.reply");
-            if (btn !== null) {
-                btn.dispatchEvent(new MouseEvent('click', { 'view': window, 'bubbles': true, 'cancelable': true }));
-            }
-          }
+        action: function (e) {
+          if (e && e instanceof Event) { e.preventDefault(); }
+          mailAction('reply');
+        }
+      },
+      'g': {
+        name: 'Reply all',
+        action: function (e) {
+          if (e && e instanceof Event) { e.preventDefault(); }
+          mailAction('reply-all');
+        }
+      },
+      'f': {
+        name: 'Forward',
+        action: function (e) {
+          if (e && e instanceof Event) { e.preventDefault(); }
+          mailAction('forward');
         }
       },
       '?': {
@@ -44503,39 +44509,21 @@ if (typeof window.plugins !== "object") {
     },
     name: "Keyboard shortcuts",
     active: true,
-    onAdd: {
-      /**
-       * Should return true if plugin applies on added subtree
-       *
-       * @param {DOMNode} root node of added subtree
-       */
-      condition: function (node) {
-        return false;
-      },
-      /**
-       * Perform action on added subtree
-       *
-       * @param {DOMNode} root node of added subtree
-       */
-      action: function (node) {
-      }
-    },
-    /**
+    /*
      * Called when plugin is activated
      */
     onActivate: function () {
-      var self = this;
-      Object.keys(this._binding).forEach(function (key) {
-        var binding = self._binding[key];
-        Mousetrap.bind(key, binding.action.bind(self));
+      Object.keys(root.mailkeys._binding).forEach(function (key) {
+        var binding = root.mailkeys._binding[key];
+        Mousetrap.bind(key, binding.action.bind(root.mailkeys));
         if (Array.isArray(binding.alias)) {
           binding.alias.forEach(function (alias) {
-            Mousetrap.bind(alias, binding.action.bind(self));
+            Mousetrap.bind(alias, binding.action.bind(root.mailkeys));
           });
         }
       });
     },
-    /**
+    /*
      * Called when plugin is deactivated
      */
     onDeactivate: function () {
@@ -44547,7 +44535,7 @@ if (typeof window.plugins !== "object") {
   };
 })(window.plugins);
 
-;/* mousetrap v1.4.6 craig.is/killing/mice */
+/* mousetrap v1.4.6 craig.is/killing/mice */
 (function(J,r,f){function s(a,b,d){a.addEventListener?a.addEventListener(b,d,!1):a.attachEvent("on"+b,d)}function A(a){if("keypress"==a.type){var b=String.fromCharCode(a.which);a.shiftKey||(b=b.toLowerCase());return b}return h[a.which]?h[a.which]:B[a.which]?B[a.which]:String.fromCharCode(a.which).toLowerCase()}function t(a){a=a||{};var b=!1,d;for(d in n)a[d]?b=!0:n[d]=0;b||(u=!1)}function C(a,b,d,c,e,v){var g,k,f=[],h=d.type;if(!l[a])return[];"keyup"==h&&w(a)&&(b=[a]);for(g=0;g<l[a].length;++g)if(k=
 l[a][g],!(!c&&k.seq&&n[k.seq]!=k.level||h!=k.action||("keypress"!=h||d.metaKey||d.ctrlKey)&&b.sort().join(",")!==k.modifiers.sort().join(","))){var m=c&&k.seq==c&&k.level==v;(!c&&k.combo==e||m)&&l[a].splice(g,1);f.push(k)}return f}function K(a){var b=[];a.shiftKey&&b.push("shift");a.altKey&&b.push("alt");a.ctrlKey&&b.push("ctrl");a.metaKey&&b.push("meta");return b}function x(a,b,d,c){m.stopCallback(b,b.target||b.srcElement,d,c)||!1!==a(b,d)||(b.preventDefault?b.preventDefault():b.returnValue=!1,b.stopPropagation?
 b.stopPropagation():b.cancelBubble=!0)}function y(a){"number"!==typeof a.which&&(a.which=a.keyCode);var b=A(a);b&&("keyup"==a.type&&z===b?z=!1:m.handleKey(b,K(a),a))}function w(a){return"shift"==a||"ctrl"==a||"alt"==a||"meta"==a}function L(a,b,d,c){function e(b){return function(){u=b;++n[a];clearTimeout(D);D=setTimeout(t,1E3)}}function v(b){x(d,b,a);"keyup"!==c&&(z=A(b));setTimeout(t,10)}for(var g=n[a]=0;g<b.length;++g){var f=g+1===b.length?v:e(c||E(b[g+1]).action);F(b[g],f,c,a,g)}}function E(a,b){var d,
@@ -44557,7 +44545,7 @@ c,a,e),l[d.key][c?"unshift":"push"]({callback:b,modifiers:d.modifiers,action:d.a
 unbind:function(a,b){return m.bind(a,function(){},b)},trigger:function(a,b){if(q[a+":"+b])q[a+":"+b]({},a);return this},reset:function(){l={};q={};return this},stopCallback:function(a,b){return-1<(" "+b.className+" ").indexOf(" mousetrap ")?!1:"INPUT"==b.tagName||"SELECT"==b.tagName||"TEXTAREA"==b.tagName||b.isContentEditable},handleKey:function(a,b,d){var c=C(a,b,d),e;b={};var f=0,g=!1;for(e=0;e<c.length;++e)c[e].seq&&(f=Math.max(f,c[e].level));for(e=0;e<c.length;++e)c[e].seq?c[e].level==f&&(g=!0,
 b[c[e].seq]=1,x(c[e].callback,d,c[e].combo,c[e].seq)):g||x(c[e].callback,d,c[e].combo);c="keypress"==d.type&&I;d.type!=u||w(a)||c||t(b);I=g&&"keydown"==d.type}};J.Mousetrap=m;"function"===typeof define&&define.amd&&define(m)})(window,document);
 
-;//jshint browser: true
+//jshint browser: true
 if (typeof window.plugins !== "object") {
   window.plugins = {};
 }
@@ -44574,16 +44562,26 @@ window.plugins.mediumeditor = {
       /* eslint no-unused-vars: 0 */
       "use strict";
       var editorNode = node.querySelector('.rt-editor'),
-          medium;
+          medium,
+          options;
+      options = {
+        imageDragging: false, // We handle image drag'n'drop ourself
+        cleanPastedHTML: true,
+        static: true,
+        targetBlank: true,
+        toolbar: {
+          buttons: ['bold', 'italic', 'underline', 'anchor', 'h2', 'h3']
+        }
+      }
       if (!editorNode.classList.contains('medium-editor')) {
-        medium = new window.MediumEditor(editorNode);
+        medium = new window.MediumEditor(editorNode, options);
         editorNode.classList.add('medium-editor');
       }
     }
   }
 };
 
-;/*global self, document, DOMException */
+/*global self, document, DOMException */
 
 /*! @source http://purl.eligrey.com/github/classList.js/blob/master/classList.js */
 
@@ -44756,6 +44754,218 @@ if (!("classList" in document.createElement("_"))) {
   }(self));
 }
 
+/* Blob.js
+ * A Blob implementation.
+ * 2014-07-24
+ *
+ * By Eli Grey, http://eligrey.com
+ * By Devin Samarin, https://github.com/dsamarin
+ * License: X11/MIT
+ *   See https://github.com/eligrey/Blob.js/blob/master/LICENSE.md
+ */
+
+/*global self, unescape */
+/*jslint bitwise: true, regexp: true, confusion: true, es5: true, vars: true, white: true,
+  plusplus: true */
+
+/*! @source http://purl.eligrey.com/github/Blob.js/blob/master/Blob.js */
+
+(function (view) {
+  "use strict";
+
+  view.URL = view.URL || view.webkitURL;
+
+  if (view.Blob && view.URL) {
+    try {
+      new Blob;
+      return;
+    } catch (e) {}
+  }
+
+  // Internally we use a BlobBuilder implementation to base Blob off of
+  // in order to support older browsers that only have BlobBuilder
+  var BlobBuilder = view.BlobBuilder || view.WebKitBlobBuilder || view.MozBlobBuilder || (function(view) {
+    var
+        get_class = function(object) {
+        return Object.prototype.toString.call(object).match(/^\[object\s(.*)\]$/)[1];
+      }
+      , FakeBlobBuilder = function BlobBuilder() {
+        this.data = [];
+      }
+      , FakeBlob = function Blob(data, type, encoding) {
+        this.data = data;
+        this.size = data.length;
+        this.type = type;
+        this.encoding = encoding;
+      }
+      , FBB_proto = FakeBlobBuilder.prototype
+      , FB_proto = FakeBlob.prototype
+      , FileReaderSync = view.FileReaderSync
+      , FileException = function(type) {
+        this.code = this[this.name = type];
+      }
+      , file_ex_codes = (
+          "NOT_FOUND_ERR SECURITY_ERR ABORT_ERR NOT_READABLE_ERR ENCODING_ERR "
+        + "NO_MODIFICATION_ALLOWED_ERR INVALID_STATE_ERR SYNTAX_ERR"
+      ).split(" ")
+      , file_ex_code = file_ex_codes.length
+      , real_URL = view.URL || view.webkitURL || view
+      , real_create_object_URL = real_URL.createObjectURL
+      , real_revoke_object_URL = real_URL.revokeObjectURL
+      , URL = real_URL
+      , btoa = view.btoa
+      , atob = view.atob
+
+      , ArrayBuffer = view.ArrayBuffer
+      , Uint8Array = view.Uint8Array
+
+      , origin = /^[\w-]+:\/*\[?[\w\.:-]+\]?(?::[0-9]+)?/
+    ;
+    FakeBlob.fake = FB_proto.fake = true;
+    while (file_ex_code--) {
+      FileException.prototype[file_ex_codes[file_ex_code]] = file_ex_code + 1;
+    }
+    // Polyfill URL
+    if (!real_URL.createObjectURL) {
+      URL = view.URL = function(uri) {
+        var
+            uri_info = document.createElementNS("http://www.w3.org/1999/xhtml", "a")
+          , uri_origin
+        ;
+        uri_info.href = uri;
+        if (!("origin" in uri_info)) {
+          if (uri_info.protocol.toLowerCase() === "data:") {
+            uri_info.origin = null;
+          } else {
+            uri_origin = uri.match(origin);
+            uri_info.origin = uri_origin && uri_origin[1];
+          }
+        }
+        return uri_info;
+      };
+    }
+    URL.createObjectURL = function(blob) {
+      var
+          type = blob.type
+        , data_URI_header
+      ;
+      if (type === null) {
+        type = "application/octet-stream";
+      }
+      if (blob instanceof FakeBlob) {
+        data_URI_header = "data:" + type;
+        if (blob.encoding === "base64") {
+          return data_URI_header + ";base64," + blob.data;
+        } else if (blob.encoding === "URI") {
+          return data_URI_header + "," + decodeURIComponent(blob.data);
+        } if (btoa) {
+          return data_URI_header + ";base64," + btoa(blob.data);
+        } else {
+          return data_URI_header + "," + encodeURIComponent(blob.data);
+        }
+      } else if (real_create_object_URL) {
+        return real_create_object_URL.call(real_URL, blob);
+      }
+    };
+    URL.revokeObjectURL = function(object_URL) {
+      if (object_URL.substring(0, 5) !== "data:" && real_revoke_object_URL) {
+        real_revoke_object_URL.call(real_URL, object_URL);
+      }
+    };
+    FBB_proto.append = function(data/*, endings*/) {
+      var bb = this.data;
+      // decode data to a binary string
+      if (Uint8Array && (data instanceof ArrayBuffer || data instanceof Uint8Array)) {
+        var
+            str = ""
+          , buf = new Uint8Array(data)
+          , i = 0
+          , buf_len = buf.length
+        ;
+        for (; i < buf_len; i++) {
+          str += String.fromCharCode(buf[i]);
+        }
+        bb.push(str);
+      } else if (get_class(data) === "Blob" || get_class(data) === "File") {
+        if (FileReaderSync) {
+          var fr = new FileReaderSync;
+          bb.push(fr.readAsBinaryString(data));
+        } else {
+          // async FileReader won't work as BlobBuilder is sync
+          throw new FileException("NOT_READABLE_ERR");
+        }
+      } else if (data instanceof FakeBlob) {
+        if (data.encoding === "base64" && atob) {
+          bb.push(atob(data.data));
+        } else if (data.encoding === "URI") {
+          bb.push(decodeURIComponent(data.data));
+        } else if (data.encoding === "raw") {
+          bb.push(data.data);
+        }
+      } else {
+        if (typeof data !== "string") {
+          data += ""; // convert unsupported types to strings
+        }
+        // decode UTF-16 to binary string
+        bb.push(unescape(encodeURIComponent(data)));
+      }
+    };
+    FBB_proto.getBlob = function(type) {
+      if (!arguments.length) {
+        type = null;
+      }
+      return new FakeBlob(this.data.join(""), type, "raw");
+    };
+    FBB_proto.toString = function() {
+      return "[object BlobBuilder]";
+    };
+    FB_proto.slice = function(start, end, type) {
+      var args = arguments.length;
+      if (args < 3) {
+        type = null;
+      }
+      return new FakeBlob(
+          this.data.slice(start, args > 1 ? end : this.data.length)
+        , type
+        , this.encoding
+      );
+    };
+    FB_proto.toString = function() {
+      return "[object Blob]";
+    };
+    FB_proto.close = function() {
+      this.size = 0;
+      delete this.data;
+    };
+    return FakeBlobBuilder;
+  }(view));
+
+  view.Blob = function(blobParts, options) {
+    var type = options ? (options.type || "") : "";
+    var builder = new BlobBuilder();
+    if (blobParts) {
+      for (var i = 0, len = blobParts.length; i < len; i++) {
+        if (Uint8Array && blobParts[i] instanceof Uint8Array) {
+          builder.append(blobParts[i].buffer);
+        }
+        else {
+          builder.append(blobParts[i]);
+        }
+      }
+    }
+    var blob = builder.getBlob(type);
+    if (!blob.slice && blob.webkitSlice) {
+      blob.slice = blob.webkitSlice;
+    }
+    return blob;
+  };
+
+  var getPrototypeOf = Object.getPrototypeOf || function(object) {
+    return object.__proto__;
+  };
+  view.Blob.prototype = getPrototypeOf(new view.Blob());
+}(typeof self !== "undefined" && self || typeof window !== "undefined" && window || this.content || this));
+
 (function (root, factory) {
     'use strict';
     if (typeof module === 'object') {
@@ -44773,15 +44983,23 @@ if (!("classList" in document.createElement("_"))) {
 
 var Util;
 
-(function (window, document) {
+(function (window) {
     'use strict';
 
-    function copyInto(dest, source, overwrite) {
-        var prop;
+    function copyInto(overwrite, dest) {
+        var prop,
+            sources = Array.prototype.slice.call(arguments, 2);
         dest = dest || {};
-        for (prop in source) {
-            if (source.hasOwnProperty(prop) && (overwrite || dest.hasOwnProperty(prop) === false)) {
-                dest[prop] = source[prop];
+        for (var i = 0; i < sources.length; i++) {
+            var source = sources[i];
+            if (source) {
+                for (prop in source) {
+                    if (source.hasOwnProperty(prop) &&
+                        typeof source[prop] !== 'undefined' &&
+                        (overwrite || dest.hasOwnProperty(prop) === false)) {
+                        dest[prop] = source[prop];
+                    }
+                }
             }
         }
         return dest;
@@ -44793,6 +45011,9 @@ var Util;
         // by rg89
         isIE: ((navigator.appName === 'Microsoft Internet Explorer') || ((navigator.appName === 'Netscape') && (new RegExp('Trident/.*rv:([0-9]{1,}[.0-9]{0,})').exec(navigator.userAgent) !== null))),
 
+        // http://stackoverflow.com/a/11752084/569101
+        isMac: (window.navigator.platform.toUpperCase().indexOf('MAC') >= 0),
+
         // https://github.com/jashkenas/underscore
         keyCode: {
             BACKSPACE: 8,
@@ -44800,27 +45021,161 @@ var Util;
             ENTER: 13,
             ESCAPE: 27,
             SPACE: 32,
-            DELETE: 46
+            DELETE: 46,
+            K: 75 // K keycode, and not k
         },
 
-        parentElements: ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre'],
+        /**
+         * Returns true if it's metaKey on Mac, or ctrlKey on non-Mac.
+         * See #591
+         */
+        isMetaCtrlKey: function (event) {
+            if ((this.isMac && event.metaKey) || (!this.isMac && event.ctrlKey)) {
+                return true;
+            }
 
-        defaults: function defaults(dest, source) {
-            return copyInto(dest, source);
+            return false;
         },
 
-        extend: function extend(dest, source) {
-            return copyInto(dest, source, true);
+        /**
+         * Returns true if the key associated to the event is inside keys array
+         *
+         * @see : https://github.com/jquery/jquery/blob/0705be475092aede1eddae01319ec931fb9c65fc/src/event.js#L473-L484
+         * @see : http://stackoverflow.com/q/4471582/569101
+         */
+        isKey: function (event, keys) {
+            var keyCode = this.getKeyCode(event);
+
+            // it's not an array let's just compare strings!
+            if (false === Array.isArray(keys)) {
+                return keyCode === keys;
+            }
+
+            if (-1 === keys.indexOf(keyCode)) {
+                return false;
+            }
+
+            return true;
         },
 
-        derives: function derives(base, derived) {
-            var origPrototype = derived.prototype;
-            function Proto() { }
-            Proto.prototype = base.prototype;
-            derived.prototype = new Proto();
-            derived.prototype.constructor = base;
-            derived.prototype = copyInto(derived.prototype, origPrototype);
-            return derived;
+        getKeyCode: function (event) {
+            var keyCode = event.which;
+
+            // getting the key code from event
+            if (null === keyCode) {
+                keyCode = event.charCode !== null ? event.charCode : event.keyCode;
+            }
+
+            return keyCode;
+        },
+
+        blockContainerElementNames: ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre'],
+        emptyElementNames: ['br', 'col', 'colgroup', 'hr', 'img', 'input', 'source', 'wbr'],
+
+        extend: function extend(/* dest, source1, source2, ...*/) {
+            var args = [true].concat(Array.prototype.slice.call(arguments));
+            return copyInto.apply(this, args);
+        },
+
+        defaults: function defaults(/*dest, source1, source2, ...*/) {
+            var args = [false].concat(Array.prototype.slice.call(arguments));
+            return copyInto.apply(this, args);
+        },
+
+        /*
+         * Create a link around the provided text nodes which must be adjacent to each other and all be
+         * descendants of the same closest block container. If the preconditions are not met, unexpected
+         * behavior will result.
+         */
+        createLink: function (document, textNodes, href, target) {
+            var anchor = document.createElement('a');
+            Util.moveTextRangeIntoElement(textNodes[0], textNodes[textNodes.length - 1], anchor);
+            anchor.setAttribute('href', href);
+            if (target) {
+                anchor.setAttribute('target', target);
+            }
+            return anchor;
+        },
+
+        /*
+         * Given the provided match in the format {start: 1, end: 2} where start and end are indices into the
+         * textContent of the provided element argument, modify the DOM inside element to ensure that the text
+         * identified by the provided match can be returned as text nodes that contain exactly that text, without
+         * any additional text at the beginning or end of the returned array of adjacent text nodes.
+         *
+         * The only DOM manipulation performed by this function is splitting the text nodes, non-text nodes are
+         * not affected in any way.
+         */
+        findOrCreateMatchingTextNodes: function (document, element, match) {
+            var treeWalker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false),
+                matchedNodes = [],
+                currentTextIndex = 0,
+                startReached = false,
+                currentNode = null,
+                newNode = null;
+
+            while ((currentNode = treeWalker.nextNode()) !== null) {
+                if (!startReached && match.start < (currentTextIndex + currentNode.nodeValue.length)) {
+                    startReached = true;
+                    newNode = Util.splitStartNodeIfNeeded(currentNode, match.start, currentTextIndex);
+                }
+                if (startReached) {
+                    Util.splitEndNodeIfNeeded(currentNode, newNode, match.end, currentTextIndex);
+                }
+                if (startReached && currentTextIndex === match.end) {
+                    break; // Found the node(s) corresponding to the link. Break out and move on to the next.
+                } else if (startReached && currentTextIndex > (match.end + 1)) {
+                    throw new Error('PerformLinking overshot the target!'); // should never happen...
+                }
+
+                if (startReached) {
+                    matchedNodes.push(newNode || currentNode);
+                }
+
+                currentTextIndex += currentNode.nodeValue.length;
+                if (newNode !== null) {
+                    currentTextIndex += newNode.nodeValue.length;
+                    // Skip the newNode as we'll already have pushed it to the matches
+                    treeWalker.nextNode();
+                }
+                newNode = null;
+            }
+            return matchedNodes;
+        },
+
+        /*
+         * Given the provided text node and text coordinates, split the text node if needed to make it align
+         * precisely with the coordinates.
+         *
+         * This function is intended to be called from Util.findOrCreateMatchingTextNodes.
+         */
+        splitStartNodeIfNeeded: function (currentNode, matchStartIndex, currentTextIndex) {
+            if (matchStartIndex !== currentTextIndex) {
+                return currentNode.splitText(matchStartIndex - currentTextIndex);
+            }
+            return null;
+        },
+
+        /*
+         * Given the provided text node and text coordinates, split the text node if needed to make it align
+         * precisely with the coordinates. The newNode argument should from the result of Util.splitStartNodeIfNeeded,
+         * if that function has been called on the same currentNode.
+         *
+         * This function is intended to be called from Util.findOrCreateMatchingTextNodes.
+         */
+        splitEndNodeIfNeeded: function (currentNode, newNode, matchEndIndex, currentTextIndex) {
+            var textIndexOfEndOfFarthestNode,
+                endSplitPoint;
+            textIndexOfEndOfFarthestNode = currentTextIndex + (newNode || currentNode).nodeValue.length +
+                    (newNode ? currentNode.nodeValue.length : 0) -
+                    1;
+            endSplitPoint = (newNode || currentNode).nodeValue.length -
+                    (textIndexOfEndOfFarthestNode + 1 - matchEndIndex);
+            if (textIndexOfEndOfFarthestNode >= matchEndIndex &&
+                    currentTextIndex !== textIndexOfEndOfFarthestNode &&
+                    endSplitPoint !== 0) {
+                (newNode || currentNode).splitText(endSplitPoint);
+            }
         },
 
         // Find the next node in the DOM tree that represents any text that is being
@@ -44852,9 +45207,12 @@ var Util;
             return nextNode;
         },
 
-        isDescendant: function isDescendant(parent, child) {
+        isDescendant: function isDescendant(parent, child, checkEquality) {
             if (!parent || !child) {
                 return false;
+            }
+            if (checkEquality && parent === child) {
+                return true;
             }
             var node = child.parentNode;
             while (node !== null) {
@@ -44871,42 +45229,39 @@ var Util;
             return !!(obj && obj.nodeType === 1);
         },
 
-        now: function now() {
-            return Date.now || new Date().getTime();
-        },
-
         // https://github.com/jashkenas/underscore
-        throttle: function throttle(func, wait) {
+        throttle: function (func, wait) {
             var THROTTLE_INTERVAL = 50,
                 context,
                 args,
                 result,
                 timeout = null,
                 previous = 0,
-                later;
+                later = function () {
+                    previous = Date.now();
+                    timeout = null;
+                    result = func.apply(context, args);
+                    if (!timeout) {
+                        context = args = null;
+                    }
+                };
 
             if (!wait && wait !== 0) {
                 wait = THROTTLE_INTERVAL;
             }
 
-            later = function () {
-                previous = Util.now();
-                timeout = null;
-                result = func.apply(context, args);
-                if (!timeout) {
-                    context = args = null;
-                }
-            };
-
             return function () {
-                var currNow = Util.now(),
-                    remaining = wait - (currNow - previous);
+                var now = Date.now(),
+                    remaining = wait - (now - previous);
+
                 context = this;
                 args = arguments;
                 if (remaining <= 0 || remaining > wait) {
-                    clearTimeout(timeout);
-                    timeout = null;
-                    previous = currNow;
+                    if (timeout) {
+                        clearTimeout(timeout);
+                        timeout = null;
+                    }
+                    previous = now;
                     result = func.apply(context, args);
                     if (!timeout) {
                         context = args = null;
@@ -44919,6 +45274,9 @@ var Util;
         },
 
         traverseUp: function (current, testElementFunction) {
+            if (!current) {
+                return false;
+            }
 
             do {
                 if (current.nodeType === 1) {
@@ -44926,7 +45284,7 @@ var Util;
                         return current;
                     }
                     // do not traverse upwards past the nearest containing editor
-                    if (current.getAttribute('data-medium-element')) {
+                    if (Util.isMediumEditorElement(current)) {
                         return false;
                     }
                 }
@@ -44935,7 +45293,6 @@ var Util;
             } while (current);
 
             return false;
-
         },
 
         htmlEntities: function (str) {
@@ -44946,7 +45303,7 @@ var Util;
 
         // http://stackoverflow.com/questions/6690752/insert-html-at-caret-in-a-contenteditable-div
         insertHTMLCommand: function (doc, html) {
-            var selection, range, el, fragment, node, lastNode;
+            var selection, range, el, fragment, node, lastNode, toReplace;
 
             if (doc.queryCommandSupported('insertHTML')) {
                 try {
@@ -44954,12 +45311,24 @@ var Util;
                 } catch (ignore) {}
             }
 
-            selection = window.getSelection();
+            selection = doc.defaultView.getSelection();
             if (selection.getRangeAt && selection.rangeCount) {
                 range = selection.getRangeAt(0);
+                toReplace = range.commonAncestorContainer;
+                // Ensure range covers maximum amount of nodes as possible
+                // By moving up the DOM and selecting ancestors whose only child is the range
+                if ((toReplace.nodeType === 3 && toReplace.nodeValue === range.toString()) ||
+                        (toReplace.nodeType !== 3 && toReplace.innerHTML === range.toString())) {
+                    while (toReplace.parentNode &&
+                            toReplace.parentNode.childNodes.length === 1 &&
+                            !Util.isMediumEditorElement(toReplace.parentNode)) {
+                        toReplace = toReplace.parentNode;
+                    }
+                    range.selectNode(toReplace);
+                }
                 range.deleteContents();
 
-                el = doc.createElement("div");
+                el = doc.createElement('div');
                 el.innerHTML = html;
                 fragment = doc.createDocumentFragment();
                 while (el.firstChild) {
@@ -44979,181 +45348,501 @@ var Util;
             }
         },
 
-        // TODO: not sure if this should be here
-        setTargetBlank: function (el) {
-            var i;
-            if (el.tagName.toLowerCase() === 'a') {
+        execFormatBlock: function (doc, tagName) {
+            // Get the top level block element that contains the selection
+            var blockContainer = Util.getTopBlockContainer(Selection.getSelectionStart(doc));
+
+            // Special handling for blockquote
+            if (tagName === 'blockquote') {
+                if (blockContainer) {
+                    var childNodes = Array.prototype.slice.call(blockContainer.childNodes);
+                    // Check if the blockquote has a block element as a child (nested blocks)
+                    if (childNodes.some(function (childNode) {
+                        return Util.isBlockContainer(childNode);
+                    })) {
+                        // FF handles blockquote differently on formatBlock
+                        // allowing nesting, we need to use outdent
+                        // https://developer.mozilla.org/en-US/docs/Rich-Text_Editing_in_Mozilla
+                        return doc.execCommand('outdent', false, null);
+                    }
+                }
+
+                // When IE blockquote needs to be called as indent
+                // http://stackoverflow.com/questions/1816223/rich-text-editor-with-blockquote-function/1821777#1821777
+                if (this.isIE) {
+                    return doc.execCommand('indent', false, tagName);
+                }
+            }
+
+            // If the blockContainer is already the element type being passed in
+            // treat it as 'undo' formatting and just convert it to a <p>
+            if (blockContainer && tagName === blockContainer.nodeName.toLowerCase()) {
+                tagName = 'p';
+            }
+
+            // When IE we need to add <> to heading elements
+            // http://stackoverflow.com/questions/10741831/execcommand-formatblock-headings-in-ie
+            if (this.isIE) {
+                tagName = '<' + tagName + '>';
+            }
+            return doc.execCommand('formatBlock', false, tagName);
+        },
+
+        /**
+         * Set target to blank on the given el element
+         *
+         * TODO: not sure if this should be here
+         *
+         * When creating a link (using core -> createLink) the selection returned by Firefox will be the parent of the created link
+         * instead of the created link itself (as it is for Chrome for example), so we retrieve all "a" children to grab the good one by
+         * using `anchorUrl` to ensure that we are adding target="_blank" on the good one.
+         * This isn't a bulletproof solution anyway ..
+         */
+        setTargetBlank: function (el, anchorUrl) {
+            var i, url = anchorUrl || false;
+            if (el.nodeName.toLowerCase() === 'a') {
                 el.target = '_blank';
             } else {
                 el = el.getElementsByTagName('a');
 
                 for (i = 0; i < el.length; i += 1) {
-                    el[i].target = '_blank';
+                    if (false === url || url === el[i].attributes.href.value) {
+                        el[i].target = '_blank';
+                    }
                 }
             }
         },
 
-        isListItemChild: function (node) {
+        addClassToAnchors: function (el, buttonClass) {
+            var classes = buttonClass.split(' '),
+                i,
+                j;
+            if (el.nodeName.toLowerCase() === 'a') {
+                for (j = 0; j < classes.length; j += 1) {
+                    el.classList.add(classes[j]);
+                }
+            } else {
+                el = el.getElementsByTagName('a');
+                for (i = 0; i < el.length; i += 1) {
+                    for (j = 0; j < classes.length; j += 1) {
+                        el[i].classList.add(classes[j]);
+                    }
+                }
+            }
+        },
+
+        isListItem: function (node) {
+            if (!node) {
+                return false;
+            }
+            if (node.nodeName.toLowerCase() === 'li') {
+                return true;
+            }
+
             var parentNode = node.parentNode,
-                tagName = parentNode.tagName.toLowerCase();
-            while (this.parentElements.indexOf(tagName) === -1 && tagName !== 'div') {
+                tagName = parentNode.nodeName.toLowerCase();
+            while (!this.isBlockContainer(parentNode) && tagName !== 'div') {
                 if (tagName === 'li') {
                     return true;
                 }
                 parentNode = parentNode.parentNode;
-                if (parentNode && parentNode.tagName) {
-                    tagName = parentNode.tagName.toLowerCase();
+                if (parentNode) {
+                    tagName = parentNode.nodeName.toLowerCase();
                 } else {
                     return false;
                 }
             }
             return false;
-        }
-    };
-}(window, document));
-
-var Selection;
-
-(function (window, document) {
-    'use strict';
-
-    Selection = {
-        // http://stackoverflow.com/questions/1197401/how-can-i-get-the-element-the-caret-is-in-with-javascript-when-using-contentedi
-        // by You
-        getSelectionStart: function (ownerDocument) {
-            var node = ownerDocument.getSelection().anchorNode,
-                startNode = (node && node.nodeType === 3 ? node.parentNode : node);
-            return startNode;
         },
 
-        findMatchingSelectionParent: function (testElementFunction, contentWindow) {
-            var selection = contentWindow.getSelection(), range, current;
+        cleanListDOM: function (ownerDocument, element) {
+            if (element.nodeName.toLowerCase() !== 'li') {
+                return;
+            }
 
-            if (selection.rangeCount === 0) {
+            var list = element.parentElement;
+
+            if (list.parentElement.nodeName.toLowerCase() === 'p') { // yes we need to clean up
+                this.unwrap(list.parentElement, ownerDocument);
+
+                // move cursor at the end of the text inside the list
+                // for some unknown reason, the cursor is moved to end of the "visual" line
+                Selection.moveCursor(ownerDocument, element.firstChild, element.firstChild.textContent.length);
+            }
+        },
+
+        /* splitDOMTree
+         *
+         * Given a root element some descendant element, split the root element
+         * into its own element containing the descendant element and all elements
+         * on the left or right side of the descendant ('right' is default)
+         *
+         * example:
+         *
+         *         <div>
+         *      /    |   \
+         *  <span> <span> <span>
+         *   / \    / \    / \
+         *  1   2  3   4  5   6
+         *
+         *  If I wanted to split this tree given the <div> as the root and "4" as the leaf
+         *  the result would be (the prime ' marks indicates nodes that are created as clones):
+         *
+         *   SPLITTING OFF 'RIGHT' TREE       SPLITTING OFF 'LEFT' TREE
+         *
+         *     <div>            <div>'              <div>'      <div>
+         *      / \              / \                 / \          |
+         * <span> <span>   <span>' <span>       <span> <span>   <span>
+         *   / \    |        |      / \           /\     /\       /\
+         *  1   2   3        4     5   6         1  2   3  4     5  6
+         *
+         *  The above example represents splitting off the 'right' or 'left' part of a tree, where
+         *  the <div>' would be returned as an element not appended to the DOM, and the <div>
+         *  would remain in place where it was
+         *
+        */
+        splitOffDOMTree: function (rootNode, leafNode, splitLeft) {
+            var splitOnNode = leafNode,
+                createdNode = null,
+                splitRight = !splitLeft;
+
+            // loop until we hit the root
+            while (splitOnNode !== rootNode) {
+                var currParent = splitOnNode.parentNode,
+                    newParent = currParent.cloneNode(false),
+                    targetNode = (splitRight ? splitOnNode : currParent.firstChild),
+                    appendLast;
+
+                // Create a new parent element which is a clone of the current parent
+                if (createdNode) {
+                    if (splitRight) {
+                        // If we're splitting right, add previous created element before siblings
+                        newParent.appendChild(createdNode);
+                    } else {
+                        // If we're splitting left, add previous created element last
+                        appendLast = createdNode;
+                    }
+                }
+                createdNode = newParent;
+
+                while (targetNode) {
+                    var sibling = targetNode.nextSibling;
+                    // Special handling for the 'splitNode'
+                    if (targetNode === splitOnNode) {
+                        if (!targetNode.hasChildNodes()) {
+                            targetNode.parentNode.removeChild(targetNode);
+                        } else {
+                            // For the node we're splitting on, if it has children, we need to clone it
+                            // and not just move it
+                            targetNode = targetNode.cloneNode(false);
+                        }
+                        // If the resulting split node has content, add it
+                        if (targetNode.textContent) {
+                            createdNode.appendChild(targetNode);
+                        }
+
+                        targetNode = (splitRight ? sibling : null);
+                    } else {
+                        // For general case, just remove the element and only
+                        // add it to the split tree if it contains something
+                        targetNode.parentNode.removeChild(targetNode);
+                        if (targetNode.hasChildNodes() || targetNode.textContent) {
+                            createdNode.appendChild(targetNode);
+                        }
+
+                        targetNode = sibling;
+                    }
+                }
+
+                // If we had an element we wanted to append at the end, do that now
+                if (appendLast) {
+                    createdNode.appendChild(appendLast);
+                }
+
+                splitOnNode = currParent;
+            }
+
+            return createdNode;
+        },
+
+        moveTextRangeIntoElement: function (startNode, endNode, newElement) {
+            if (!startNode || !endNode) {
                 return false;
             }
 
-            range = selection.getRangeAt(0);
-            current = range.commonAncestorContainer;
+            var rootNode = this.findCommonRoot(startNode, endNode);
+            if (!rootNode) {
+                return false;
+            }
 
-            return Util.traverseUp(current, testElementFunction);
-        },
+            if (endNode === startNode) {
+                var temp = startNode.parentNode,
+                    sibling = startNode.nextSibling;
+                temp.removeChild(startNode);
+                newElement.appendChild(startNode);
+                if (sibling) {
+                    temp.insertBefore(newElement, sibling);
+                } else {
+                    temp.appendChild(newElement);
+                }
+                return newElement.hasChildNodes();
+            }
 
-        getSelectionElement: function (contentWindow) {
-            return this.findMatchingSelectionParent(function (el) {
-                return el.getAttribute('data-medium-element');
-            }, contentWindow);
-        },
-
-        selectionInContentEditableFalse: function (contentWindow) {
-            return this.findMatchingSelectionParent(function (el) {
-                return (el && el.nodeName !== '#text' && el.getAttribute('contenteditable') === 'false');
-            }, contentWindow);
-        },
-
-        // http://stackoverflow.com/questions/4176923/html-of-selected-text
-        // by Tim Down
-        getSelectionHtml: function getSelectionHtml() {
-            var i,
-                html = '',
-                sel,
-                len,
-                container;
-            if (this.options.contentWindow.getSelection !== undefined) {
-                sel = this.options.contentWindow.getSelection();
-                if (sel.rangeCount) {
-                    container = this.options.ownerDocument.createElement('div');
-                    for (i = 0, len = sel.rangeCount; i < len; i += 1) {
-                        container.appendChild(sel.getRangeAt(i).cloneContents());
+            // create rootChildren array which includes all the children
+            // we care about
+            var rootChildren = [],
+                firstChild,
+                lastChild,
+                nextNode;
+            for (var i = 0; i < rootNode.childNodes.length; i++) {
+                nextNode = rootNode.childNodes[i];
+                if (!firstChild) {
+                    if (this.isDescendant(nextNode, startNode, true)) {
+                        firstChild = nextNode;
                     }
-                    html = container.innerHTML;
-                }
-            } else if (this.options.ownerDocument.selection !== undefined) {
-                if (this.options.ownerDocument.selection.type === 'Text') {
-                    html = this.options.ownerDocument.selection.createRange().htmlText;
+                } else {
+                    if (this.isDescendant(nextNode, endNode, true)) {
+                        lastChild = nextNode;
+                        break;
+                    } else {
+                        rootChildren.push(nextNode);
+                    }
                 }
             }
-            return html;
-        },
 
-        /**
-         *  Find the caret position within an element irrespective of any inline tags it may contain.
-         *
-         *  @param {DOMElement} An element containing the cursor to find offsets relative to.
-         *  @param {Range} A Range representing cursor position. Will window.getSelection if none is passed.
-         *  @return {Object} 'left' and 'right' attributes contain offsets from begining and end of Element
-         */
-        getCaretOffsets: function getCaretOffsets(element, range) {
-            var preCaretRange, postCaretRange;
+            var afterLast = lastChild.nextSibling,
+                fragment = rootNode.ownerDocument.createDocumentFragment();
 
-            if (!range) {
-                range = window.getSelection().getRangeAt(0);
-            }
-
-            preCaretRange = range.cloneRange();
-            postCaretRange = range.cloneRange();
-
-            preCaretRange.selectNodeContents(element);
-            preCaretRange.setEnd(range.endContainer, range.endOffset);
-
-            postCaretRange.selectNodeContents(element);
-            postCaretRange.setStart(range.endContainer, range.endOffset);
-
-            return {
-                left: preCaretRange.toString().length,
-                right: postCaretRange.toString().length
-            };
-        },
-
-        // http://stackoverflow.com/questions/15867542/range-object-get-selection-parent-node-chrome-vs-firefox
-        rangeSelectsSingleNode: function (range) {
-            var startNode = range.startContainer;
-            return startNode === range.endContainer &&
-                startNode.hasChildNodes() &&
-                range.endOffset === range.startOffset + 1;
-        },
-
-        getSelectedParentElement: function (range) {
-            var selectedParentElement = null;
-            if (this.rangeSelectsSingleNode(range) && range.startContainer.childNodes[range.startOffset].nodeType !== 3) {
-                selectedParentElement = range.startContainer.childNodes[range.startOffset];
-            } else if (range.startContainer.nodeType === 3) {
-                selectedParentElement = range.startContainer.parentNode;
+            // build up fragment on startNode side of tree
+            if (firstChild === startNode) {
+                firstChild.parentNode.removeChild(firstChild);
+                fragment.appendChild(firstChild);
             } else {
-                selectedParentElement = range.startContainer;
+                fragment.appendChild(this.splitOffDOMTree(firstChild, startNode));
             }
-            return selectedParentElement;
+
+            // add any elements between firstChild & lastChild
+            rootChildren.forEach(function (element) {
+                element.parentNode.removeChild(element);
+                fragment.appendChild(element);
+            });
+
+            // build up fragment on endNode side of the tree
+            if (lastChild === endNode) {
+                lastChild.parentNode.removeChild(lastChild);
+                fragment.appendChild(lastChild);
+            } else {
+                fragment.appendChild(this.splitOffDOMTree(lastChild, endNode, true));
+            }
+
+            // Add fragment into passed in element
+            newElement.appendChild(fragment);
+
+            if (lastChild.parentNode === rootNode) {
+                // If last child is in the root, insert newElement in front of it
+                rootNode.insertBefore(newElement, lastChild);
+            } else if (afterLast) {
+                // If last child was removed, but it had a sibling, insert in front of it
+                rootNode.insertBefore(newElement, afterLast);
+            } else {
+                // lastChild was removed and was the last actual element just append
+                rootNode.appendChild(newElement);
+            }
+
+            return newElement.hasChildNodes();
         },
 
-        getSelectionData: function (el) {
-            var tagName;
-
-            if (el && el.tagName) {
-                tagName = el.tagName.toLowerCase();
+        /* based on http://stackoverflow.com/a/6183069 */
+        depthOfNode: function (inNode) {
+            var theDepth = 0,
+                node = inNode;
+            while (node.parentNode !== null) {
+                node = node.parentNode;
+                theDepth++;
             }
+            return theDepth;
+        },
 
-            while (el && Util.parentElements.indexOf(tagName) === -1) {
-                el = el.parentNode;
-                if (el && el.tagName) {
-                    tagName = el.tagName.toLowerCase();
+        findCommonRoot: function (inNode1, inNode2) {
+            var depth1 = this.depthOfNode(inNode1),
+                depth2 = this.depthOfNode(inNode2),
+                node1 = inNode1,
+                node2 = inNode2;
+
+            while (depth1 !== depth2) {
+                if (depth1 > depth2) {
+                    node1 = node1.parentNode;
+                    depth1 -= 1;
+                } else {
+                    node2 = node2.parentNode;
+                    depth2 -= 1;
                 }
             }
 
-            return {
-                el: el,
-                tagName: tagName
-            };
+            while (node1 !== node2) {
+                node1 = node1.parentNode;
+                node2 = node2.parentNode;
+            }
+
+            return node1;
+        },
+        /* END - based on http://stackoverflow.com/a/6183069 */
+
+        isElementAtBeginningOfBlock: function (node) {
+            var textVal,
+                sibling;
+            while (!this.isBlockContainer(node) && !this.isMediumEditorElement(node)) {
+                sibling = node;
+                while (sibling = sibling.previousSibling) {
+                    textVal = sibling.nodeType === 3 ? sibling.nodeValue : sibling.textContent;
+                    if (textVal.length > 0) {
+                        return false;
+                    }
+                }
+                node = node.parentNode;
+            }
+            return true;
+        },
+
+        isMediumEditorElement: function (element) {
+            return element && element.getAttribute && !!element.getAttribute('data-medium-editor-element');
+        },
+
+        getContainerEditorElement: function (element) {
+            return Util.traverseUp(element, function (node) {
+                return Util.isMediumEditorElement(node);
+            });
+        },
+
+        isBlockContainer: function (element) {
+            return element && element.nodeType !== 3 && this.blockContainerElementNames.indexOf(element.nodeName.toLowerCase()) !== -1;
+        },
+
+        getClosestBlockContainer: function (node) {
+            return Util.traverseUp(node, function (node) {
+                return Util.isBlockContainer(node);
+            });
+        },
+
+        getTopBlockContainer: function (element) {
+            var topBlock = element;
+            this.traverseUp(element, function (el) {
+                if (Util.isBlockContainer(el)) {
+                    topBlock = el;
+                }
+                return false;
+            });
+            return topBlock;
+        },
+
+        getFirstSelectableLeafNode: function (element) {
+            while (element && element.firstChild) {
+                element = element.firstChild;
+            }
+
+            // We don't want to set the selection to an element that can't have children, this messes up Gecko.
+            element = this.traverseUp(element, function (el) {
+                return Util.emptyElementNames.indexOf(el.nodeName.toLowerCase()) === -1;
+            });
+            // Selecting at the beginning of a table doesn't work in PhantomJS.
+            if (element.nodeName.toLowerCase() === 'table') {
+                var firstCell = element.querySelector('th, td');
+                if (firstCell) {
+                    element = firstCell;
+                }
+            }
+            return element;
+        },
+
+        getFirstTextNode: function (element) {
+            if (element.nodeType === 3) {
+                return element;
+            }
+
+            for (var i = 0; i < element.childNodes.length; i++) {
+                var textNode = this.getFirstTextNode(element.childNodes[i]);
+                if (textNode !== null) {
+                    return textNode;
+                }
+            }
+            return null;
+        },
+
+        ensureUrlHasProtocol: function (url) {
+            if (url.indexOf('://') === -1) {
+                return 'http://' + url;
+            }
+            return url;
+        },
+
+        warn: function () {
+            if (window.console !== undefined && typeof window.console.warn === 'function') {
+                window.console.warn.apply(window.console, arguments);
+            }
+        },
+
+        deprecated: function (oldName, newName, version) {
+            // simple deprecation warning mechanism.
+            var m = oldName + ' is deprecated, please use ' + newName + ' instead.';
+            if (version) {
+                m += ' Will be removed in ' + version;
+            }
+            Util.warn(m);
+        },
+
+        deprecatedMethod: function (oldName, newName, args, version) {
+            // run the replacement and warn when someone calls a deprecated method
+            Util.deprecated(oldName, newName, version);
+            if (typeof this[newName] === 'function') {
+                this[newName].apply(this, args);
+            }
+        },
+
+        cleanupAttrs: function (el, attrs) {
+            attrs.forEach(function (attr) {
+                el.removeAttribute(attr);
+            });
+        },
+
+        cleanupTags: function (el, tags) {
+            tags.forEach(function (tag) {
+                if (el.nodeName.toLowerCase() === tag) {
+                    el.parentNode.removeChild(el);
+                }
+            }, this);
+        },
+
+        // get the closest parent
+        getClosestTag: function (el, tag) {
+            return this.traverseUp(el, function (element) {
+                return element.nodeName.toLowerCase() === tag.toLowerCase();
+            });
+        },
+
+        unwrap: function (el, doc) {
+            var fragment = doc.createDocumentFragment(),
+                nodes = Array.prototype.slice.call(el.childNodes);
+
+            // cast nodeList to array since appending child
+            // to a different node will alter length of el.childNodes
+            for (var i = 0; i < nodes.length; i++) {
+                fragment.appendChild(nodes[i]);
+            }
+
+            if (fragment.childNodes.length) {
+                el.parentNode.replaceChild(fragment, el);
+            } else {
+                el.parentNode.removeChild(el);
+            }
         }
     };
-}(document, window));
+}(window));
 
-var DefaultButton,
-    ButtonsData;
-
-(function (window, document) {
+var buttonDefaults;
+(function () {
     'use strict';
 
-    ButtonsData = {
+    buttonDefaults = {
         'bold': {
             name: 'bold',
             action: 'bold',
@@ -45165,8 +45854,7 @@ var DefaultButton,
             },
             useQueryState: true,
             contentDefault: '<b>B</b>',
-            contentFA: '<i class="fa fa-bold"></i>',
-            key: 'b'
+            contentFA: '<i class="fa fa-bold"></i>'
         },
         'italic': {
             name: 'italic',
@@ -45179,8 +45867,7 @@ var DefaultButton,
             },
             useQueryState: true,
             contentDefault: '<b><i>I</i></b>',
-            contentFA: '<i class="fa fa-italic"></i>',
-            key: 'i'
+            contentFA: '<i class="fa fa-italic"></i>'
         },
         'underline': {
             name: 'underline',
@@ -45193,8 +45880,7 @@ var DefaultButton,
             },
             useQueryState: true,
             contentDefault: '<b><u>U</u></b>',
-            contentFA: '<i class="fa fa-underline"></i>',
-            key: 'u'
+            contentFA: '<i class="fa fa-underline"></i>'
         },
         'strikethrough': {
             name: 'strikethrough',
@@ -45239,14 +45925,6 @@ var DefaultButton,
             contentDefault: '<b>image</b>',
             contentFA: '<i class="fa fa-picture-o"></i>'
         },
-        'quote': {
-            name: 'quote',
-            action: 'append-blockquote',
-            aria: 'blockquote',
-            tagNames: ['blockquote'],
-            contentDefault: '<b>&ldquo;</b>',
-            contentFA: '<i class="fa fa-quote-right"></i>'
-        },
         'orderedlist': {
             name: 'orderedlist',
             action: 'insertorderedlist',
@@ -45264,14 +45942,6 @@ var DefaultButton,
             useQueryState: true,
             contentDefault: '<b>&bull;</b>',
             contentFA: '<i class="fa fa-list-ul"></i>'
-        },
-        'pre': {
-            name: 'pre',
-            action: 'append-pre',
-            aria: 'preformatted text',
-            tagNames: ['pre'],
-            contentDefault: '<b>0101</b>',
-            contentFA: '<i class="fa fa-code fa-lg"></i>'
         },
         'indent': {
             name: 'indent',
@@ -45298,7 +45968,6 @@ var DefaultButton,
                 prop: 'text-align',
                 value: 'center'
             },
-            useQueryState: true,
             contentDefault: '<b>C</b>',
             contentFA: '<i class="fa fa-align-center"></i>'
         },
@@ -45311,7 +45980,6 @@ var DefaultButton,
                 prop: 'text-align',
                 value: 'justify'
             },
-            useQueryState: true,
             contentDefault: '<b>J</b>',
             contentFA: '<i class="fa fa-align-justify"></i>'
         },
@@ -45324,7 +45992,6 @@ var DefaultButton,
                 prop: 'text-align',
                 value: 'left'
             },
-            useQueryState: true,
             contentDefault: '<b>L</b>',
             contentFA: '<i class="fa fa-align-left"></i>'
         },
@@ -45337,730 +46004,785 @@ var DefaultButton,
                 prop: 'text-align',
                 value: 'right'
             },
-            useQueryState: true,
             contentDefault: '<b>R</b>',
             contentFA: '<i class="fa fa-align-right"></i>'
         },
-        'header1': {
-            name: 'header1',
-            action: function (options) {
-                return 'append-' + options.firstHeader;
-            },
-            aria: function (options) {
-                return options.firstHeader;
-            },
-            tagNames: function (options) {
-                return [options.firstHeader];
-            },
-            contentDefault: '<b>H1</b>'
+        // Known inline elements that are not removed, or not removed consistantly across browsers:
+        // <span>, <label>, <br>
+        'removeFormat': {
+            name: 'removeFormat',
+            aria: 'remove formatting',
+            action: 'removeFormat',
+            contentDefault: '<b>X</b>',
+            contentFA: '<i class="fa fa-eraser"></i>'
         },
-        'header2': {
-            name: 'header2',
-            action: function (options) {
-                return 'append-' + options.secondHeader;
-            },
-            aria: function (options) {
-                return options.secondHeader;
-            },
-            tagNames: function (options) {
-                return [options.secondHeader];
-            },
-            contentDefault: '<b>H2</b>'
+
+        /***** Buttons for appending block elements (append-<element> action) *****/
+
+        'quote': {
+            name: 'quote',
+            action: 'append-blockquote',
+            aria: 'blockquote',
+            tagNames: ['blockquote'],
+            contentDefault: '<b>&ldquo;</b>',
+            contentFA: '<i class="fa fa-quote-right"></i>'
+        },
+        'pre': {
+            name: 'pre',
+            action: 'append-pre',
+            aria: 'preformatted text',
+            tagNames: ['pre'],
+            contentDefault: '<b>0101</b>',
+            contentFA: '<i class="fa fa-code fa-lg"></i>'
+        },
+        'h1': {
+            name: 'h1',
+            action: 'append-h1',
+            aria: 'header type one',
+            tagNames: ['h1'],
+            contentDefault: '<b>H1</b>',
+            contentFA: '<i class="fa fa-header"><sup>1</sup>'
+        },
+        'h2': {
+            name: 'h2',
+            action: 'append-h2',
+            aria: 'header type two',
+            tagNames: ['h2'],
+            contentDefault: '<b>H2</b>',
+            contentFA: '<i class="fa fa-header"><sup>2</sup>'
+        },
+        'h3': {
+            name: 'h3',
+            action: 'append-h3',
+            aria: 'header type three',
+            tagNames: ['h3'],
+            contentDefault: '<b>H3</b>',
+            contentFA: '<i class="fa fa-header"><sup>3</sup>'
+        },
+        'h4': {
+            name: 'h4',
+            action: 'append-h4',
+            aria: 'header type four',
+            tagNames: ['h4'],
+            contentDefault: '<b>H4</b>',
+            contentFA: '<i class="fa fa-header"><sup>4</sup>'
+        },
+        'h5': {
+            name: 'h5',
+            action: 'append-h5',
+            aria: 'header type five',
+            tagNames: ['h5'],
+            contentDefault: '<b>H5</b>',
+            contentFA: '<i class="fa fa-header"><sup>5</sup>'
+        },
+        'h6': {
+            name: 'h6',
+            action: 'append-h6',
+            aria: 'header type six',
+            tagNames: ['h6'],
+            contentDefault: '<b>H6</b>',
+            contentFA: '<i class="fa fa-header"><sup>6</sup>'
         }
     };
 
-    DefaultButton = function (options, instance) {
-        this.options = options;
-        this.name = options.name;
-        this.init(instance);
+})();
+var editorDefaults;
+(function () {
+    // summary: The default options hash used by the Editor
+
+    editorDefaults = {
+        activeButtonClass: 'medium-editor-button-active',
+        buttonLabels: false,
+        delay: 0,
+        disableReturn: false,
+        disableDoubleReturn: false,
+        disableEditing: false,
+        autoLink: false,
+        elementsContainer: false,
+        contentWindow: window,
+        ownerDocument: document,
+        targetBlank: false,
+        extensions: {},
+        spellcheck: true
     };
+})();
 
-    DefaultButton.prototype = {
-        init: function (instance) {
-            this.base = instance;
-
-            this.button = this.createButton();
-            this.base.on(this.button, 'click', this.handleClick.bind(this));
-        },
-        getButton: function () {
-            return this.button;
-        },
-        getAction: function () {
-            return (typeof this.options.action === 'function') ? this.options.action(this.base.options) : this.options.action;
-        },
-        getAria: function () {
-            return (typeof this.options.aria === 'function') ? this.options.aria(this.base.options) : this.options.aria;
-        },
-        getTagNames: function () {
-            return (typeof this.options.tagNames === 'function') ? this.options.tagNames(this.base.options) : this.options.tagNames;
-        },
-        createButton: function () {
-            var button = this.base.options.ownerDocument.createElement('button'),
-                content = this.options.contentDefault;
-            button.classList.add('medium-editor-action');
-            button.classList.add('medium-editor-action-' + this.name);
-            button.setAttribute('data-action', this.getAction());
-            button.setAttribute('aria-label', this.getAria());
-            if (this.base.options.buttonLabels) {
-                if (this.base.options.buttonLabels === 'fontawesome' && this.options.contentFA) {
-                    content = this.options.contentFA;
-                } else if (typeof this.base.options.buttonLabels === 'object' && this.base.options.buttonLabels[this.name]) {
-                    content = this.base.options.buttonLabels[this.options.name];
-                }
-            }
-            button.innerHTML = content;
-            return button;
-        },
-        handleClick: function (evt) {
-            evt.preventDefault();
-            evt.stopPropagation();
-
-            var action = this.getAction();
-
-            if (action) {
-                this.base.execAction(action);
-            }
-        },
-        isActive: function () {
-            return this.button.classList.contains(this.base.options.activeButtonClass);
-        },
-        setInactive: function () {
-            this.button.classList.remove(this.base.options.activeButtonClass);
-            delete this.knownState;
-        },
-        setActive: function () {
-            this.button.classList.add(this.base.options.activeButtonClass);
-            delete this.knownState;
-        },
-        queryCommandState: function () {
-            var queryState = null;
-            if (this.options.useQueryState) {
-                queryState = this.base.queryCommandState(this.getAction());
-            }
-            return queryState;
-        },
-        isAlreadyApplied: function (node) {
-            var isMatch = false,
-                tagNames = this.getTagNames(),
-                styleVals,
-                computedStyle;
-
-            if (this.knownState === false || this.knownState === true) {
-                return this.knownState;
-            }
-
-            if (tagNames && tagNames.length > 0 && node.tagName) {
-                isMatch = tagNames.indexOf(node.tagName.toLowerCase()) !== -1;
-            }
-
-            if (!isMatch && this.options.style) {
-                styleVals = this.options.style.value.split('|');
-                computedStyle = this.base.options.contentWindow.getComputedStyle(node, null).getPropertyValue(this.options.style.prop);
-                styleVals.forEach(function (val) {
-                    if (!this.knownState) {
-                        this.knownState = isMatch = (computedStyle.indexOf(val) !== -1);
-                    }
-                }.bind(this));
-            }
-
-            return isMatch;
-        }
-    };
-}(window, document));
-
-var pasteHandler;
-
-(function (window, document) {
-    'use strict';
-    /*jslint regexp: true*/
-    /*
-        jslint does not allow character negation, because the negation
-        will not match any unicode characters. In the regexes in this
-        block, negation is used specifically to match the end of an html
-        tag, and in fact unicode characters *should* be allowed.
-    */
-    function createReplacements() {
-        return [
-
-            // replace two bogus tags that begin pastes from google docs
-            [new RegExp(/<[^>]*docs-internal-guid[^>]*>/gi), ""],
-            [new RegExp(/<\/b>(<br[^>]*>)?$/gi), ""],
-
-             // un-html spaces and newlines inserted by OS X
-            [new RegExp(/<span class="Apple-converted-space">\s+<\/span>/g), ' '],
-            [new RegExp(/<br class="Apple-interchange-newline">/g), '<br>'],
-
-            // replace google docs italics+bold with a span to be replaced once the html is inserted
-            [new RegExp(/<span[^>]*(font-style:italic;font-weight:bold|font-weight:bold;font-style:italic)[^>]*>/gi), '<span class="replace-with italic bold">'],
-
-            // replace google docs italics with a span to be replaced once the html is inserted
-            [new RegExp(/<span[^>]*font-style:italic[^>]*>/gi), '<span class="replace-with italic">'],
-
-            //[replace google docs bolds with a span to be replaced once the html is inserted
-            [new RegExp(/<span[^>]*font-weight:bold[^>]*>/gi), '<span class="replace-with bold">'],
-
-             // replace manually entered b/i/a tags with real ones
-            [new RegExp(/&lt;(\/?)(i|b|a)&gt;/gi), '<$1$2>'],
-
-             // replace manually a tags with real ones, converting smart-quotes from google docs
-            [new RegExp(/&lt;a\s+href=(&quot;|&rdquo;|&ldquo;|“|”)([^&]+)(&quot;|&rdquo;|&ldquo;|“|”)&gt;/gi), '<a href="$2">']
-
-        ];
-    }
-    /*jslint regexp: false*/
-
-    pasteHandler = {
-        handlePaste: function (element, evt, options) {
-            var paragraphs,
-                html = '',
-                p,
-                dataFormatHTML = 'text/html',
-                dataFormatPlain = 'text/plain';
-
-            element.classList.remove('medium-editor-placeholder');
-            if (!options.forcePlainText && !options.cleanPastedHTML) {
-                return element;
-            }
-
-            if (options.contentWindow.clipboardData && evt.clipboardData === undefined) {
-                evt.clipboardData = options.contentWindow.clipboardData;
-                // If window.clipboardData exists, but e.clipboardData doesn't exist,
-                // we're probably in IE. IE only has two possibilities for clipboard
-                // data format: 'Text' and 'URL'.
-                //
-                // Of the two, we want 'Text':
-                dataFormatHTML = 'Text';
-                dataFormatPlain = 'Text';
-            }
-
-            if (evt.clipboardData && evt.clipboardData.getData && !evt.defaultPrevented) {
-                evt.preventDefault();
-
-                if (options.cleanPastedHTML && evt.clipboardData.getData(dataFormatHTML)) {
-                    return this.cleanPaste(evt.clipboardData.getData(dataFormatHTML), options);
-                }
-                if (!(options.disableReturn || element.getAttribute('data-disable-return'))) {
-                    paragraphs = evt.clipboardData.getData(dataFormatPlain).split(/[\r\n]/g);
-                    for (p = 0; p < paragraphs.length; p += 1) {
-                        if (paragraphs[p] !== '') {
-                            html += '<p>' + Util.htmlEntities(paragraphs[p]) + '</p>';
-                        }
-                    }
-                    Util.insertHTMLCommand(options.ownerDocument, html);
-                } else {
-                    html = Util.htmlEntities(evt.clipboardData.getData(dataFormatPlain));
-                    Util.insertHTMLCommand(options.ownerDocument, html);
-                }
-            }
-        },
-
-        cleanPaste: function (text, options) {
-            var i, elList, workEl,
-                el = Selection.getSelectionElement(options.contentWindow),
-                multiline = /<p|<br|<div/.test(text),
-                replacements = createReplacements();
-
-            for (i = 0; i < replacements.length; i += 1) {
-                text = text.replace(replacements[i][0], replacements[i][1]);
-            }
-
-            if (multiline) {
-                // double br's aren't converted to p tags, but we want paragraphs.
-                elList = text.split('<br><br>');
-
-                this.pasteHTML('<p>' + elList.join('</p><p>') + '</p>', options.ownerDocument);
-
-                try {
-                    options.ownerDocument.execCommand('insertText', false, "\n");
-                } catch (ignore) { }
-
-                // block element cleanup
-                elList = el.querySelectorAll('a,p,div,br');
-                for (i = 0; i < elList.length; i += 1) {
-                    workEl = elList[i];
-
-                    switch (workEl.tagName.toLowerCase()) {
-                    case 'a':
-                        if (options.targetBlank) {
-                            Util.setTargetBlank(workEl);
-                        }
-                        break;
-                    case 'p':
-                    case 'div':
-                        this.filterCommonBlocks(workEl);
-                        break;
-                    case 'br':
-                        this.filterLineBreak(workEl);
-                        break;
-                    }
-                }
-            } else {
-                this.pasteHTML(text, options.ownerDocument);
-            }
-        },
-
-        pasteHTML: function (html, ownerDocument) {
-            var elList, workEl, i, fragmentBody, pasteBlock = ownerDocument.createDocumentFragment();
-
-            pasteBlock.appendChild(ownerDocument.createElement('body'));
-
-            fragmentBody = pasteBlock.querySelector('body');
-            fragmentBody.innerHTML = html;
-
-            this.cleanupSpans(fragmentBody, ownerDocument);
-
-            elList = fragmentBody.querySelectorAll('*');
-            for (i = 0; i < elList.length; i += 1) {
-                workEl = elList[i];
-
-                // delete ugly attributes
-                workEl.removeAttribute('class');
-                workEl.removeAttribute('style');
-                workEl.removeAttribute('dir');
-
-                if (workEl.tagName.toLowerCase() === 'meta') {
-                    workEl.parentNode.removeChild(workEl);
-                }
-            }
-            Util.insertHTMLCommand(ownerDocument, fragmentBody.innerHTML.replace(/&nbsp;/g, ' '));
-        },
-        isCommonBlock: function (el) {
-            return (el && (el.tagName.toLowerCase() === 'p' || el.tagName.toLowerCase() === 'div'));
-        },
-        filterCommonBlocks: function (el) {
-            if (/^\s*$/.test(el.textContent)) {
-                el.parentNode.removeChild(el);
-            }
-        },
-        filterLineBreak: function (el) {
-            if (this.isCommonBlock(el.previousElementSibling)) {
-                // remove stray br's following common block elements
-                el.parentNode.removeChild(el);
-            } else if (this.isCommonBlock(el.parentNode) && (el.parentNode.firstChild === el || el.parentNode.lastChild === el)) {
-                // remove br's just inside open or close tags of a div/p
-                el.parentNode.removeChild(el);
-            } else if (el.parentNode.childElementCount === 1 && el.parentNode.textContent === '') {
-                // and br's that are the only child of a div/p
-                this.removeWithParent(el);
-            }
-
-        },
-
-        // remove an element, including its parent, if it is the only element within its parent
-        removeWithParent: function (el) {
-            if (el && el.parentNode) {
-                if (el.parentNode.parentNode && el.parentNode.childElementCount === 1) {
-                    el.parentNode.parentNode.removeChild(el.parentNode);
-                } else {
-                    el.parentNode.removeChild(el.parentNode);
-                }
-            }
-        },
-
-        cleanupSpans: function (container_el, ownerDocument) {
-            var i,
-                el,
-                new_el,
-                spans = container_el.querySelectorAll('.replace-with'),
-                isCEF = function (el) {
-                    return (el && el.nodeName !== '#text' && el.getAttribute('contenteditable') === 'false');
-                };
-
-            for (i = 0; i < spans.length; i += 1) {
-                el = spans[i];
-                new_el = ownerDocument.createElement(el.classList.contains('bold') ? 'b' : 'i');
-
-                if (el.classList.contains('bold') && el.classList.contains('italic')) {
-                    // add an i tag as well if this has both italics and bold
-                    new_el.innerHTML = '<i>' + el.innerHTML + '</i>';
-                } else {
-                    new_el.innerHTML = el.innerHTML;
-                }
-                el.parentNode.replaceChild(new_el, el);
-            }
-
-            spans = container_el.querySelectorAll('span');
-            for (i = 0; i < spans.length; i += 1) {
-                el = spans[i];
-
-                // bail if span is in contenteditable = false
-                if (Util.traverseUp(el, isCEF)) {
-                    return false;
-                }
-
-                // remove empty spans, replace others with their contents
-                if (/^\s*$/.test()) {
-                    el.parentNode.removeChild(el);
-                } else {
-                    el.parentNode.replaceChild(ownerDocument.createTextNode(el.textContent), el);
-                }
-            }
-        }
-    };
-}(window, document));
-
-var AnchorExtension;
-
-(function (window, document) {
+var Extension;
+(function () {
     'use strict';
 
-    function AnchorDerived() {
-        this.parent = true;
-        this.options = {
-            name: 'anchor',
-            action: 'createLink',
-            aria: 'link',
-            tagNames: ['a'],
-            contentDefault: '<b>#</b>',
-            contentFA: '<i class="fa fa-link"></i>'
+    /* global Util */
+
+    Extension = function (options) {
+        Util.extend(this, options);
+    };
+
+    Extension.extend = function (protoProps) {
+        // magic extender thinger. mostly borrowed from backbone/goog.inherits
+        // place this function on some thing you want extend-able.
+        //
+        // example:
+        //
+        //      function Thing(args){
+        //          this.options = args;
+        //      }
+        //
+        //      Thing.prototype = { foo: "bar" };
+        //      Thing.extend = extenderify;
+        //
+        //      var ThingTwo = Thing.extend({ foo: "baz" });
+        //
+        //      var thingOne = new Thing(); // foo === "bar"
+        //      var thingTwo = new ThingTwo(); // foo === "baz"
+        //
+        //      which seems like some simply shallow copy nonsense
+        //      at first, but a lot more is going on there.
+        //
+        //      passing a `constructor` to the extend props
+        //      will cause the instance to instantiate through that
+        //      instead of the parent's constructor.
+
+        var parent = this,
+            child;
+
+        // The constructor function for the new subclass is either defined by you
+        // (the "constructor" property in your `extend` definition), or defaulted
+        // by us to simply call the parent's constructor.
+
+        if (protoProps && protoProps.hasOwnProperty('constructor')) {
+            child = protoProps.constructor;
+        } else {
+            child = function () {
+                return parent.apply(this, arguments);
+            };
+        }
+
+        // das statics (.extend comes over, so your subclass can have subclasses too)
+        Util.extend(child, parent);
+
+        // Set the prototype chain to inherit from `parent`, without calling
+        // `parent`'s constructor function.
+        var Surrogate = function () {
+            this.constructor = child;
         };
-        this.name = 'anchor';
-        this.hasForm = true;
-    }
+        Surrogate.prototype = parent.prototype;
+        child.prototype = new Surrogate();
 
-    AnchorDerived.prototype = {
+        if (protoProps) {
+            Util.extend(child.prototype, protoProps);
+        }
 
-        // Button and Extension handling
+        // todo: $super?
 
-        // Called when the button the toolbar is clicked
-        // Overrides DefaultButton.handleClick
-        handleClick: function (evt) {
-            evt.preventDefault();
-            evt.stopPropagation();
+        return child;
+    };
 
-            if (!this.base.selection) {
-                this.base.checkSelection();
-            }
+    Extension.prototype = {
+        /* init: [function]
+         *
+         * Called by MediumEditor during initialization.
+         * The .base property will already have been set to
+         * current instance of MediumEditor when this is called.
+         * All helper methods will exist as well
+         */
+        init: function () {},
 
-            var selectedParentElement = Selection.getSelectedParentElement(this.base.selectionRange);
-            if (selectedParentElement.tagName &&
-                    selectedParentElement.tagName.toLowerCase() === 'a') {
-                return this.base.execAction('unlink');
-            }
+        /* base: [MediumEditor instance]
+         *
+         * If not overriden, this will be set to the current instance
+         * of MediumEditor, before the init method is called
+         */
+        base: undefined,
 
-            if (!this.isDisplayed()) {
-                this.showForm();
-            }
+        /* name: [string]
+         *
+         * 'name' of the extension, used for retrieving the extension.
+         * If not set, MediumEditor will set this to be the key
+         * used when passing the extension into MediumEditor via the
+         * 'extensions' option
+         */
+        name: undefined,
 
-            return false;
+        /* checkState: [function (node)]
+         *
+         * If implemented, this function will be called one or more times
+         * the state of the editor & toolbar are updated.
+         * When the state is updated, the editor does the following:
+         *
+         * 1) Find the parent node containing the current selection
+         * 2) Call checkState on the extension, passing the node as an argument
+         * 3) Get the parent node of the previous node
+         * 4) Repeat steps #2 and #3 until we move outside the parent contenteditable
+         */
+        checkState: undefined,
+
+        /* destroy: [function ()]
+         *
+         * This method should remove any created html, custom event handlers
+         * or any other cleanup tasks that should be performed.
+         * If implemented, this function will be called when MediumEditor's
+         * destroy method has been called.
+         */
+        destroy: undefined,
+
+        /* As alternatives to checkState, these functions provide a more structured
+         * path to updating the state of an extension (usually a button) whenever
+         * the state of the editor & toolbar are updated.
+         */
+
+        /* queryCommandState: [function ()]
+         *
+         * If implemented, this function will be called once on each extension
+         * when the state of the editor/toolbar is being updated.
+         *
+         * If this function returns a non-null value, the extension will
+         * be ignored as the code climbs the dom tree.
+         *
+         * If this function returns true, and the setActive() function is defined
+         * setActive() will be called
+         */
+        queryCommandState: undefined,
+
+        /* isActive: [function ()]
+         *
+         * If implemented, this function will be called when MediumEditor
+         * has determined that this extension is 'active' for the current selection.
+         * This may be called when the editor & toolbar are being updated,
+         * but only if queryCommandState() or isAlreadyApplied() functions
+         * are implemented, and when called, return true.
+         */
+        isActive: undefined,
+
+        /* isAlreadyApplied: [function (node)]
+         *
+         * If implemented, this function is similar to checkState() in
+         * that it will be called repeatedly as MediumEditor moves up
+         * the DOM to update the editor & toolbar after a state change.
+         *
+         * NOTE: This function will NOT be called if checkState() has
+         * been implemented. This function will NOT be called if
+         * queryCommandState() is implemented and returns a non-null
+         * value when called
+         */
+        isAlreadyApplied: undefined,
+
+        /* setActive: [function ()]
+         *
+         * If implemented, this function is called when MediumEditor knows
+         * that this extension is currently enabled.  Currently, this
+         * function is called when updating the editor & toolbar, and
+         * only if queryCommandState() or isAlreadyApplied(node) return
+         * true when called
+         */
+        setActive: undefined,
+
+        /* setInactive: [function ()]
+         *
+         * If implemented, this function is called when MediumEditor knows
+         * that this extension is currently disabled.  Curently, this
+         * is called at the beginning of each state change for
+         * the editor & toolbar. After calling this, MediumEditor
+         * will attempt to update the extension, either via checkState()
+         * or the combination of queryCommandState(), isAlreadyApplied(node),
+         * isActive(), and setActive()
+         */
+        setInactive: undefined,
+
+        /************************ Helpers ************************
+         * The following are helpers that are either set by MediumEditor
+         * during initialization, or are helper methods which either
+         * route calls to the MediumEditor instance or provide common
+         * functionality for all extensions
+         *********************************************************/
+
+        /* window: [Window]
+         *
+         * If not overriden, this will be set to the window object
+         * to be used by MediumEditor and its extensions.  This is
+         * passed via the 'contentWindow' option to MediumEditor
+         * and is the global 'window' object by default
+         */
+        'window': undefined,
+
+        /* document: [Document]
+         *
+         * If not overriden, this will be set to the document object
+         * to be used by MediumEditor and its extensions. This is
+         * passed via the 'ownerDocument' optin to MediumEditor
+         * and is the global 'document' object by default
+         */
+        'document': undefined,
+
+        /* getEditorElements: [function ()]
+         *
+         * Helper function which returns an array containing
+         * all the contenteditable elements for this instance
+         * of MediumEditor
+         */
+        getEditorElements: function () {
+            return this.base.elements;
         },
 
-        // Called by medium-editor to append form to the toolbar
-        getForm: function () {
-            if (!this.anchorForm) {
-                this.anchorForm = this.createForm();
-            }
-            return this.anchorForm;
+        /* getEditorId: [function ()]
+         *
+         * Helper function which returns a unique identifier
+         * for this instance of MediumEditor
+         */
+        getEditorId: function () {
+            return this.base.id;
         },
 
-        // Used by medium-editor when the default toolbar is to be displayed
-        isDisplayed: function () {
-            return this.getForm().style.display === 'block';
-        },
-
-        hideForm: function () {
-            this.getForm().style.display = 'none';
-            this.getInput().value = '';
-        },
-
-        showForm: function (link_value) {
-            var input = this.getInput();
-
-            this.base.saveSelection();
-            this.base.hideToolbarDefaultActions();
-            this.getForm().style.display = 'block';
-            this.base.setToolbarPosition();
-            this.base.keepToolbarAlive = true;
-
-            input.value = link_value || '';
-            input.focus();
-        },
-
-        // Called by core when tearing down medium-editor (deactivate)
-        deactivate: function () {
-            if (!this.anchorForm) {
-                return false;
-            }
-
-            if (this.anchorForm.parentNode) {
-                this.anchorForm.parentNode.removeChild(this.anchorForm);
-            }
-
-            delete this.anchorForm;
-        },
-
-        // core methods
-
-        doLinkCreation: function () {
-            var targetCheckbox = this.getForm().querySelector('.medium-editor-toolbar-anchor-target'),
-                buttonCheckbox = this.getForm().querySelector('.medium-editor-toolbar-anchor-button'),
-                opts = {
-                    url: this.getInput().value
-                };
-
-            this.base.restoreSelection();
-
-            if (this.base.options.checkLinkFormat) {
-                opts.url = this.checkLinkFormat(opts.url);
-            }
-
-            if (targetCheckbox && targetCheckbox.checked) {
-                opts.target = "_blank";
-            } else {
-                opts.target = "_self";
-            }
-
-            if (buttonCheckbox && buttonCheckbox.checked) {
-                opts.buttonClass = this.base.options.anchorButtonClass;
-            }
-
-            this.base.createLink(opts);
-            this.base.keepToolbarAlive = false;
-            this.base.checkSelection();
-        },
-
-        checkLinkFormat: function (value) {
-            var re = /^(https?|ftps?|rtmpt?):\/\/|mailto:/;
-            return (re.test(value) ? '' : 'http://') + value;
-        },
-
-        doFormCancel: function () {
-            this.base.restoreSelection();
-            this.base.keepToolbarAlive = false;
-            this.base.checkSelection();
-        },
-
-        // form creation and event handling
-
-        createForm: function () {
-            var doc = this.base.options.ownerDocument,
-                form = doc.createElement('div'),
-                input = doc.createElement('input'),
-                close = doc.createElement('a'),
-                save = doc.createElement('a'),
-                target,
-                target_label,
-                button,
-                button_label;
-
-            // Anchor Form (div)
-            form.className = 'medium-editor-toolbar-form';
-            form.id = 'medium-editor-toolbar-form-anchor-' + this.base.id;
-
-            // Handle clicks on the form itself
-            this.base.on(form, 'click', this.handleFormClick.bind(this));
-
-            // Add url textbox
-            input.setAttribute('type', 'text');
-            input.className = 'medium-editor-toolbar-input';
-            input.setAttribute('placeholder', this.base.options.anchorInputPlaceholder);
-            form.appendChild(input);
-
-            // Handle typing in the textbox
-            this.base.on(input, 'keyup', this.handleTextboxKeyup.bind(this));
-
-            // Handle clicks into the textbox
-            this.base.on(input, 'click', this.handleFormClick.bind(this));
-
-            // Add save buton
-            save.setAttribute('href', '#');
-            save.className = 'medium-editor-toobar-save';
-            save.innerHTML = this.base.options.buttonLabels === 'fontawesome' ?
-                             '<i class="fa fa-check"></i>' :
-                             '&#10003;';
-            form.appendChild(save);
-
-            // Handle save button clicks (capture)
-            this.base.on(save, 'click', this.handleSaveClick.bind(this), true);
-
-            // Add close button
-            close.setAttribute('href', '#');
-            close.className = 'medium-editor-toobar-close';
-            close.innerHTML = this.base.options.buttonLabels === 'fontawesome' ?
-                              '<i class="fa fa-times"></i>' :
-                              '&times;';
-            form.appendChild(close);
-
-            // Handle close button clicks
-            this.base.on(close, 'click', this.handleCloseClick.bind(this));
-
-            // (Optional) Add 'open in new window' checkbox
-            if (this.base.options.anchorTarget) {
-                target = doc.createElement('input');
-                target.setAttribute('type', 'checkbox');
-                target.className = 'medium-editor-toolbar-anchor-target';
-
-                target_label = doc.createElement('label');
-                target_label.innerHTML = this.base.options.anchorInputCheckboxLabel;
-                target_label.insertBefore(target, target_label.firstChild);
-
-                form.appendChild(target_label);
-            }
-
-            // (Optional) Add 'add button class to anchor' checkbox
-            if (this.base.options.anchorButton) {
-                button = doc.createElement('input');
-                button.setAttribute('type', 'checkbox');
-                button.className = 'medium-editor-toolbar-anchor-button';
-
-                button_label = doc.createElement('label');
-                button_label.innerHTML = "Button";
-                button_label.insertBefore(button, button_label.firstChild);
-
-                form.appendChild(button_label);
-            }
-
-            // Handle click (capture) & focus (capture) outside of the form
-            this.base.on(doc.body, 'click', this.handleOutsideInteraction.bind(this), true);
-            this.base.on(doc.body, 'focus', this.handleOutsideInteraction.bind(this), true);
-
-            return form;
-        },
-
-        getInput: function () {
-            return this.getForm().querySelector('input.medium-editor-toolbar-input');
-        },
-
-        handleOutsideInteraction: function (event) {
-            if (event.target !== this.getForm() &&
-                    !Util.isDescendant(this.getForm(), event.target) &&
-                    !Util.isDescendant(this.base.toolbarActions, event.target)) {
-                this.base.keepToolbarAlive = false;
-                this.base.checkSelection();
-            }
-        },
-
-        handleTextboxKeyup: function (event) {
-            // For ENTER -> create the anchor
-            if (event.keyCode === Util.keyCode.ENTER) {
-                event.preventDefault();
-                this.doLinkCreation();
-                return;
-            }
-
-            // For ESCAPE -> close the form
-            if (event.keyCode === Util.keyCode.ESCAPE) {
-                event.preventDefault();
-                this.doFormCancel();
-            }
-        },
-
-        handleFormClick: function (event) {
-            // make sure not to hide form when clicking inside the form
-            event.stopPropagation();
-            this.base.keepToolbarAlive = true;
-        },
-
-        handleSaveClick: function (event) {
-            // Clicking Save -> create the anchor
-            event.preventDefault();
-            this.doLinkCreation();
-        },
-
-        handleCloseClick: function (event) {
-            // Click Close -> close the form
-            event.preventDefault();
-            this.doFormCancel();
+        /* getEditorOptions: [function (option)]
+         *
+         * Helper function which returns the value of an option
+         * used to initialize this instance of MediumEditor
+         */
+        getEditorOption: function (option) {
+            return this.base.options[option];
         }
     };
 
-    AnchorExtension = Util.derives(DefaultButton, AnchorDerived);
-}(window, document));
+    /* List of method names to add to the prototype of Extension
+     * Each of these methods will be defined as helpers that
+     * just call directly into the MediumEditor instance.
+     *
+     * example for 'on' method:
+     * Extension.prototype.on = function () {
+     *     return this.base.on.apply(this.base, arguments);
+     * }
+     */
+    [
+        // general helpers
+        'execAction',
 
-function MediumEditor(elements, options) {
-    'use strict';
-    return this.init(elements, options);
-}
+        // event handling
+        'on',
+        'off',
+        'subscribe',
+        'trigger'
+
+    ].forEach(function (helper) {
+        Extension.prototype[helper] = function () {
+            return this.base[helper].apply(this.base, arguments);
+        };
+    });
+})();
+
+var Selection;
 
 (function () {
     'use strict';
 
-    MediumEditor.statics = {
-        ButtonsData: ButtonsData,
-        DefaultButton: DefaultButton,
-        AnchorExtension: AnchorExtension
-    };
+    function filterOnlyParentElements(node) {
+        if (Util.isBlockContainer(node)) {
+            return NodeFilter.FILTER_ACCEPT;
+        } else {
+            return NodeFilter.FILTER_SKIP;
+        }
+    }
 
-    MediumEditor.prototype = {
-        defaults: {
-            allowMultiParagraphSelection: true,
-            anchorInputPlaceholder: 'Paste or type a link',
-            anchorInputCheckboxLabel: 'Open in new window',
-            anchorPreviewHideDelay: 500,
-            buttons: ['bold', 'italic', 'underline', 'anchor', 'header1', 'header2', 'quote'],
-            buttonLabels: false,
-            checkLinkFormat: false,
-            cleanPastedHTML: false,
-            delay: 0,
-            diffLeft: 0,
-            diffTop: -10,
-            disableReturn: false,
-            disableDoubleReturn: false,
-            disableToolbar: false,
-            disableEditing: false,
-            disablePlaceholders: false,
-            toolbarAlign: 'center',
-            elementsContainer: false,
-            imageDragging: true,
-            standardizeSelectionStart: false,
-            contentWindow: window,
-            ownerDocument: document,
-            firstHeader: 'h3',
-            forcePlainText: true,
-            placeholder: 'Type your text',
-            secondHeader: 'h4',
-            targetBlank: false,
-            anchorTarget: false,
-            anchorButton: false,
-            anchorButtonClass: 'btn',
-            extensions: {},
-            activeButtonClass: 'medium-editor-button-active',
-            firstButtonClass: 'medium-editor-button-first',
-            lastButtonClass: 'medium-editor-button-last'
+    Selection = {
+        findMatchingSelectionParent: function (testElementFunction, contentWindow) {
+            var selection = contentWindow.getSelection(),
+                range,
+                current;
+
+            if (selection.rangeCount === 0) {
+                return false;
+            }
+
+            range = selection.getRangeAt(0);
+            current = range.commonAncestorContainer;
+
+            return Util.traverseUp(current, testElementFunction);
         },
 
-        init: function (elements, options) {
-            var uniqueId = 1;
+        getSelectionElement: function (contentWindow) {
+            return this.findMatchingSelectionParent(function (el) {
+                return Util.isMediumEditorElement(el);
+            }, contentWindow);
+        },
 
-            this.options = Util.defaults(options, this.defaults);
-            this.setElementSelection(elements);
-            if (this.elements.length === 0) {
+        // http://stackoverflow.com/questions/17678843/cant-restore-selection-after-html-modify-even-if-its-the-same-html
+        // Tim Down
+        exportSelection: function (root, doc) {
+            if (!root) {
+                return null;
+            }
+
+            var selectionState = null,
+                selection = doc.getSelection();
+
+            if (selection.rangeCount > 0) {
+                var range = selection.getRangeAt(0),
+                    preSelectionRange = range.cloneRange(),
+                    start;
+
+                preSelectionRange.selectNodeContents(root);
+                preSelectionRange.setEnd(range.startContainer, range.startOffset);
+                start = preSelectionRange.toString().length;
+
+                selectionState = {
+                    start: start,
+                    end: start + range.toString().length
+                };
+                // If start = 0 there may still be an empty paragraph before it, but we don't care.
+                if (start !== 0) {
+                    var emptyBlocksIndex = this.getIndexRelativeToAdjacentEmptyBlocks(doc, root, range.startContainer, range.startOffset);
+                    if (emptyBlocksIndex !== 0) {
+                        selectionState.emptyBlocksIndex = emptyBlocksIndex;
+                    }
+                }
+            }
+
+            return selectionState;
+        },
+
+        // http://stackoverflow.com/questions/17678843/cant-restore-selection-after-html-modify-even-if-its-the-same-html
+        // Tim Down
+        //
+        // {object} selectionState - the selection to import
+        // {DOMElement} root - the root element the selection is being restored inside of
+        // {Document} doc - the document to use for managing selection
+        // {boolean} [favorLaterSelectionAnchor] - defaults to false. If true, import the cursor immediately
+        //      subsequent to an anchor tag if it would otherwise be placed right at the trailing edge inside the
+        //      anchor. This cursor positioning, even though visually equivalent to the user, can affect behavior
+        //      in MS IE.
+        importSelection: function (selectionState, root, doc, favorLaterSelectionAnchor) {
+            if (!selectionState || !root) {
                 return;
             }
 
-            if (!this.options.elementsContainer) {
-                this.options.elementsContainer = this.options.ownerDocument.body;
+            var range = doc.createRange();
+            range.setStart(root, 0);
+            range.collapse(true);
+
+            var node = root,
+                nodeStack = [],
+                charIndex = 0,
+                foundStart = false,
+                stop = false,
+                nextCharIndex;
+
+            while (!stop && node) {
+                if (node.nodeType === 3) {
+                    nextCharIndex = charIndex + node.length;
+                    if (!foundStart && selectionState.start >= charIndex && selectionState.start <= nextCharIndex) {
+                        range.setStart(node, selectionState.start - charIndex);
+                        foundStart = true;
+                    }
+                    if (foundStart && selectionState.end >= charIndex && selectionState.end <= nextCharIndex) {
+                        range.setEnd(node, selectionState.end - charIndex);
+                        stop = true;
+                    }
+                    charIndex = nextCharIndex;
+                } else {
+                    var i = node.childNodes.length - 1;
+                    while (i >= 0) {
+                        nodeStack.push(node.childNodes[i]);
+                        i -= 1;
+                    }
+                }
+                if (!stop) {
+                    node = nodeStack.pop();
+                }
             }
 
-            while (this.options.elementsContainer.querySelector('#medium-editor-toolbar-' + uniqueId)) {
-                uniqueId = uniqueId + 1;
+            if (selectionState.emptyBlocksIndex && selectionState.end === nextCharIndex) {
+                var targetNode = Util.getTopBlockContainer(range.startContainer),
+                    index = 0;
+                // Skip over empty blocks until we hit the block we want the selection to be in
+                while (index < selectionState.emptyBlocksIndex && targetNode.nextSibling) {
+                    targetNode = targetNode.nextSibling;
+                    index++;
+                    // If we find a non-empty block, ignore the emptyBlocksIndex and just put selection here
+                    if (targetNode.textContent.length > 0) {
+                        break;
+                    }
+                }
+
+                // We're selecting a high-level block node, so make sure the cursor gets moved into the deepest
+                // element at the beginning of the block
+                range.setStart(Util.getFirstSelectableLeafNode(targetNode), 0);
+                range.collapse(true);
             }
 
-            this.id = uniqueId;
+            // If the selection is right at the ending edge of a link, put it outside the anchor tag instead of inside.
+            if (favorLaterSelectionAnchor) {
+                range = Selection.importSelectionMoveCursorPastAnchor(selectionState, range);
+            }
 
-            return this.setup();
+            var sel = doc.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
         },
 
-        setup: function () {
-            this.events = [];
-            this.isActive = true;
-            this.initThrottledMethods()
-                .initCommands()
-                .initElements()
-                .bindSelect()
-                .bindDragDrop()
-                .bindPaste()
-                .setPlaceholders()
-                .bindElementActions()
-                .bindWindowActions();
+        // Utility method called from importSelection only
+        importSelectionMoveCursorPastAnchor: function (selectionState, range) {
+            var nodeInsideAnchorTagFunction = function (node) {
+                return node.nodeName.toLowerCase() === 'a';
+            };
+            if (selectionState.start === selectionState.end &&
+                    range.startContainer.nodeType === 3 &&
+                    range.startOffset === range.startContainer.nodeValue.length &&
+                    Util.traverseUp(range.startContainer, nodeInsideAnchorTagFunction)) {
+                var prevNode = range.startContainer,
+                    currentNode = range.startContainer.parentNode;
+                while (currentNode !== null && currentNode.nodeName.toLowerCase() !== 'a') {
+                    if (currentNode.childNodes[currentNode.childNodes.length - 1] !== prevNode) {
+                        currentNode = null;
+                    } else {
+                        prevNode = currentNode;
+                        currentNode = currentNode.parentNode;
+                    }
+                }
+                if (currentNode !== null && currentNode.nodeName.toLowerCase() === 'a') {
+                    var currentNodeIndex = null;
+                    for (var i = 0; currentNodeIndex === null && i < currentNode.parentNode.childNodes.length; i++) {
+                        if (currentNode.parentNode.childNodes[i] === currentNode) {
+                            currentNodeIndex = i;
+                        }
+                    }
+                    range.setStart(currentNode.parentNode, currentNodeIndex + 1);
+                    range.collapse(true);
+                }
+            }
+            return range;
         },
 
-        on: function (target, event, listener, useCapture) {
+        // Returns 0 unless the cursor is within or preceded by empty paragraphs/blocks,
+        // in which case it returns the count of such preceding paragraphs, including
+        // the empty paragraph in which the cursor itself may be embedded.
+        getIndexRelativeToAdjacentEmptyBlocks: function (doc, root, cursorContainer, cursorOffset) {
+            // If there is text in front of the cursor, that means there isn't only empty blocks before it
+            if (cursorContainer.nodeType === 3 && cursorOffset > 0) {
+                return 0;
+            }
+
+            // Check if the block that contains the cursor has any other text in front of the cursor
+            var node = cursorContainer;
+            if (node.nodeType !== 3) {
+                //node = cursorContainer.childNodes.length === cursorOffset ? null : cursorContainer.childNodes[cursorOffset];
+                node = cursorContainer.childNodes[cursorOffset];
+            }
+            if (node && !Util.isElementAtBeginningOfBlock(node)) {
+                return 0;
+            }
+
+            // Walk over block elements, counting number of empty blocks between last piece of text
+            // and the block the cursor is in
+            var treeWalker = doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, filterOnlyParentElements, false),
+                emptyBlocksCount = 0;
+            while (treeWalker.nextNode()) {
+                var blockIsEmpty = treeWalker.currentNode.textContent === '';
+                if (blockIsEmpty || emptyBlocksCount > 0) {
+                    emptyBlocksCount += 1;
+                }
+                if (Util.isDescendant(treeWalker.currentNode, cursorContainer, true)) {
+                    return emptyBlocksCount;
+                }
+                if (!blockIsEmpty) {
+                    emptyBlocksCount = 0;
+                }
+            }
+
+            return emptyBlocksCount;
+        },
+
+        selectionInContentEditableFalse: function (contentWindow) {
+            // determine if the current selection is exclusively inside
+            // a contenteditable="false", though treat the case of an
+            // explicit contenteditable="true" inside a "false" as false.
+            var sawtrue,
+                sawfalse = this.findMatchingSelectionParent(function (el) {
+                    var ce = el && el.getAttribute('contenteditable');
+                    if (ce === 'true') {
+                        sawtrue = true;
+                    }
+                    return el.nodeName !== '#text' && ce === 'false';
+                }, contentWindow);
+
+            return !sawtrue && sawfalse;
+        },
+
+        // http://stackoverflow.com/questions/4176923/html-of-selected-text
+        // by Tim Down
+        getSelectionHtml: function getSelectionHtml(doc) {
+            var i,
+                html = '',
+                sel = doc.getSelection(),
+                len,
+                container;
+            if (sel.rangeCount) {
+                container = doc.createElement('div');
+                for (i = 0, len = sel.rangeCount; i < len; i += 1) {
+                    container.appendChild(sel.getRangeAt(i).cloneContents());
+                }
+                html = container.innerHTML;
+            }
+            return html;
+        },
+
+        /**
+         *  Find the caret position within an element irrespective of any inline tags it may contain.
+         *
+         *  @param {DOMElement} An element containing the cursor to find offsets relative to.
+         *  @param {Range} A Range representing cursor position. Will window.getSelection if none is passed.
+         *  @return {Object} 'left' and 'right' attributes contain offsets from begining and end of Element
+         */
+        getCaretOffsets: function getCaretOffsets(element, range) {
+            var preCaretRange, postCaretRange;
+
+            if (!range) {
+                range = window.getSelection().getRangeAt(0);
+            }
+
+            preCaretRange = range.cloneRange();
+            postCaretRange = range.cloneRange();
+
+            preCaretRange.selectNodeContents(element);
+            preCaretRange.setEnd(range.endContainer, range.endOffset);
+
+            postCaretRange.selectNodeContents(element);
+            postCaretRange.setStart(range.endContainer, range.endOffset);
+
+            return {
+                left: preCaretRange.toString().length,
+                right: postCaretRange.toString().length
+            };
+        },
+
+        // http://stackoverflow.com/questions/15867542/range-object-get-selection-parent-node-chrome-vs-firefox
+        rangeSelectsSingleNode: function (range) {
+            var startNode = range.startContainer;
+            return startNode === range.endContainer &&
+                startNode.hasChildNodes() &&
+                range.endOffset === range.startOffset + 1;
+        },
+
+        getSelectedParentElement: function (range) {
+            if (!range) {
+                return null;
+            }
+
+            // Selection encompasses a single element
+            if (this.rangeSelectsSingleNode(range) && range.startContainer.childNodes[range.startOffset].nodeType !== 3) {
+                return range.startContainer.childNodes[range.startOffset];
+            }
+
+            // Selection range starts inside a text node, so get its parent
+            if (range.startContainer.nodeType === 3) {
+                return range.startContainer.parentNode;
+            }
+
+            // Selection starts inside an element
+            return range.startContainer;
+        },
+
+        getSelectedElements: function (doc) {
+            var selection = doc.getSelection(),
+                range,
+                toRet,
+                currNode;
+
+            if (!selection.rangeCount || selection.isCollapsed || !selection.getRangeAt(0).commonAncestorContainer) {
+                return [];
+            }
+
+            range = selection.getRangeAt(0);
+
+            if (range.commonAncestorContainer.nodeType === 3) {
+                toRet = [];
+                currNode = range.commonAncestorContainer;
+                while (currNode.parentNode && currNode.parentNode.childNodes.length === 1) {
+                    toRet.push(currNode.parentNode);
+                    currNode = currNode.parentNode;
+                }
+
+                return toRet;
+            }
+
+            return [].filter.call(range.commonAncestorContainer.getElementsByTagName('*'), function (el) {
+                return (typeof selection.containsNode === 'function') ? selection.containsNode(el, true) : true;
+            });
+        },
+
+        selectNode: function (node, doc) {
+            var range = doc.createRange(),
+                sel = doc.getSelection();
+
+            range.selectNodeContents(node);
+            sel.removeAllRanges();
+            sel.addRange(range);
+        },
+
+        select: function (doc, startNode, startOffset, endNode, endOffset) {
+            doc.getSelection().removeAllRanges();
+            var range = doc.createRange();
+            range.setStart(startNode, startOffset);
+            if (endNode) {
+                range.setEnd(endNode, endOffset);
+            } else {
+                range.collapse(true);
+            }
+            doc.getSelection().addRange(range);
+            return range;
+        },
+
+        /**
+         * Move cursor to the given node with the given offset.
+         *
+         * @param  {DomDocument} doc     Current document
+         * @param  {DomElement}  node    Element where to jump
+         * @param  {integer}     offset  Where in the element should we jump, 0 by default
+         */
+        moveCursor: function (doc, node, offset) {
+            this.select(doc, node, offset);
+        },
+
+        getSelectionRange: function (ownerDocument) {
+            var selection = ownerDocument.getSelection();
+            if (selection.rangeCount === 0) {
+                return null;
+            }
+            return selection.getRangeAt(0);
+        },
+
+        // http://stackoverflow.com/questions/1197401/how-can-i-get-the-element-the-caret-is-in-with-javascript-when-using-contentedi
+        // by You
+        getSelectionStart: function (ownerDocument) {
+            var node = ownerDocument.getSelection().anchorNode,
+                startNode = (node && node.nodeType === 3 ? node.parentNode : node);
+
+            return startNode;
+        }
+    };
+}());
+
+var Events;
+
+(function () {
+    'use strict';
+
+    Events = function (instance) {
+        this.base = instance;
+        this.options = this.base.options;
+        this.events = [];
+        this.customEvents = {};
+        this.listeners = {};
+    };
+
+    Events.prototype = {
+        InputEventOnContenteditableSupported: !Util.isIE,
+
+        // Helpers for event handling
+
+        attachDOMEvent: function (target, event, listener, useCapture) {
             target.addEventListener(event, listener, useCapture);
             this.events.push([target, event, listener, useCapture]);
         },
 
-        off: function (target, event, listener, useCapture) {
+        detachDOMEvent: function (target, event, listener, useCapture) {
             var index = this.indexOfListener(target, event, listener, useCapture),
                 e;
             if (index !== -1) {
@@ -46080,16 +46802,7 @@ function MediumEditor(elements, options) {
             return -1;
         },
 
-        delay: function (fn) {
-            var self = this;
-            setTimeout(function () {
-                if (self.isActive) {
-                    fn();
-                }
-            }, this.options.delay);
-        },
-
-        removeAllEvents: function () {
+        detachAllDOMEvents: function () {
             var e = this.events.pop();
             while (e) {
                 e[0].removeEventListener(e[1], e[2], e[3]);
@@ -46097,487 +46810,2422 @@ function MediumEditor(elements, options) {
             }
         },
 
-        initThrottledMethods: function () {
-            var self = this;
-
-            // handleResize is throttled because:
-            // - It will be called when the browser is resizing, which can fire many times very quickly
-            // - For some event (like resize) a slight lag in UI responsiveness is OK and provides performance benefits
-            this.handleResize = Util.throttle(function () {
-                if (self.isActive) {
-                    self.positionToolbarIfShown();
-                }
-            });
-
-            // handleBlur is throttled because:
-            // - This method could be called many times due to the type of event handlers that are calling it
-            // - We want a slight delay so that other events in the stack can run, some of which may
-            //   prevent the toolbar from being hidden (via this.keepToolbarAlive).
-            this.handleBlur = Util.throttle(function () {
-                if (self.isActive && !self.keepToolbarAlive) {
-                    self.hideToolbarActions();
-                }
-            });
-
-            return this;
+        // custom events
+        attachCustomEvent: function (event, listener) {
+            this.setupListener(event);
+            if (!this.customEvents[event]) {
+                this.customEvents[event] = [];
+            }
+            this.customEvents[event].push(listener);
         },
 
-        initElements: function () {
-            var i,
-                addToolbar = false;
-            for (i = 0; i < this.elements.length; i += 1) {
-                if (!this.options.disableEditing && !this.elements[i].getAttribute('data-disable-editing')) {
-                    this.elements[i].setAttribute('contentEditable', true);
-                }
-                if (!this.elements[i].getAttribute('data-placeholder')) {
-                    this.elements[i].setAttribute('data-placeholder', this.options.placeholder);
-                }
-                this.elements[i].setAttribute('data-medium-element', true);
-                this.elements[i].setAttribute('role', 'textbox');
-                this.elements[i].setAttribute('aria-multiline', true);
-                this.bindParagraphCreation(i);
-                if (!this.options.disableToolbar && !this.elements[i].getAttribute('data-disable-toolbar')) {
-                    addToolbar = true;
-                }
-            }
-            // Init toolbar
-            if (addToolbar) {
-                this.initToolbar()
-                    .setFirstAndLastButtons()
-                    .bindAnchorPreview();
-            }
-            return this;
-        },
-
-        setElementSelection: function (selector) {
-            if (!selector) {
-                selector = [];
-            }
-            // If string, use as query selector
-            if (typeof selector === 'string') {
-                selector = this.options.ownerDocument.querySelectorAll(selector);
-            }
-            // If element, put into array
-            if (Util.isElement(selector)) {
-                selector = [selector];
-            }
-            // Convert NodeList (or other array like object) into an array
-            this.elements = Array.prototype.slice.apply(selector);
-        },
-
-        bindBlur: function () {
-            var self = this,
-                blurFunction = function (e) {
-                    var isDescendantOfEditorElements = false,
-                        selection = self.options.contentWindow.getSelection(),
-                        selRange = selection.isCollapsed ?
-                                   null :
-                                   Selection.getSelectedParentElement(selection.getRangeAt(0)),
-                        i;
-
-                    // This control was introduced also to avoid the toolbar
-                    // to disapper when selecting from right to left and
-                    // the selection ends at the beginning of the text.
-                    for (i = 0; i < self.elements.length; i += 1) {
-                        if (Util.isDescendant(self.elements[i], e.target)
-                                || Util.isDescendant(self.elements[i], selRange)) {
-                            isDescendantOfEditorElements = true;
-                            break;
-                        }
-                    }
-                    // If it's not part of the editor, or the toolbar
-                    if (e.target !== self.toolbar
-                            && self.elements.indexOf(e.target) === -1
-                            && !isDescendantOfEditorElements
-                            && !Util.isDescendant(self.toolbar, e.target)
-                            && !Util.isDescendant(self.anchorPreview, e.target)) {
-
-                        // Activate the placeholder
-                        if (!self.options.disablePlaceholders) {
-                            self.placeholderWrapper(e, self.elements[0]);
-                        }
-
-                        // Hide the toolbar after a small delay so we can prevent this on toolbar click
-                        self.handleBlur();
-                    }
-                };
-
-            // Hide the toolbar when focusing outside of the editor.
-            this.on(this.options.ownerDocument.body, 'click', blurFunction, true);
-            this.on(this.options.ownerDocument.body, 'focus', blurFunction, true);
-
-            return this;
-        },
-
-        bindClick: function (i) {
-            var self = this;
-
-            this.on(this.elements[i], 'click', function () {
-                if (!self.options.disablePlaceholders) {
-                    // Remove placeholder
-                    this.classList.remove('medium-editor-placeholder');
-                }
-
-                if (self.options.staticToolbar) {
-                    self.setToolbarPosition();
-                }
-            });
-
-            return this;
-        },
-
-        /**
-         * This handles blur and keypress events on elements
-         * Including Placeholders, and tooldbar hiding on blur
-         */
-        bindElementActions: function () {
-            var i;
-
-            for (i = 0; i < this.elements.length; i += 1) {
-
-                if (!this.options.disablePlaceholders) {
-                    // Active all of the placeholders
-                    this.activatePlaceholder(this.elements[i]);
-                }
-
-                // Bind the return and tab keypress events
-                this.bindReturn(i)
-                    .bindKeydown(i)
-                    .bindClick(i);
-            }
-
-            return this;
-        },
-
-        // Two functions to handle placeholders
-        activatePlaceholder:  function (el) {
-            if (!(el.querySelector('img')) &&
-                    !(el.querySelector('blockquote')) &&
-                    el.textContent.replace(/^\s+|\s+$/g, '') === '') {
-
-                el.classList.add('medium-editor-placeholder');
-            }
-        },
-        placeholderWrapper: function (evt, el) {
-            el = el || evt.target;
-            el.classList.remove('medium-editor-placeholder');
-            if (evt.type !== 'keypress') {
-                this.activatePlaceholder(el);
+        detachCustomEvent: function (event, listener) {
+            var index = this.indexOfCustomListener(event, listener);
+            if (index !== -1) {
+                this.customEvents[event].splice(index, 1);
+                // TODO: If array is empty, should detach internal listeners via destroyListener()
             }
         },
 
-        serialize: function () {
-            var i,
-                elementid,
-                content = {};
-            for (i = 0; i < this.elements.length; i += 1) {
-                elementid = (this.elements[i].id !== '') ? this.elements[i].id : 'element-' + i;
-                content[elementid] = {
-                    value: this.elements[i].innerHTML.trim()
-                };
+        indexOfCustomListener: function (event, listener) {
+            if (!this.customEvents[event] || !this.customEvents[event].length) {
+                return -1;
             }
-            return content;
+
+            return this.customEvents[event].indexOf(listener);
         },
 
-        initExtension: function (extension, name) {
-            if (extension.parent) {
-                extension.base = this;
-            }
-            if (typeof extension.init === 'function') {
-                extension.init(this);
-            }
-            if (!extension.name) {
-                extension.name = name;
-            }
-            return extension;
+        detachAllCustomEvents: function () {
+            this.customEvents = {};
+            // TODO: Should detach internal listeners here via destroyListener()
         },
 
-        initCommands: function () {
-            var buttons = this.options.buttons,
-                extensions = this.options.extensions,
-                ext,
-                name;
-            this.commands = [];
-
-            buttons.forEach(function (buttonName) {
-                if (extensions[buttonName]) {
-                    ext = this.initExtension(extensions[buttonName], buttonName);
-                    this.commands.push(ext);
-                } else if (buttonName === 'anchor') {
-                    ext = this.initExtension(new AnchorExtension(), buttonName);
-                    this.commands.push(ext);
-                } else if (ButtonsData.hasOwnProperty(buttonName)) {
-                    ext = new DefaultButton(ButtonsData[buttonName], this);
-                    this.commands.push(ext);
-                }
-            }.bind(this));
-
-            for (name in extensions) {
-                if (extensions.hasOwnProperty(name) && buttons.indexOf(name) === -1) {
-                    ext = this.initExtension(extensions[name], name);
-                }
-            }
-
-            return this;
-        },
-
-        getExtensionByName: function (name) {
-            var extension;
-            if (this.commands && this.commands.length) {
-                this.commands.forEach(function (ext) {
-                    if (ext.name === name) {
-                        extension = ext;
-                    }
+        triggerCustomEvent: function (name, data, editable) {
+            if (this.customEvents[name]) {
+                this.customEvents[name].forEach(function (listener) {
+                    listener(data, editable);
                 });
             }
-            return extension;
         },
 
-        /**
-         * Helper function to call a method with a number of parameters on all registered extensions.
-         * The function assures that the function exists before calling.
-         *
-         * @param {string} funcName name of the function to call
-         * @param [args] arguments passed into funcName
-         */
-        callExtensions: function (funcName) {
-            if (arguments.length < 1) {
+        // Cleaning up
+
+        destroy: function () {
+            this.detachAllDOMEvents();
+            this.detachAllCustomEvents();
+            this.detachExecCommand();
+
+            if (this.base.elements) {
+                this.base.elements.forEach(function (element) {
+                    element.removeAttribute('data-medium-focused');
+                });
+            }
+        },
+
+        // Listening to calls to document.execCommand
+
+        // Attach a listener to be notified when document.execCommand is called
+        attachToExecCommand: function () {
+            if (this.execCommandListener) {
                 return;
             }
 
-            var args = Array.prototype.slice.call(arguments, 1),
-                ext,
-                name;
+            // Store an instance of the listener so:
+            // 1) We only attach to execCommand once
+            // 2) We can remove the listener later
+            this.execCommandListener = function (execInfo) {
+                this.handleDocumentExecCommand(execInfo);
+            }.bind(this);
 
-            for (name in this.options.extensions) {
-                if (this.options.extensions.hasOwnProperty(name)) {
-                    ext = this.options.extensions[name];
-                    if (ext[funcName] !== undefined) {
-                        ext[funcName].apply(ext, args);
+            // Ensure that execCommand has been wrapped correctly
+            this.wrapExecCommand();
+
+            // Add listener to list of execCommand listeners
+            this.options.ownerDocument.execCommand.listeners.push(this.execCommandListener);
+        },
+
+        // Remove our listener for calls to document.execCommand
+        detachExecCommand: function () {
+            var doc = this.options.ownerDocument;
+            if (!this.execCommandListener || !doc.execCommand.listeners) {
+                return;
+            }
+
+            // Find the index of this listener in the array of listeners so it can be removed
+            var index = doc.execCommand.listeners.indexOf(this.execCommandListener);
+            if (index !== -1) {
+                doc.execCommand.listeners.splice(index, 1);
+            }
+
+            // If the list of listeners is now empty, put execCommand back to its original state
+            if (!doc.execCommand.listeners.length) {
+                this.unwrapExecCommand();
+            }
+        },
+
+        // Wrap document.execCommand in a custom method so we can listen to calls to it
+        wrapExecCommand: function () {
+            var doc = this.options.ownerDocument;
+
+            // Ensure all instance of MediumEditor only wrap execCommand once
+            if (doc.execCommand.listeners) {
+                return;
+            }
+
+            // Create a wrapper method for execCommand which will:
+            // 1) Call document.execCommand with the correct arguments
+            // 2) Loop through any listeners and notify them that execCommand was called
+            //    passing extra info on the call
+            // 3) Return the result
+            var wrapper = function (aCommandName, aShowDefaultUI, aValueArgument) {
+                var result = doc.execCommand.orig.apply(this, arguments);
+
+                if (!doc.execCommand.listeners) {
+                    return result;
+                }
+
+                var args = Array.prototype.slice.call(arguments);
+                doc.execCommand.listeners.forEach(function (listener) {
+                    listener({
+                        command: aCommandName,
+                        value: aValueArgument,
+                        args: args,
+                        result: result
+                    });
+                });
+
+                return result;
+            };
+
+            // Store a reference to the original execCommand
+            wrapper.orig = doc.execCommand;
+
+            // Attach an array for storing listeners
+            wrapper.listeners = [];
+
+            // Overwrite execCommand
+            doc.execCommand = wrapper;
+        },
+
+        // Revert document.execCommand back to its original self
+        unwrapExecCommand: function () {
+            var doc = this.options.ownerDocument;
+            if (!doc.execCommand.orig) {
+                return;
+            }
+
+            // Use the reference to the original execCommand to revert back
+            doc.execCommand = doc.execCommand.orig;
+        },
+
+        // Listening to browser events to emit events medium-editor cares about
+        setupListener: function (name) {
+            if (this.listeners[name]) {
+                return;
+            }
+
+            switch (name) {
+                case 'externalInteraction':
+                    // Detecting when user has interacted with elements outside of MediumEditor
+                    this.attachDOMEvent(this.options.ownerDocument.body, 'mousedown', this.handleBodyMousedown.bind(this), true);
+                    this.attachDOMEvent(this.options.ownerDocument.body, 'click', this.handleBodyClick.bind(this), true);
+                    this.attachDOMEvent(this.options.ownerDocument.body, 'focus', this.handleBodyFocus.bind(this), true);
+                    break;
+                case 'blur':
+                    // Detecting when focus is lost
+                    this.setupListener('externalInteraction');
+                    break;
+                case 'focus':
+                    // Detecting when focus moves into some part of MediumEditor
+                    this.setupListener('externalInteraction');
+                    break;
+                case 'editableInput':
+                    // setup cache for knowing when the content has changed
+                    this.contentCache = [];
+                    this.base.elements.forEach(function (element) {
+                        this.contentCache[element.getAttribute('medium-editor-index')] = element.innerHTML;
+
+                        // Attach to the 'oninput' event, handled correctly by most browsers
+                        if (this.InputEventOnContenteditableSupported) {
+                            this.attachDOMEvent(element, 'input', this.handleInput.bind(this));
+                        }
+                    }.bind(this));
+
+                    // For browsers which don't support the input event on contenteditable (IE)
+                    // we'll attach to 'selectionchange' on the document and 'keypress' on the editables
+                    if (!this.InputEventOnContenteditableSupported) {
+                        this.setupListener('editableKeypress');
+                        this.keypressUpdateInput = true;
+                        this.attachDOMEvent(document, 'selectionchange', this.handleDocumentSelectionChange.bind(this));
+                        // Listen to calls to execCommand
+                        this.attachToExecCommand();
+                    }
+                    break;
+                case 'editableClick':
+                    // Detecting click in the contenteditables
+                    this.attachToEachElement('click', this.handleClick);
+                    break;
+                case 'editableBlur':
+                    // Detecting blur in the contenteditables
+                    this.attachToEachElement('blur', this.handleBlur);
+                    break;
+                case 'editableKeypress':
+                    // Detecting keypress in the contenteditables
+                    this.attachToEachElement('keypress', this.handleKeypress);
+                    break;
+                case 'editableKeyup':
+                    // Detecting keyup in the contenteditables
+                    this.attachToEachElement('keyup', this.handleKeyup);
+                    break;
+                case 'editableKeydown':
+                    // Detecting keydown on the contenteditables
+                    this.attachToEachElement('keydown', this.handleKeydown);
+                    break;
+                case 'editableKeydownEnter':
+                    // Detecting keydown for ENTER on the contenteditables
+                    this.setupListener('editableKeydown');
+                    break;
+                case 'editableKeydownTab':
+                    // Detecting keydown for TAB on the contenteditable
+                    this.setupListener('editableKeydown');
+                    break;
+                case 'editableKeydownDelete':
+                    // Detecting keydown for DELETE/BACKSPACE on the contenteditables
+                    this.setupListener('editableKeydown');
+                    break;
+                case 'editableMouseover':
+                    // Detecting mouseover on the contenteditables
+                    this.attachToEachElement('mouseover', this.handleMouseover);
+                    break;
+                case 'editableDrag':
+                    // Detecting dragover and dragleave on the contenteditables
+                    this.attachToEachElement('dragover', this.handleDragging);
+                    this.attachToEachElement('dragleave', this.handleDragging);
+                    break;
+                case 'editableDrop':
+                    // Detecting drop on the contenteditables
+                    this.attachToEachElement('drop', this.handleDrop);
+                    break;
+                case 'editablePaste':
+                    // Detecting paste on the contenteditables
+                    this.attachToEachElement('paste', this.handlePaste);
+                    break;
+            }
+            this.listeners[name] = true;
+        },
+
+        attachToEachElement: function (name, handler) {
+            this.base.elements.forEach(function (element) {
+                this.attachDOMEvent(element, name, handler.bind(this));
+            }, this);
+        },
+
+        focusElement: function (element) {
+            element.focus();
+            this.updateFocus(element, { target: element, type: 'focus' });
+        },
+
+        updateFocus: function (target, eventObj) {
+            var toolbar = this.base.getExtensionByName('toolbar'),
+                toolbarEl = toolbar ? toolbar.getToolbarElement() : null,
+                anchorPreview = this.base.getExtensionByName('anchor-preview'),
+                previewEl = (anchorPreview && anchorPreview.getPreviewElement) ? anchorPreview.getPreviewElement() : null,
+                hadFocus = this.base.getFocusedElement(),
+                toFocus;
+
+            // For clicks, we need to know if the mousedown that caused the click happened inside the existing focused element.
+            // If so, we don't want to focus another element
+            if (hadFocus &&
+                    eventObj.type === 'click' &&
+                    this.lastMousedownTarget &&
+                    (Util.isDescendant(hadFocus, this.lastMousedownTarget, true) ||
+                     Util.isDescendant(toolbarEl, this.lastMousedownTarget, true) ||
+                     Util.isDescendant(previewEl, this.lastMousedownTarget, true))) {
+                toFocus = hadFocus;
+            }
+
+            if (!toFocus) {
+                this.base.elements.some(function (element) {
+                    // If the target is part of an editor element, this is the element getting focus
+                    if (!toFocus && (Util.isDescendant(element, target, true))) {
+                        toFocus = element;
+                    }
+
+                    // bail if we found an element that's getting focus
+                    return !!toFocus;
+                }, this);
+            }
+
+            // Check if the target is external (not part of the editor, toolbar, or anchorpreview)
+            var externalEvent = !Util.isDescendant(hadFocus, target, true) &&
+                                !Util.isDescendant(toolbarEl, target, true) &&
+                                !Util.isDescendant(previewEl, target, true);
+
+            if (toFocus !== hadFocus) {
+                // If element has focus, and focus is going outside of editor
+                // Don't blur focused element if clicking on editor, toolbar, or anchorpreview
+                if (hadFocus && externalEvent) {
+                    // Trigger blur on the editable that has lost focus
+                    hadFocus.removeAttribute('data-medium-focused');
+                    this.triggerCustomEvent('blur', eventObj, hadFocus);
+                }
+
+                // If focus is going into an editor element
+                if (toFocus) {
+                    // Trigger focus on the editable that now has focus
+                    toFocus.setAttribute('data-medium-focused', true);
+                    this.triggerCustomEvent('focus', eventObj, toFocus);
+                }
+            }
+
+            if (externalEvent) {
+                this.triggerCustomEvent('externalInteraction', eventObj);
+            }
+        },
+
+        updateInput: function (target, eventObj) {
+            // An event triggered which signifies that the user may have changed someting
+            // Look in our cache of input for the contenteditables to see if something changed
+            var index = target.getAttribute('medium-editor-index');
+            if (target.innerHTML !== this.contentCache[index]) {
+                // The content has changed since the last time we checked, fire the event
+                this.triggerCustomEvent('editableInput', eventObj, target);
+            }
+            this.contentCache[index] = target.innerHTML;
+        },
+
+        handleDocumentSelectionChange: function (event) {
+            // When selectionchange fires, target and current target are set
+            // to document, since this is where the event is handled
+            // However, currentTarget will have an 'activeElement' property
+            // which will point to whatever element has focus.
+            if (event.currentTarget && event.currentTarget.activeElement) {
+                var activeElement = event.currentTarget.activeElement,
+                    currentTarget;
+                // We can look at the 'activeElement' to determine if the selectionchange has
+                // happened within a contenteditable owned by this instance of MediumEditor
+                this.base.elements.some(function (element) {
+                    if (Util.isDescendant(element, activeElement, true)) {
+                        currentTarget = element;
+                        return true;
+                    }
+                    return false;
+                }, this);
+
+                // We know selectionchange fired within one of our contenteditables
+                if (currentTarget) {
+                    this.updateInput(currentTarget, { target: activeElement, currentTarget: currentTarget });
+                }
+            }
+        },
+
+        handleDocumentExecCommand: function () {
+            // document.execCommand has been called
+            // If one of our contenteditables currently has focus, we should
+            // attempt to trigger the 'editableInput' event
+            var target = this.base.getFocusedElement();
+            if (target) {
+                this.updateInput(target, { target: target, currentTarget: target });
+            }
+        },
+
+        handleBodyClick: function (event) {
+            this.updateFocus(event.target, event);
+        },
+
+        handleBodyFocus: function (event) {
+            this.updateFocus(event.target, event);
+        },
+
+        handleBodyMousedown: function (event) {
+            this.lastMousedownTarget = event.target;
+        },
+
+        handleInput: function (event) {
+            this.updateInput(event.currentTarget, event);
+        },
+
+        handleClick: function (event) {
+            this.triggerCustomEvent('editableClick', event, event.currentTarget);
+        },
+
+        handleBlur: function (event) {
+            this.triggerCustomEvent('editableBlur', event, event.currentTarget);
+        },
+
+        handleKeypress: function (event) {
+            this.triggerCustomEvent('editableKeypress', event, event.currentTarget);
+
+            // If we're doing manual detection of the editableInput event we need
+            // to check for input changes during 'keypress'
+            if (this.keypressUpdateInput) {
+                var eventObj = { target: event.target, currentTarget: event.currentTarget };
+
+                // In IE, we need to let the rest of the event stack complete before we detect
+                // changes to input, so using setTimeout here
+                setTimeout(function () {
+                    this.updateInput(eventObj.currentTarget, eventObj);
+                }.bind(this), 0);
+            }
+        },
+
+        handleKeyup: function (event) {
+            this.triggerCustomEvent('editableKeyup', event, event.currentTarget);
+        },
+
+        handleMouseover: function (event) {
+            this.triggerCustomEvent('editableMouseover', event, event.currentTarget);
+        },
+
+        handleDragging: function (event) {
+            this.triggerCustomEvent('editableDrag', event, event.currentTarget);
+        },
+
+        handleDrop: function (event) {
+            this.triggerCustomEvent('editableDrop', event, event.currentTarget);
+        },
+
+        handlePaste: function (event) {
+            this.triggerCustomEvent('editablePaste', event, event.currentTarget);
+        },
+
+        handleKeydown: function (event) {
+            this.triggerCustomEvent('editableKeydown', event, event.currentTarget);
+
+            if (Util.isKey(event, Util.keyCode.ENTER)) {
+                return this.triggerCustomEvent('editableKeydownEnter', event, event.currentTarget);
+            }
+
+            if (Util.isKey(event, Util.keyCode.TAB)) {
+                return this.triggerCustomEvent('editableKeydownTab', event, event.currentTarget);
+            }
+
+            if (Util.isKey(event, [Util.keyCode.DELETE, Util.keyCode.BACKSPACE])) {
+                return this.triggerCustomEvent('editableKeydownDelete', event, event.currentTarget);
+            }
+        }
+    };
+}());
+
+var Button;
+(function () {
+    'use strict';
+
+    /*global Extension, buttonDefaults */
+
+    Button = Extension.extend({
+
+        /* Button Options */
+
+        /* action: [string]
+         * The action argument to pass to MediumEditor.execAction()
+         * when the button is clicked
+         */
+        action: undefined,
+
+        /* aria: [string]
+         * The value to add as the aria-label attribute of the button
+         * element displayed in the toolbar.
+         * This is also used as the tooltip for the button
+         */
+        aria: undefined,
+
+        /* tagNames: [Array]
+         * NOTE: This is not used if useQueryState is set to true.
+         *
+         * Array of element tag names that would indicate that this
+         * button has already been applied. If this action has already
+         * been applied, the button will be displayed as 'active' in the toolbar
+         *
+         * Example:
+         * For 'bold', if the text is ever within a <b> or <strong>
+         * tag that indicates the text is already bold. So the array
+         * of tagNames for bold would be: ['b', 'strong']
+         */
+        tagNames: undefined,
+
+        /* style: [Object]
+         * NOTE: This is not used if useQueryState is set to true.
+         *
+         * A pair of css property & value(s) that indicate that this
+         * button has already been applied. If this action has already
+         * been applied, the button will be displayed as 'active' in the toolbar
+         * Properties of the object:
+         *   prop [String]: name of the css property
+         *   value [String]: value(s) of the css property
+         *                   multiple values can be separated by a '|'
+         *
+         * Example:
+         * For 'bold', if the text is ever within an element with a 'font-weight'
+         * style property set to '700' or 'bold', that indicates the text
+         * is already bold.  So the style object for bold would be:
+         * { prop: 'font-weight', value: '700|bold' }
+         */
+        style: undefined,
+
+        /* useQueryState: [boolean]
+         * Enables/disables whether this button should use the built-in
+         * document.queryCommandState() method to determine whether
+         * the action has already been applied.  If the action has already
+         * been applied, the button will be displayed as 'active' in the toolbar
+         *
+         * Example:
+         * For 'bold', if this is set to true, the code will call:
+         * document.queryCommandState('bold') which will return true if the
+         * browser thinks the text is already bold, and false otherwise
+         */
+        useQueryState: undefined,
+
+        /* contentDefault: [string]
+         * Default innerHTML to put inside the button
+         */
+        contentDefault: undefined,
+
+        /* contentFA: [string]
+         * The innerHTML to use for the content of the button
+         * if the `buttonLabels` option for MediumEditor is set to 'fontawesome'
+         */
+        contentFA: undefined,
+
+        /* classList: [Array]
+         * An array of classNames (strings) to be added to the button
+         */
+        classList: undefined,
+
+        /* attrs: [object]
+         * A set of key-value pairs to add to the button as custom attributes
+         */
+        attrs: undefined,
+
+        /* buttonDefaults: [Object]
+         * Set of default config options for all of the built-in MediumEditor buttons
+         */
+        defaults: buttonDefaults,
+
+        // The button constructor can optionally accept the name of a built-in button
+        // (ie 'bold', 'italic', etc.)
+        // When the name of a button is passed, it will initialize itself with the
+        // configuration for that button
+        constructor: function (options) {
+            if (Button.isBuiltInButton(options)) {
+                Extension.call(this, this.defaults[options]);
+            } else {
+                Extension.call(this, options);
+            }
+        },
+
+        init: function () {
+            Extension.prototype.init.apply(this, arguments);
+
+            this.button = this.createButton();
+            this.on(this.button, 'click', this.handleClick.bind(this));
+        },
+
+        /* getButton: [function ()]
+         *
+         * If implemented, this function will be called when
+         * the toolbar is being created.  The DOM Element returned
+         * by this function will be appended to the toolbar along
+         * with any other buttons.
+         */
+        getButton: function () {
+            return this.button;
+        },
+
+        getAction: function () {
+            return (typeof this.action === 'function') ? this.action(this.base.options) : this.action;
+        },
+
+        getAria: function () {
+            return (typeof this.aria === 'function') ? this.aria(this.base.options) : this.aria;
+        },
+
+        getTagNames: function () {
+            return (typeof this.tagNames === 'function') ? this.tagNames(this.base.options) : this.tagNames;
+        },
+
+        createButton: function () {
+            var button = this.document.createElement('button'),
+                content = this.contentDefault,
+                ariaLabel = this.getAria(),
+                buttonLabels = this.getEditorOption('buttonLabels');
+            // Add class names
+            button.classList.add('medium-editor-action');
+            button.classList.add('medium-editor-action-' + this.name);
+            if (this.classList) {
+                this.classList.forEach(function (className) {
+                    button.classList.add(className);
+                });
+            }
+
+            // Add attributes
+            button.setAttribute('data-action', this.getAction());
+            if (ariaLabel) {
+                button.setAttribute('title', ariaLabel);
+                button.setAttribute('aria-label', ariaLabel);
+            }
+            if (this.attrs) {
+                Object.keys(this.attrs).forEach(function (attr) {
+                    button.setAttribute(attr, this.attrs[attr]);
+                }, this);
+            }
+
+            if (buttonLabels === 'fontawesome' && this.contentFA) {
+                content = this.contentFA;
+            }
+            button.innerHTML = content;
+            return button;
+        },
+
+        handleClick: function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            var action = this.getAction();
+
+            if (action) {
+                this.execAction(action);
+            }
+        },
+
+        isActive: function () {
+            return this.button.classList.contains(this.getEditorOption('activeButtonClass'));
+        },
+
+        setInactive: function () {
+            this.button.classList.remove(this.getEditorOption('activeButtonClass'));
+            delete this.knownState;
+        },
+
+        setActive: function () {
+            this.button.classList.add(this.getEditorOption('activeButtonClass'));
+            delete this.knownState;
+        },
+
+        queryCommandState: function () {
+            var queryState = null;
+            if (this.useQueryState) {
+                queryState = this.base.queryCommandState(this.getAction());
+            }
+            return queryState;
+        },
+
+        isAlreadyApplied: function (node) {
+            var isMatch = false,
+                tagNames = this.getTagNames(),
+                styleVals,
+                computedStyle;
+
+            if (this.knownState === false || this.knownState === true) {
+                return this.knownState;
+            }
+
+            if (tagNames && tagNames.length > 0) {
+                isMatch = tagNames.indexOf(node.nodeName.toLowerCase()) !== -1;
+            }
+
+            if (!isMatch && this.style) {
+                styleVals = this.style.value.split('|');
+                computedStyle = this.window.getComputedStyle(node, null).getPropertyValue(this.style.prop);
+                styleVals.forEach(function (val) {
+                    if (!this.knownState) {
+                        isMatch = (computedStyle.indexOf(val) !== -1);
+                        // text-decoration is not inherited by default
+                        // so if the computed style for text-decoration doesn't match
+                        // don't write to knownState so we can fallback to other checks
+                        if (isMatch || this.style.prop !== 'text-decoration') {
+                            this.knownState = isMatch;
+                        }
+                    }
+                }, this);
+            }
+
+            return isMatch;
+        }
+    });
+
+    Button.isBuiltInButton = function (name) {
+        return (typeof name === 'string') && Button.prototype.defaults.hasOwnProperty(name);
+    };
+}());
+
+var FormExtension;
+(function () {
+    'use strict';
+
+    /* global Button */
+
+    var noop = function () {};
+
+    /* Base functionality for an extension whcih will display
+     * a 'form' inside the toolbar
+     */
+    FormExtension = Button.extend({
+
+        init: function () {
+            Button.prototype.init.apply(this, arguments);
+        },
+
+        // default labels for the form buttons
+        formSaveLabel: '&#10003;',
+        formCloseLabel: '&times;',
+
+        /* hasForm: [boolean]
+         *
+         * Setting this to true will cause getForm() to be called
+         * when the toolbar is created, so the form can be appended
+         * inside the toolbar container
+         */
+        hasForm: true,
+
+        /* getForm: [function ()]
+         *
+         * When hasForm is true, this function must be implemented
+         * and return a DOM Element which will be appended to
+         * the toolbar container. The form should start hidden, and
+         * the extension can choose when to hide/show it
+         */
+        getForm: noop,
+
+        /* isDisplayed: [function ()]
+         *
+         * This function should return true/false reflecting
+         * whether the form is currently displayed
+         */
+        isDisplayed: noop,
+
+        /* hideForm: [function ()]
+         *
+         * This function should hide the form element inside
+         * the toolbar container
+         */
+        hideForm: noop,
+
+        /************************ Helpers ************************
+         * The following are helpers that are either set by MediumEditor
+         * during initialization, or are helper methods which either
+         * route calls to the MediumEditor instance or provide common
+         * functionality for all form extensions
+         *********************************************************/
+
+        /* showToolbarDefaultActions: [function ()]
+         *
+         * Helper method which will turn back the toolbar after canceling
+         * the customized form
+         */
+        showToolbarDefaultActions: function () {
+            var toolbar = this.base.getExtensionByName('toolbar');
+            if (toolbar) {
+                toolbar.showToolbarDefaultActions();
+            }
+        },
+
+        /* hideToolbarDefaultActions: [function ()]
+         *
+         * Helper function which will hide the default contents of the
+         * toolbar, but leave the toolbar container in the same state
+         * to allow a form to display its custom contents inside the toolbar
+         */
+        hideToolbarDefaultActions: function () {
+            var toolbar = this.base.getExtensionByName('toolbar');
+            if (toolbar) {
+                toolbar.hideToolbarDefaultActions();
+            }
+        },
+
+        /* setToolbarPosition: [function ()]
+         *
+         * Helper function which will update the size and position
+         * of the toolbar based on the toolbar content and the current
+         * position of the user's selection
+         */
+        setToolbarPosition: function () {
+            var toolbar = this.base.getExtensionByName('toolbar');
+            if (toolbar) {
+                toolbar.setToolbarPosition();
+            }
+        }
+    });
+})();
+var AnchorForm;
+(function () {
+    'use strict';
+
+    /*global Util, Selection, FormExtension */
+
+    AnchorForm = FormExtension.extend({
+        /* Anchor Form Options */
+
+        /* customClassOption: [string]  (previously options.anchorButton + options.anchorButtonClass)
+         * Custom class name the user can optionally have added to their created links (ie 'button').
+         * If passed as a non-empty string, a checkbox will be displayed allowing the user to choose
+         * whether to have the class added to the created link or not.
+         */
+        customClassOption: null,
+
+        /* customClassOptionText: [string]
+         * text to be shown in the checkbox when the __customClassOption__ is being used.
+         */
+        customClassOptionText: 'Button',
+
+        /* linkValidation: [boolean]  (previously options.checkLinkFormat)
+         * enables/disables check for common URL protocols on anchor links.
+         */
+        linkValidation: false,
+
+        /* placeholderText: [string]  (previously options.anchorInputPlaceholder)
+         * text to be shown as placeholder of the anchor input.
+         */
+        placeholderText: 'Paste or type a link',
+
+        /* targetCheckbox: [boolean]  (previously options.anchorTarget)
+         * enables/disables displaying a "Open in new window" checkbox, which when checked
+         * changes the `target` attribute of the created link.
+         */
+        targetCheckbox: false,
+
+        /* targetCheckboxText: [string]  (previously options.anchorInputCheckboxLabel)
+         * text to be shown in the checkbox enabled via the __targetCheckbox__ option.
+         */
+        targetCheckboxText: 'Open in new window',
+
+        // Options for the Button base class
+        name: 'anchor',
+        action: 'createLink',
+        aria: 'link',
+        tagNames: ['a'],
+        contentDefault: '<b>#</b>',
+        contentFA: '<i class="fa fa-link"></i>',
+
+        init: function () {
+            FormExtension.prototype.init.apply(this, arguments);
+
+            this.subscribe('editableKeydown', this.handleKeydown.bind(this));
+        },
+
+        // Called when the button the toolbar is clicked
+        // Overrides ButtonExtension.handleClick
+        handleClick: function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            var selectedParentElement = Selection.getSelectedParentElement(Selection.getSelectionRange(this.document)),
+                firstTextNode = Util.getFirstTextNode(selectedParentElement);
+
+            if (Util.getClosestTag(firstTextNode, 'a')) {
+                return this.execAction('unlink');
+            }
+
+            if (!this.isDisplayed()) {
+                this.showForm();
+            }
+
+            return false;
+        },
+
+        // Called when user hits the defined shortcut (CTRL / COMMAND + K)
+        handleKeydown: function (event) {
+            if (Util.isKey(event, Util.keyCode.K) && Util.isMetaCtrlKey(event) && !event.shiftKey) {
+                this.handleClick(event);
+            }
+        },
+
+        // Called by medium-editor to append form to the toolbar
+        getForm: function () {
+            if (!this.form) {
+                this.form = this.createForm();
+            }
+            return this.form;
+        },
+
+        getTemplate: function () {
+            var template = [
+                '<input type="text" class="medium-editor-toolbar-input" placeholder="', this.placeholderText, '">'
+            ];
+
+            template.push(
+                '<a href="#" class="medium-editor-toolbar-save">',
+                this.getEditorOption('buttonLabels') === 'fontawesome' ? '<i class="fa fa-check"></i>' : this.formSaveLabel,
+                '</a>'
+            );
+
+            template.push('<a href="#" class="medium-editor-toolbar-close">',
+                this.getEditorOption('buttonLabels') === 'fontawesome' ? '<i class="fa fa-times"></i>' : this.formCloseLabel,
+                '</a>');
+
+            // both of these options are slightly moot with the ability to
+            // override the various form buildup/serialize functions.
+
+            if (this.targetCheckbox) {
+                // fixme: ideally, this targetCheckboxText would be a formLabel too,
+                // figure out how to deprecate? also consider `fa-` icon default implcations.
+                template.push(
+                    '<input type="checkbox" class="medium-editor-toolbar-anchor-target">',
+                    '<label>',
+                    this.targetCheckboxText,
+                    '</label>'
+                );
+            }
+
+            if (this.customClassOption) {
+                // fixme: expose this `Button` text as a formLabel property, too
+                // and provide similar access to a `fa-` icon default.
+                template.push(
+                    '<input type="checkbox" class="medium-editor-toolbar-anchor-button">',
+                    '<label>',
+                    this.customClassOptionText,
+                    '</label>'
+                );
+            }
+
+            return template.join('');
+
+        },
+
+        // Used by medium-editor when the default toolbar is to be displayed
+        isDisplayed: function () {
+            return this.getForm().style.display === 'block';
+        },
+
+        hideForm: function () {
+            this.getForm().style.display = 'none';
+            this.getInput().value = '';
+        },
+
+        showForm: function (linkValue) {
+            var input = this.getInput();
+
+            this.base.saveSelection();
+            this.hideToolbarDefaultActions();
+            this.getForm().style.display = 'block';
+            this.setToolbarPosition();
+
+            input.value = linkValue || '';
+            input.focus();
+        },
+
+        // Called by core when tearing down medium-editor (destroy)
+        destroy: function () {
+            if (!this.form) {
+                return false;
+            }
+
+            if (this.form.parentNode) {
+                this.form.parentNode.removeChild(this.form);
+            }
+
+            delete this.form;
+        },
+
+        // core methods
+
+        getFormOpts: function () {
+            // no notion of private functions? wanted `_getFormOpts`
+            var targetCheckbox = this.getForm().querySelector('.medium-editor-toolbar-anchor-target'),
+                buttonCheckbox = this.getForm().querySelector('.medium-editor-toolbar-anchor-button'),
+                opts = {
+                    url: this.getInput().value
+                };
+
+            if (this.linkValidation) {
+                opts.url = this.checkLinkFormat(opts.url);
+            }
+
+            opts.target = '_self';
+            if (targetCheckbox && targetCheckbox.checked) {
+                opts.target = '_blank';
+            }
+
+            if (buttonCheckbox && buttonCheckbox.checked) {
+                opts.buttonClass = this.customClassOption;
+            }
+
+            return opts;
+        },
+
+        doFormSave: function () {
+            var opts = this.getFormOpts();
+            this.completeFormSave(opts);
+        },
+
+        completeFormSave: function (opts) {
+            this.base.restoreSelection();
+            this.execAction(this.action, opts);
+            this.base.checkSelection();
+        },
+
+        checkLinkFormat: function (value) {
+            var re = /^(https?|ftps?|rtmpt?):\/\/|mailto:/;
+            return (re.test(value) ? '' : 'http://') + value;
+        },
+
+        doFormCancel: function () {
+            this.base.restoreSelection();
+            this.base.checkSelection();
+        },
+
+        // form creation and event handling
+        attachFormEvents: function (form) {
+            var close = form.querySelector('.medium-editor-toolbar-close'),
+                save = form.querySelector('.medium-editor-toolbar-save'),
+                input = form.querySelector('.medium-editor-toolbar-input');
+
+            // Handle clicks on the form itself
+            this.on(form, 'click', this.handleFormClick.bind(this));
+
+            // Handle typing in the textbox
+            this.on(input, 'keyup', this.handleTextboxKeyup.bind(this));
+
+            // Handle close button clicks
+            this.on(close, 'click', this.handleCloseClick.bind(this));
+
+            // Handle save button clicks (capture)
+            this.on(save, 'click', this.handleSaveClick.bind(this), true);
+
+        },
+
+        createForm: function () {
+            var doc = this.document,
+                form = doc.createElement('div');
+
+            // Anchor Form (div)
+            form.className = 'medium-editor-toolbar-form';
+            form.id = 'medium-editor-toolbar-form-anchor-' + this.getEditorId();
+            form.innerHTML = this.getTemplate();
+            this.attachFormEvents(form);
+
+            return form;
+        },
+
+        getInput: function () {
+            return this.getForm().querySelector('input.medium-editor-toolbar-input');
+        },
+
+        handleTextboxKeyup: function (event) {
+            // For ENTER -> create the anchor
+            if (event.keyCode === Util.keyCode.ENTER) {
+                event.preventDefault();
+                this.doFormSave();
+                return;
+            }
+
+            // For ESCAPE -> close the form
+            if (event.keyCode === Util.keyCode.ESCAPE) {
+                event.preventDefault();
+                this.doFormCancel();
+            }
+        },
+
+        handleFormClick: function (event) {
+            // make sure not to hide form when clicking inside the form
+            event.stopPropagation();
+        },
+
+        handleSaveClick: function (event) {
+            // Clicking Save -> create the anchor
+            event.preventDefault();
+            this.doFormSave();
+        },
+
+        handleCloseClick: function (event) {
+            // Click Close -> close the form
+            event.preventDefault();
+            this.doFormCancel();
+        }
+    });
+}());
+var AnchorPreview;
+(function () {
+    'use strict';
+
+    /*global Util, Extension */
+
+    AnchorPreview = Extension.extend({
+        name: 'anchor-preview',
+
+        // Anchor Preview Options
+
+        /* hideDelay: [number]  (previously options.anchorPreviewHideDelay)
+         * time in milliseconds to show the anchor tag preview after the mouse has left the anchor tag.
+         */
+        hideDelay: 500,
+
+        /* previewValueSelector: [string]
+         * the default selector to locate where to put the activeAnchor value in the preview
+         */
+        previewValueSelector: 'a',
+
+        init: function () {
+            this.anchorPreview = this.createPreview();
+
+            this.getEditorOption('elementsContainer').appendChild(this.anchorPreview);
+
+            this.attachToEditables();
+        },
+
+        getPreviewElement: function () {
+            return this.anchorPreview;
+        },
+
+        createPreview: function () {
+            var el = this.document.createElement('div');
+
+            el.id = 'medium-editor-anchor-preview-' + this.getEditorId();
+            el.className = 'medium-editor-anchor-preview';
+            el.innerHTML = this.getTemplate();
+
+            this.on(el, 'click', this.handleClick.bind(this));
+
+            return el;
+        },
+
+        getTemplate: function () {
+            return '<div class="medium-editor-toolbar-anchor-preview" id="medium-editor-toolbar-anchor-preview">' +
+                '    <a class="medium-editor-toolbar-anchor-preview-inner"></a>' +
+                '</div>';
+        },
+
+        destroy: function () {
+            if (this.anchorPreview) {
+                if (this.anchorPreview.parentNode) {
+                    this.anchorPreview.parentNode.removeChild(this.anchorPreview);
+                }
+                delete this.anchorPreview;
+            }
+        },
+
+        hidePreview: function () {
+            this.anchorPreview.classList.remove('medium-editor-anchor-preview-active');
+            this.activeAnchor = null;
+        },
+
+        showPreview: function (anchorEl) {
+            if (this.anchorPreview.classList.contains('medium-editor-anchor-preview-active') ||
+                    anchorEl.getAttribute('data-disable-preview')) {
+                return true;
+            }
+
+            if (this.previewValueSelector) {
+                this.anchorPreview.querySelector(this.previewValueSelector).textContent = anchorEl.attributes.href.value;
+                this.anchorPreview.querySelector(this.previewValueSelector).href = anchorEl.attributes.href.value;
+            }
+
+            this.anchorPreview.classList.add('medium-toolbar-arrow-over');
+            this.anchorPreview.classList.remove('medium-toolbar-arrow-under');
+
+            if (!this.anchorPreview.classList.contains('medium-editor-anchor-preview-active')) {
+                this.anchorPreview.classList.add('medium-editor-anchor-preview-active');
+            }
+
+            this.activeAnchor = anchorEl;
+
+            this.positionPreview();
+            this.attachPreviewHandlers();
+
+            return this;
+        },
+
+        positionPreview: function (activeAnchor) {
+            activeAnchor = activeAnchor || this.activeAnchor;
+            var buttonHeight = this.anchorPreview.offsetHeight,
+                boundary = activeAnchor.getBoundingClientRect(),
+                middleBoundary = (boundary.left + boundary.right) / 2,
+                diffLeft = this.diffLeft,
+                diffTop = this.diffTop,
+                halfOffsetWidth,
+                defaultLeft;
+
+            halfOffsetWidth = this.anchorPreview.offsetWidth / 2;
+            var toolbarExtension = this.base.getExtensionByName('toolbar');
+            if (toolbarExtension) {
+                diffLeft = toolbarExtension.diffLeft;
+                diffTop = toolbarExtension.diffTop;
+            }
+            defaultLeft = diffLeft - halfOffsetWidth;
+
+            this.anchorPreview.style.top = Math.round(buttonHeight + boundary.bottom - diffTop + this.window.pageYOffset - this.anchorPreview.offsetHeight) + 'px';
+            if (middleBoundary < halfOffsetWidth) {
+                this.anchorPreview.style.left = defaultLeft + halfOffsetWidth + 'px';
+            } else if ((this.window.innerWidth - middleBoundary) < halfOffsetWidth) {
+                this.anchorPreview.style.left = this.window.innerWidth + defaultLeft - halfOffsetWidth + 'px';
+            } else {
+                this.anchorPreview.style.left = defaultLeft + middleBoundary + 'px';
+            }
+        },
+
+        attachToEditables: function () {
+            this.subscribe('editableMouseover', this.handleEditableMouseover.bind(this));
+        },
+
+        handleClick: function (event) {
+            var anchorExtension = this.base.getExtensionByName('anchor'),
+                activeAnchor = this.activeAnchor;
+
+            if (anchorExtension && activeAnchor) {
+                event.preventDefault();
+
+                this.base.selectElement(this.activeAnchor);
+
+                // Using setTimeout + delay because:
+                // We may actually be displaying the anchor form, which should be controlled by delay
+                this.base.delay(function () {
+                    if (activeAnchor) {
+                        anchorExtension.showForm(activeAnchor.attributes.href.value);
+                        activeAnchor = null;
+                    }
+                }.bind(this));
+            }
+
+            this.hidePreview();
+        },
+
+        handleAnchorMouseout: function () {
+            this.anchorToPreview = null;
+            this.off(this.activeAnchor, 'mouseout', this.instanceHandleAnchorMouseout);
+            this.instanceHandleAnchorMouseout = null;
+        },
+
+        handleEditableMouseover: function (event) {
+            var target = Util.getClosestTag(event.target, 'a');
+
+            if (false === target) {
+                return;
+            }
+
+            // Detect empty href attributes
+            // The browser will make href="" or href="#top"
+            // into absolute urls when accessed as event.targed.href, so check the html
+            if (!/href=["']\S+["']/.test(target.outerHTML) || /href=["']#\S+["']/.test(target.outerHTML)) {
+                return true;
+            }
+
+            // only show when toolbar is not present
+            var toolbar = this.base.getExtensionByName('toolbar');
+            if (toolbar && toolbar.isDisplayed && toolbar.isDisplayed()) {
+                return true;
+            }
+
+            // detach handler for other anchor in case we hovered multiple anchors quickly
+            if (this.activeAnchor && this.activeAnchor !== target) {
+                this.detachPreviewHandlers();
+            }
+
+            this.anchorToPreview = target;
+
+            this.instanceHandleAnchorMouseout = this.handleAnchorMouseout.bind(this);
+            this.on(this.anchorToPreview, 'mouseout', this.instanceHandleAnchorMouseout);
+            // Using setTimeout + delay because:
+            // - We're going to show the anchor preview according to the configured delay
+            //   if the mouse has not left the anchor tag in that time
+            this.base.delay(function () {
+                if (this.anchorToPreview) {
+                    this.showPreview(this.anchorToPreview);
+                }
+            }.bind(this));
+        },
+
+        handlePreviewMouseover: function () {
+            this.lastOver = (new Date()).getTime();
+            this.hovering = true;
+        },
+
+        handlePreviewMouseout: function (event) {
+            if (!event.relatedTarget || !/anchor-preview/.test(event.relatedTarget.className)) {
+                this.hovering = false;
+            }
+        },
+
+        updatePreview: function () {
+            if (this.hovering) {
+                return true;
+            }
+            var durr = (new Date()).getTime() - this.lastOver;
+            if (durr > this.hideDelay) {
+                // hide the preview 1/2 second after mouse leaves the link
+                this.detachPreviewHandlers();
+            }
+        },
+
+        detachPreviewHandlers: function () {
+            // cleanup
+            clearInterval(this.intervalTimer);
+            if (this.instanceHandlePreviewMouseover) {
+                this.off(this.anchorPreview, 'mouseover', this.instanceHandlePreviewMouseover);
+                this.off(this.anchorPreview, 'mouseout', this.instanceHandlePreviewMouseout);
+                if (this.activeAnchor) {
+                    this.off(this.activeAnchor, 'mouseover', this.instanceHandlePreviewMouseover);
+                    this.off(this.activeAnchor, 'mouseout', this.instanceHandlePreviewMouseout);
+                }
+            }
+
+            this.hidePreview();
+
+            this.hovering = this.instanceHandlePreviewMouseover = this.instanceHandlePreviewMouseout = null;
+        },
+
+        // TODO: break up method and extract out handlers
+        attachPreviewHandlers: function () {
+            this.lastOver = (new Date()).getTime();
+            this.hovering = true;
+
+            this.instanceHandlePreviewMouseover = this.handlePreviewMouseover.bind(this);
+            this.instanceHandlePreviewMouseout = this.handlePreviewMouseout.bind(this);
+
+            this.intervalTimer = setInterval(this.updatePreview.bind(this), 200);
+
+            this.on(this.anchorPreview, 'mouseover', this.instanceHandlePreviewMouseover);
+            this.on(this.anchorPreview, 'mouseout', this.instanceHandlePreviewMouseout);
+            this.on(this.activeAnchor, 'mouseover', this.instanceHandlePreviewMouseover);
+            this.on(this.activeAnchor, 'mouseout', this.instanceHandlePreviewMouseout);
+        }
+    });
+}());
+
+var AutoLink,
+    WHITESPACE_CHARS,
+    KNOWN_TLDS_FRAGMENT,
+    LINK_REGEXP_TEXT;
+
+WHITESPACE_CHARS = [' ', '\t', '\n', '\r', '\u00A0', '\u2000', '\u2001', '\u2002', '\u2003',
+                                    '\u2028', '\u2029'];
+KNOWN_TLDS_FRAGMENT = 'com|net|org|edu|gov|mil|aero|asia|biz|cat|coop|info|int|jobs|mobi|museum|name|post|pro|tel|travel|' +
+    'xxx|ac|ad|ae|af|ag|ai|al|am|an|ao|aq|ar|as|at|au|aw|ax|az|ba|bb|bd|be|bf|bg|bh|bi|bj|bm|bn|bo|br|bs|bt|bv|bw|by|' +
+    'bz|ca|cc|cd|cf|cg|ch|ci|ck|cl|cm|cn|co|cr|cs|cu|cv|cx|cy|cz|dd|de|dj|dk|dm|do|dz|ec|ee|eg|eh|er|es|et|eu|fi|fj|' +
+    'fk|fm|fo|fr|ga|gb|gd|ge|gf|gg|gh|gi|gl|gm|gn|gp|gq|gr|gs|gt|gu|gw|gy|hk|hm|hn|hr|ht|hu|id|ie|il|im|in|io|iq|ir|' +
+    'is|it|je|jm|jo|jp|ke|kg|kh|ki|km|kn|kp|kr|kw|ky|kz|la|lb|lc|li|lk|lr|ls|lt|lu|lv|ly|ma|mc|md|me|mg|mh|mk|ml|mm|' +
+    'mn|mo|mp|mq|mr|ms|mt|mu|mv|mw|mx|my|mz|na|nc|ne|nf|ng|ni|nl|no|np|nr|nu|nz|om|pa|pe|pf|pg|ph|pk|pl|pm|pn|pr|ps|' +
+    'pt|pw|py|qa|re|ro|rs|ru|rw|sa|sb|sc|sd|se|sg|sh|si|sj|ja|sk|sl|sm|sn|so|sr|ss|st|su|sv|sx|sy|sz|tc|td|tf|tg|th|' +
+    'tj|tk|tl|tm|tn|to|tp|tr|tt|tv|tw|tz|ua|ug|uk|us|uy|uz|va|vc|ve|vg|vi|vn|vu|wf|ws|ye|yt|yu|za|zm|zw';
+LINK_REGEXP_TEXT =
+    '(' +
+    // Version of Gruber URL Regexp optimized for JS: http://stackoverflow.com/a/17733640
+    '((?:(https?://|ftps?://|nntp://)|www\\d{0,3}[.]|[a-z0-9.\\-]+[.](' + KNOWN_TLDS_FRAGMENT + ')\\\/)\\S+(?:[^\\s`!\\[\\]{};:\'\".,?\u00AB\u00BB\u201C\u201D\u2018\u2019]))' +
+    // Addition to above Regexp to support bare domains/one level subdomains with common non-i18n TLDs and without www prefix:
+    ')|(([a-z0-9\\-]+\\.)?[a-z0-9\\-]+\\.(' + KNOWN_TLDS_FRAGMENT + '))';
+
+(function () {
+    'use strict';
+
+    var KNOWN_TLDS_REGEXP = new RegExp('^(' + KNOWN_TLDS_FRAGMENT + ')$', 'i');
+
+    function nodeIsNotInsideAnchorTag(node) {
+        return !Util.getClosestTag(node, 'a');
+    }
+
+    AutoLink = Extension.extend({
+        init: function () {
+            Extension.prototype.init.apply(this, arguments);
+
+            this.disableEventHandling = false;
+            this.subscribe('editableKeypress', this.onKeypress.bind(this));
+            this.subscribe('editableBlur', this.onBlur.bind(this));
+            // MS IE has it's own auto-URL detect feature but ours is better in some ways. Be consistent.
+            this.document.execCommand('AutoUrlDetect', false, false);
+        },
+
+        destroy: function () {
+            // Turn AutoUrlDetect back on
+            if (this.document.queryCommandSupported('AutoUrlDetect')) {
+                this.document.execCommand('AutoUrlDetect', false, true);
+            }
+        },
+
+        onBlur: function (blurEvent, editable) {
+            this.performLinking(editable);
+        },
+
+        onKeypress: function (keyPressEvent) {
+            if (this.disableEventHandling) {
+                return;
+            }
+
+            if (Util.isKey(keyPressEvent, [Util.keyCode.SPACE, Util.keyCode.ENTER])) {
+                clearTimeout(this.performLinkingTimeout);
+                // Saving/restoring the selection in the middle of a keypress doesn't work well...
+                this.performLinkingTimeout = setTimeout(function () {
+                    try {
+                        var sel = this.base.exportSelection();
+                        if (this.performLinking(keyPressEvent.target)) {
+                            // pass true for favorLaterSelectionAnchor - this is needed for links at the end of a
+                            // paragraph in MS IE, or MS IE causes the link to be deleted right after adding it.
+                            this.base.importSelection(sel, true);
+                        }
+                    } catch (e) {
+                        if (window.console) {
+                            window.console.error('Failed to perform linking', e);
+                        }
+                        this.disableEventHandling = true;
+                    }
+                }.bind(this), 0);
+            }
+        },
+
+        performLinking: function (contenteditable) {
+            // Perform linking on a paragraph level basis as otherwise the detection can wrongly find the end
+            // of one paragraph and the beginning of another paragraph to constitute a link, such as a paragraph ending
+            // "link." and the next paragraph beginning with "my" is interpreted into "link.my" and the code tries to create
+            // a link across paragraphs - which doesn't work and is terrible.
+            // (Medium deletes the spaces/returns between P tags so the textContent ends up without paragraph spacing)
+            var paragraphs = contenteditable.querySelectorAll('p'),
+                documentModified = false;
+            if (paragraphs.length === 0) {
+                paragraphs = [contenteditable];
+            }
+            for (var i = 0; i < paragraphs.length; i++) {
+                documentModified = this.removeObsoleteAutoLinkSpans(paragraphs[i]) || documentModified;
+                documentModified = this.performLinkingWithinElement(paragraphs[i]) || documentModified;
+            }
+            return documentModified;
+        },
+
+        removeObsoleteAutoLinkSpans: function (element) {
+            var spans = element.querySelectorAll('span[data-auto-link="true"]'),
+                documentModified = false;
+
+            for (var i = 0; i < spans.length; i++) {
+                var textContent = spans[i].textContent;
+                if (textContent.indexOf('://') === -1) {
+                    textContent = Util.ensureUrlHasProtocol(textContent);
+                }
+                if (spans[i].getAttribute('data-href') !== textContent && nodeIsNotInsideAnchorTag(spans[i])) {
+                    documentModified = true;
+                    var trimmedTextContent = textContent.replace(/\s+$/, '');
+                    if (spans[i].getAttribute('data-href') === trimmedTextContent) {
+                        var charactersTrimmed = textContent.length - trimmedTextContent.length,
+                            subtree = Util.splitOffDOMTree(spans[i], this.splitTextBeforeEnd(spans[i], charactersTrimmed));
+                        spans[i].parentNode.insertBefore(subtree, spans[i].nextSibling);
+                    } else {
+                        // Some editing has happened to the span, so just remove it entirely. The user can put it back
+                        // around just the href content if they need to prevent it from linking
+                        Util.unwrap(spans[i], this.document);
                     }
                 }
             }
-            return this;
+            return documentModified;
         },
 
-        bindParagraphCreation: function (index) {
-            var self = this;
-            this.on(this.elements[index], 'keypress', function (e) {
-                var node,
-                    tagName;
-                if (e.which === Util.keyCode.SPACE) {
-                    node = Selection.getSelectionStart(self.options.ownerDocument);
-                    tagName = node.tagName.toLowerCase();
-                    if (tagName === 'a') {
-                        self.options.ownerDocument.execCommand('unlink', false, null);
-                    }
+        splitTextBeforeEnd: function (element, characterCount) {
+            var treeWalker = this.document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false),
+                lastChildNotExhausted = true;
+
+            // Start the tree walker at the last descendant of the span
+            while (lastChildNotExhausted) {
+                lastChildNotExhausted = treeWalker.lastChild() !== null;
+            }
+
+            var currentNode,
+                currentNodeValue,
+                previousNode;
+            while (characterCount > 0 && previousNode !== null) {
+                currentNode = treeWalker.currentNode;
+                currentNodeValue = currentNode.nodeValue;
+                if (currentNodeValue.length > characterCount) {
+                    previousNode = currentNode.splitText(currentNodeValue.length - characterCount);
+                    characterCount = 0;
+                } else {
+                    previousNode = treeWalker.previousNode();
+                    characterCount -= currentNodeValue.length;
                 }
-            });
-
-            this.on(this.elements[index], 'keyup', function (e) {
-                var node = Selection.getSelectionStart(self.options.ownerDocument),
-                    tagName,
-                    editorElement;
-
-                if (node && node.getAttribute('data-medium-element') && node.children.length === 0 && !(self.options.disableReturn || node.getAttribute('data-disable-return'))) {
-                  // Cozy: don't insert paragraphs
-                  // self.options.ownerDocument.execCommand('formatBlock', false, 'p');
-                }
-                if (e.which === Util.keyCode.ENTER) {
-                    node = Selection.getSelectionStart(self.options.ownerDocument);
-                    tagName = node.tagName.toLowerCase();
-                    editorElement = Selection.getSelectionElement(self.options.contentWindow);
-
-                    if (!(self.options.disableReturn || editorElement.getAttribute('data-disable-return')) &&
-                            tagName !== 'li' && !Util.isListItemChild(node)) {
-                        if (!e.shiftKey) {
-
-                            // paragraph creation should not be forced within a header tag
-                            if (!/h\d/.test(tagName)) {
-                                // Cozy: don't insert paragraphs
-                                //self.options.ownerDocument.execCommand('formatBlock', false, 'p');
-                            }
-                            // Cozy: don't insert paragraphs
-                            e.preventDefault();
-                        }
-                        if (tagName === 'a') {
-                            self.options.ownerDocument.execCommand('unlink', false, null);
-                        }
-                    }
-                }
-            });
-            return this;
+            }
+            return previousNode;
         },
 
-        bindReturn: function (index) {
-            var self = this;
-            this.on(this.elements[index], 'keypress', function (e) {
-                if (e.which === Util.keyCode.ENTER) {
-                    /* Cozy: don't insert paragraphs
-                    if (self.options.disableReturn || this.getAttribute('data-disable-return')) {
-                        e.preventDefault();
-                    } else if (self.options.disableDoubleReturn || this.getAttribute('data-disable-double-return')) {
-                        var node = Selection.getSelectionStart(self.options.contentWindow);
-                        if (node && node.textContent.trim() === '') {
-                            e.preventDefault();
-                        }
-                    }
-                    */
-                    e.preventDefault();
-                    self.options.ownerDocument.execCommand('insertHTML', false, "\n<br>\n<br>\n");
+        performLinkingWithinElement: function (element) {
+            var matches = this.findLinkableText(element),
+                linkCreated = false;
+
+            for (var matchIndex = 0; matchIndex < matches.length; matchIndex++) {
+                var matchingTextNodes = Util.findOrCreateMatchingTextNodes(this.document, element,
+                        matches[matchIndex]);
+                if (this.shouldNotLink(matchingTextNodes)) {
+                    continue;
                 }
-            });
-            return this;
+                this.createAutoLink(matchingTextNodes, matches[matchIndex].href);
+            }
+            return linkCreated;
         },
 
-        bindKeydown: function (index) {
-            var self = this;
-            this.on(this.elements[index], 'keydown', function (e) {
-                var node, tag, key;
+        shouldNotLink: function (textNodes) {
+            var shouldNotLink = false;
+            for (var i = 0; i < textNodes.length && shouldNotLink === false; i++) {
+                // Do not link if the text node is either inside an anchor or inside span[data-auto-link]
+                shouldNotLink = !!Util.traverseUp(textNodes[i], function (node) {
+                    return node.nodeName.toLowerCase() === 'a' ||
+                        (node.getAttribute && node.getAttribute('data-auto-link') === 'true');
+                });
+            }
+            return shouldNotLink;
+        },
 
-                if (e.which === Util.keyCode.TAB) {
-                    // Override tab only for pre nodes
-                    node = Selection.getSelectionStart(self.options.ownerDocument);
-                    tag = node && node.tagName.toLowerCase();
+        findLinkableText: function (contenteditable) {
+            var linkRegExp = new RegExp(LINK_REGEXP_TEXT, 'gi'),
+                textContent = contenteditable.textContent,
+                match = null,
+                matches = [];
 
-                    if (tag === 'pre') {
-                        e.preventDefault();
-                        self.options.ownerDocument.execCommand('insertHtml', null, '    ');
-                    }
+            while ((match = linkRegExp.exec(textContent)) !== null) {
+                var matchOk = true,
+                    matchEnd = match.index + match[0].length;
+                // If the regexp detected something as a link that has text immediately preceding/following it, bail out.
+                matchOk = (match.index === 0 || WHITESPACE_CHARS.indexOf(textContent[match.index - 1]) !== -1) &&
+                    (matchEnd === textContent.length || WHITESPACE_CHARS.indexOf(textContent[matchEnd]) !== -1);
+                // If the regexp detected a bare domain that doesn't use one of our expected TLDs, bail out.
+                matchOk = matchOk && (match[0].indexOf('/') !== -1 ||
+                    KNOWN_TLDS_REGEXP.test(match[0].split('.').pop().split('?').shift()));
 
-                    // Tab to indent list structures!
-                    if (tag === 'li' || Util.isListItemChild(node)) {
-                        e.preventDefault();
-
-                        // If Shift is down, outdent, otherwise indent
-                        if (e.shiftKey) {
-                            self.options.ownerDocument.execCommand('outdent', e);
-                        } else {
-                            self.options.ownerDocument.execCommand('indent', e);
-                        }
-                    }
-                } else if (e.which === Util.keyCode.BACKSPACE || e.which === Util.keyCode.DELETE || e.which === Util.keyCode.ENTER) {
-
-                    // Bind keys which can create or destroy a block element: backspace, delete, return
-                    self.onBlockModifier(e);
-
-                } else if (e.ctrlKey || e.metaKey) {
-                    key = String.fromCharCode(e.which || e.keyCode).toLowerCase();
-                    self.commands.forEach(function (extension) {
-                        if (extension.options.key && extension.options.key === key) {
-                            extension.handleClick(e);
-                        }
+                if (matchOk) {
+                    matches.push({
+                        href: match[0],
+                        start: match.index,
+                        end: matchEnd
                     });
                 }
+            }
+            return matches;
+        },
+
+        createAutoLink: function (textNodes, href) {
+            href = Util.ensureUrlHasProtocol(href);
+            var anchor = Util.createLink(this.document, textNodes, href, this.getEditorOption('targetBlank') ? '_blank' : null),
+                span = this.document.createElement('span');
+            span.setAttribute('data-auto-link', 'true');
+            span.setAttribute('data-href', href);
+            anchor.insertBefore(span, anchor.firstChild);
+            while (anchor.childNodes.length > 1) {
+                span.appendChild(anchor.childNodes[1]);
+            }
+        }
+
+    });
+}());
+var FileDragging;
+
+(function () {
+    'use strict';
+
+    var CLASS_DRAG_OVER = 'medium-editor-dragover';
+
+    function clearClassNames(element) {
+        var editable = Util.getContainerEditorElement(element),
+            existing = Array.prototype.slice.call(editable.parentElement.querySelectorAll('.' + CLASS_DRAG_OVER));
+
+        existing.forEach(function (el) {
+            el.classList.remove(CLASS_DRAG_OVER);
+        });
+    }
+
+    FileDragging = Extension.extend({
+        name: 'fileDragging',
+
+        allowedTypes: ['image'],
+
+        init: function () {
+            Extension.prototype.init.apply(this, arguments);
+
+            this.subscribe('editableDrag', this.handleDrag.bind(this));
+            this.subscribe('editableDrop', this.handleDrop.bind(this));
+        },
+
+        handleDrag: function (event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'copy';
+
+            var target = event.target.classList ? event.target : event.target.parentElement;
+
+            // Ensure the class gets removed from anything that had it before
+            clearClassNames(target);
+
+            if (event.type === 'dragover') {
+                target.classList.add(CLASS_DRAG_OVER);
+            }
+        },
+
+        handleDrop: function (event) {
+            // Prevent file from opening in the current window
+            event.preventDefault();
+            event.stopPropagation();
+
+            // IE9 does not support the File API, so prevent file from opening in the window
+            // but also don't try to actually get the file
+            if (event.dataTransfer.files) {
+                Array.prototype.slice.call(event.dataTransfer.files).forEach(function (file) {
+                    if (this.isAllowedFile(file)) {
+                        if (file.type.match('image')) {
+                            this.insertImageFile(file);
+                        }
+                    }
+                }, this);
+            }
+
+            // Make sure we remove our class from everything
+            clearClassNames(event.target);
+        },
+
+        isAllowedFile: function (file) {
+            return this.allowedTypes.some(function (fileType) {
+                return !!file.type.match(fileType);
             });
-            return this;
         },
 
-        onBlockModifier: function (e) {
-            var range, sel, p, node = Selection.getSelectionStart(this.options.ownerDocument),
-                tagName = node.tagName.toLowerCase(),
-                isEmpty = /^(\s+|<br\/?>)?$/i,
-                isHeader = /h\d/i;
+        insertImageFile: function (file) {
+            var fileReader = new FileReader();
+            fileReader.readAsDataURL(file);
 
-            if ((e.which === Util.keyCode.BACKSPACE || e.which === Util.keyCode.ENTER)
-                    && node.previousElementSibling
-                    // in a header
-                    && isHeader.test(tagName)
-                    // at the very end of the block
-                    && Selection.getCaretOffsets(node).left === 0) {
-                if (e.which === Util.keyCode.BACKSPACE && isEmpty.test(node.previousElementSibling.innerHTML)) {
-                    // backspacing the begining of a header into an empty previous element will
-                    // change the tagName of the current node to prevent one
-                    // instead delete previous node and cancel the event.
-                    node.previousElementSibling.parentNode.removeChild(node.previousElementSibling);
-                    e.preventDefault();
-                } else if (e.which === Util.keyCode.ENTER) {
-                    // hitting return in the begining of a header will create empty header elements before the current one
-                    // instead, make "<p><br></p>" element, which are what happens if you hit return in an empty paragraph
-                    p = this.options.ownerDocument.createElement('p');
-                    p.innerHTML = '<br>';
-                    node.previousElementSibling.parentNode.insertBefore(p, node);
-                    e.preventDefault();
+            var id = 'medium-img-' + (+new Date());
+            Util.insertHTMLCommand(this.document, '<img class="medium-editor-image-loading" id="' + id + '" />');
+
+            fileReader.onload = function () {
+                var img = this.document.getElementById(id);
+                if (img) {
+                    img.removeAttribute('id');
+                    img.removeAttribute('class');
+                    img.src = fileReader.result;
                 }
-            } else if (e.which === Util.keyCode.DELETE
-                        && node.nextElementSibling
-                        && node.previousElementSibling
-                        // not in a header
-                        && !isHeader.test(tagName)
-                        // in an empty tag
-                        && isEmpty.test(node.innerHTML)
-                        // when the next tag *is* a header
-                        && isHeader.test(node.nextElementSibling.tagName)) {
-                // hitting delete in an empty element preceding a header, ex:
-                //  <p>[CURSOR]</p><h1>Header</h1>
-                // Will cause the h1 to become a paragraph.
-                // Instead, delete the paragraph node and move the cursor to the begining of the h1
+            }.bind(this);
+        }
+    });
+}());
 
-                // remove node and move cursor to start of header
-                range = document.createRange();
-                sel = window.getSelection();
+var KeyboardCommands;
+(function () {
+    'use strict';
 
-                range.setStart(node.nextElementSibling, 0);
-                range.collapse(true);
+    /*global Extension, Util */
 
-                sel.removeAllRanges();
-                sel.addRange(range);
+    KeyboardCommands = Extension.extend({
+        name: 'keyboard-commands',
 
-                node.previousElementSibling.parentNode.removeChild(node);
+        /* KeyboardCommands Options */
 
-                e.preventDefault();
+        /* commands: [Array]
+         * Array of objects describing each command and the combination of keys that will trigger it
+         * Required for each object:
+         *   command [String] (argument passed to editor.execAction())
+         *   key [String] (keyboard character that triggers this command)
+         *   meta [boolean] (whether the ctrl/meta key has to be active or inactive)
+         *   shift [boolean] (whether the shift key has to be active or inactive)
+         *   alt [boolean] (whether the alt key has to be active or inactive)
+         */
+        commands: [
+            {
+                command: 'bold',
+                key: 'B',
+                meta: true,
+                shift: false,
+                alt: false
+            },
+            {
+                command: 'italic',
+                key: 'I',
+                meta: true,
+                shift: false,
+                alt: false
+            },
+            {
+                command: 'underline',
+                key: 'U',
+                meta: true,
+                shift: false,
+                alt: false
+            }
+        ],
+
+        init: function () {
+            Extension.prototype.init.apply(this, arguments);
+
+            this.subscribe('editableKeydown', this.handleKeydown.bind(this));
+            this.keys = {};
+            this.commands.forEach(function (command) {
+                var keyCode = command.key.charCodeAt(0);
+                if (!this.keys[keyCode]) {
+                    this.keys[keyCode] = [];
+                }
+                this.keys[keyCode].push(command);
+            }, this);
+        },
+
+        handleKeydown: function (event) {
+            var keyCode = Util.getKeyCode(event);
+            if (!this.keys[keyCode]) {
+                return;
+            }
+
+            var isMeta = Util.isMetaCtrlKey(event),
+                isShift = !!event.shiftKey,
+                isAlt = !!event.altKey;
+
+            this.keys[keyCode].forEach(function (data) {
+                if (data.meta === isMeta &&
+                    data.shift === isShift &&
+                    data.alt === isAlt) {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    // command can be false so the shortcurt is just disabled
+                    if (false !== data.command) {
+                        this.execAction(data.command);
+                    }
+                }
+            }, this);
+        }
+    });
+}());
+
+var FontSizeForm;
+(function () {
+    'use strict';
+
+    /*global FormExtension, Selection */
+
+    FontSizeForm = FormExtension.extend({
+
+        name: 'fontsize',
+        action: 'fontSize',
+        aria: 'increase/decrease font size',
+        contentDefault: '&#xB1;', // ±
+        contentFA: '<i class="fa fa-text-height"></i>',
+
+        init: function () {
+            FormExtension.prototype.init.apply(this, arguments);
+        },
+
+        // Called when the button the toolbar is clicked
+        // Overrides ButtonExtension.handleClick
+        handleClick: function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            if (!this.isDisplayed()) {
+                // Get fontsize of current selection (convert to string since IE returns this as number)
+                var fontSize = this.document.queryCommandValue('fontSize') + '';
+                this.showForm(fontSize);
+            }
+
+            return false;
+        },
+
+        // Called by medium-editor to append form to the toolbar
+        getForm: function () {
+            if (!this.form) {
+                this.form = this.createForm();
+            }
+            return this.form;
+        },
+
+        // Used by medium-editor when the default toolbar is to be displayed
+        isDisplayed: function () {
+            return this.getForm().style.display === 'block';
+        },
+
+        hideForm: function () {
+            this.getForm().style.display = 'none';
+            this.getInput().value = '';
+        },
+
+        showForm: function (fontSize) {
+            var input = this.getInput();
+
+            this.base.saveSelection();
+            this.hideToolbarDefaultActions();
+            this.getForm().style.display = 'block';
+            this.setToolbarPosition();
+
+            input.value = fontSize || '';
+            input.focus();
+        },
+
+        // Called by core when tearing down medium-editor (destroy)
+        destroy: function () {
+            if (!this.form) {
+                return false;
+            }
+
+            if (this.form.parentNode) {
+                this.form.parentNode.removeChild(this.form);
+            }
+
+            delete this.form;
+        },
+
+        // core methods
+
+        doFormSave: function () {
+            this.base.restoreSelection();
+            this.base.checkSelection();
+        },
+
+        doFormCancel: function () {
+            this.base.restoreSelection();
+            this.clearFontSize();
+            this.base.checkSelection();
+        },
+
+        // form creation and event handling
+        createForm: function () {
+            var doc = this.document,
+                form = doc.createElement('div'),
+                input = doc.createElement('input'),
+                close = doc.createElement('a'),
+                save = doc.createElement('a');
+
+            // Font Size Form (div)
+            form.className = 'medium-editor-toolbar-form';
+            form.id = 'medium-editor-toolbar-form-fontsize-' + this.getEditorId();
+
+            // Handle clicks on the form itself
+            this.on(form, 'click', this.handleFormClick.bind(this));
+
+            // Add font size slider
+            input.setAttribute('type', 'range');
+            input.setAttribute('min', '1');
+            input.setAttribute('max', '7');
+            input.className = 'medium-editor-toolbar-input';
+            form.appendChild(input);
+
+            // Handle typing in the textbox
+            this.on(input, 'change', this.handleSliderChange.bind(this));
+
+            // Add save buton
+            save.setAttribute('href', '#');
+            save.className = 'medium-editor-toobar-save';
+            save.innerHTML = this.getEditorOption('buttonLabels') === 'fontawesome' ?
+                             '<i class="fa fa-check"></i>' :
+                             '&#10003;';
+            form.appendChild(save);
+
+            // Handle save button clicks (capture)
+            this.on(save, 'click', this.handleSaveClick.bind(this), true);
+
+            // Add close button
+            close.setAttribute('href', '#');
+            close.className = 'medium-editor-toobar-close';
+            close.innerHTML = this.getEditorOption('buttonLabels') === 'fontawesome' ?
+                              '<i class="fa fa-times"></i>' :
+                              '&times;';
+            form.appendChild(close);
+
+            // Handle close button clicks
+            this.on(close, 'click', this.handleCloseClick.bind(this));
+
+            return form;
+        },
+
+        getInput: function () {
+            return this.getForm().querySelector('input.medium-editor-toolbar-input');
+        },
+
+        clearFontSize: function () {
+            Selection.getSelectedElements(this.document).forEach(function (el) {
+                if (el.nodeName.toLowerCase() === 'font' && el.hasAttribute('size')) {
+                    el.removeAttribute('size');
+                }
+            });
+        },
+
+        handleSliderChange: function () {
+            var size = this.getInput().value;
+            if (size === '4') {
+                this.clearFontSize();
+            } else {
+                this.execAction('fontSize', { size: size });
             }
         },
 
-        initToolbar: function () {
-            if (this.toolbar) {
-                return this;
-            }
-            this.toolbar = this.createToolbar();
-            this.keepToolbarAlive = false;
-            this.toolbarActions = this.toolbar.querySelector('.medium-editor-toolbar-actions');
-            this.anchorPreview = this.createAnchorPreview();
-
-            return this;
+        handleFormClick: function (event) {
+            // make sure not to hide form when clicking inside the form
+            event.stopPropagation();
         },
+
+        handleSaveClick: function (event) {
+            // Clicking Save -> create the font size
+            event.preventDefault();
+            this.doFormSave();
+        },
+
+        handleCloseClick: function (event) {
+            // Click Close -> close the form
+            event.preventDefault();
+            this.doFormCancel();
+        }
+    });
+}());
+var PasteHandler;
+
+(function () {
+    'use strict';
+    /*jslint regexp: true*/
+    /*
+        jslint does not allow character negation, because the negation
+        will not match any unicode characters. In the regexes in this
+        block, negation is used specifically to match the end of an html
+        tag, and in fact unicode characters *should* be allowed.
+    */
+    function createReplacements() {
+        return [
+
+            // replace two bogus tags that begin pastes from google docs
+            [new RegExp(/<[^>]*docs-internal-guid[^>]*>/gi), ''],
+            [new RegExp(/<\/b>(<br[^>]*>)?$/gi), ''],
+
+             // un-html spaces and newlines inserted by OS X
+            [new RegExp(/<span class="Apple-converted-space">\s+<\/span>/g), ' '],
+            [new RegExp(/<br class="Apple-interchange-newline">/g), '<br>'],
+
+            // replace google docs italics+bold with a span to be replaced once the html is inserted
+            [new RegExp(/<span[^>]*(font-style:italic;font-weight:bold|font-weight:bold;font-style:italic)[^>]*>/gi), '<span class="replace-with italic bold">'],
+
+            // replace google docs italics with a span to be replaced once the html is inserted
+            [new RegExp(/<span[^>]*font-style:italic[^>]*>/gi), '<span class="replace-with italic">'],
+
+            //[replace google docs bolds with a span to be replaced once the html is inserted
+            [new RegExp(/<span[^>]*font-weight:bold[^>]*>/gi), '<span class="replace-with bold">'],
+
+             // replace manually entered b/i/a tags with real ones
+            [new RegExp(/&lt;(\/?)(i|b|a)&gt;/gi), '<$1$2>'],
+
+             // replace manually a tags with real ones, converting smart-quotes from google docs
+            [new RegExp(/&lt;a(?:(?!href).)+href=(?:&quot;|&rdquo;|&ldquo;|"|“|”)(((?!&quot;|&rdquo;|&ldquo;|"|“|”).)*)(?:&quot;|&rdquo;|&ldquo;|"|“|”)(?:(?!&gt;).)*&gt;/gi), '<a href="$1">'],
+
+            // Newlines between paragraphs in html have no syntactic value,
+            // but then have a tendency to accidentally become additional paragraphs down the line
+            [new RegExp(/<\/p>\n+/gi), '</p>'],
+            [new RegExp(/\n+<p/gi), '<p'],
+
+            // Microsoft Word makes these odd tags, like <o:p></o:p>
+            [new RegExp(/<\/?o:[a-z]*>/gi), '']
+        ];
+    }
+    /*jslint regexp: false*/
+
+    PasteHandler = Extension.extend({
+        /* Paste Options */
+
+        /* forcePlainText: [boolean]
+         * Forces pasting as plain text.
+         */
+        forcePlainText: true,
+
+        /* cleanPastedHTML: [boolean]
+         * cleans pasted content from different sources, like google docs etc.
+         */
+        cleanPastedHTML: false,
+
+        /* cleanReplacements: [Array]
+         * custom pairs (2 element arrays) of RegExp and replacement text to use during paste when
+         * __forcePlainText__ or __cleanPastedHTML__ are `true` OR when calling `cleanPaste(text)` helper method.
+         */
+        cleanReplacements: [],
+
+        /* cleanAttrs:: [Array]
+         * list of element attributes to remove during paste when __cleanPastedHTML__ is `true` or when
+         * calling `cleanPaste(text)` or `pasteHTML(html, options)` helper methods.
+         */
+        cleanAttrs: ['class', 'style', 'dir'],
+
+        /* cleanTags: [Array]
+         * list of element tag names to remove during paste when __cleanPastedHTML__ is `true` or when
+         * calling `cleanPaste(text)` or `pasteHTML(html, options)` helper methods.
+         */
+        cleanTags: ['meta'],
+
+        init: function () {
+            Extension.prototype.init.apply(this, arguments);
+
+            if (this.forcePlainText || this.cleanPastedHTML) {
+                this.subscribe('editablePaste', this.handlePaste.bind(this));
+            }
+        },
+
+        handlePaste: function (event, element) {
+            var paragraphs,
+                html = '',
+                p,
+                dataFormatHTML = 'text/html',
+                dataFormatPlain = 'text/plain',
+                pastedHTML,
+                pastedPlain;
+
+            if (this.window.clipboardData && event.clipboardData === undefined) {
+                event.clipboardData = this.window.clipboardData;
+                // If window.clipboardData exists, but event.clipboardData doesn't exist,
+                // we're probably in IE. IE only has two possibilities for clipboard
+                // data format: 'Text' and 'URL'.
+                //
+                // Of the two, we want 'Text':
+                dataFormatHTML = 'Text';
+                dataFormatPlain = 'Text';
+            }
+
+            if (event.clipboardData &&
+                    event.clipboardData.getData &&
+                    !event.defaultPrevented) {
+                event.preventDefault();
+
+                pastedHTML = event.clipboardData.getData(dataFormatHTML);
+                pastedPlain = event.clipboardData.getData(dataFormatPlain);
+
+                if (this.cleanPastedHTML && pastedHTML) {
+                    return this.cleanPaste(pastedHTML);
+                }
+
+                if (!(this.getEditorOption('disableReturn') || element.getAttribute('data-disable-return'))) {
+                    paragraphs = pastedPlain.split(/[\r\n]+/g);
+                    // If there are no \r\n in data, don't wrap in <p>
+                    if (paragraphs.length > 1) {
+                        for (p = 0; p < paragraphs.length; p += 1) {
+                            if (paragraphs[p] !== '') {
+                                html += '<p>' + Util.htmlEntities(paragraphs[p]) + '</p>';
+                            }
+                        }
+                    } else {
+                        html = Util.htmlEntities(paragraphs[0]);
+                    }
+                } else {
+                    html = Util.htmlEntities(pastedPlain);
+                }
+                Util.insertHTMLCommand(this.document, html);
+            }
+        },
+
+        cleanPaste: function (text) {
+            var i, elList, workEl,
+                el = Selection.getSelectionElement(this.window),
+                multiline = /<p|<br|<div/.test(text),
+                replacements = createReplacements().concat(this.cleanReplacements || []);
+
+            for (i = 0; i < replacements.length; i += 1) {
+                text = text.replace(replacements[i][0], replacements[i][1]);
+            }
+
+            if (!multiline) {
+                return this.pasteHTML(text);
+            }
+
+            // double br's aren't converted to p tags, but we want paragraphs.
+            elList = text.split('<br><br>');
+
+            this.pasteHTML('<p>' + elList.join('</p><p>') + '</p>');
+
+            try {
+                this.document.execCommand('insertText', false, '\n');
+            } catch (ignore) { }
+
+            // block element cleanup
+            elList = el.querySelectorAll('a,p,div,br');
+            for (i = 0; i < elList.length; i += 1) {
+                workEl = elList[i];
+
+                // Microsoft Word replaces some spaces with newlines.
+                // While newlines between block elements are meaningless, newlines within
+                // elements are sometimes actually spaces.
+                workEl.innerHTML = workEl.innerHTML.replace(/\n/gi, ' ');
+
+                switch (workEl.nodeName.toLowerCase()) {
+                    case 'p':
+                    case 'div':
+                        this.filterCommonBlocks(workEl);
+                        break;
+                    case 'br':
+                        this.filterLineBreak(workEl);
+                        break;
+                }
+            }
+        },
+
+        pasteHTML: function (html, options) {
+            options = Util.defaults({}, options, {
+                cleanAttrs: this.cleanAttrs,
+                cleanTags: this.cleanTags
+            });
+
+            var elList, workEl, i, fragmentBody, pasteBlock = this.document.createDocumentFragment();
+
+            pasteBlock.appendChild(this.document.createElement('body'));
+
+            fragmentBody = pasteBlock.querySelector('body');
+            fragmentBody.innerHTML = html;
+
+            this.cleanupSpans(fragmentBody);
+
+            elList = fragmentBody.querySelectorAll('*');
+
+            for (i = 0; i < elList.length; i += 1) {
+                workEl = elList[i];
+
+                if ('a' === workEl.nodeName.toLowerCase() && this.getEditorOption('targetBlank')) {
+                    Util.setTargetBlank(workEl);
+                }
+
+                Util.cleanupAttrs(workEl, options.cleanAttrs);
+                Util.cleanupTags(workEl, options.cleanTags);
+            }
+
+            Util.insertHTMLCommand(this.document, fragmentBody.innerHTML.replace(/&nbsp;/g, ' '));
+        },
+
+        isCommonBlock: function (el) {
+            return (el && (el.nodeName.toLowerCase() === 'p' || el.nodeName.toLowerCase() === 'div'));
+        },
+
+        filterCommonBlocks: function (el) {
+            if (/^\s*$/.test(el.textContent) && el.parentNode) {
+                el.parentNode.removeChild(el);
+            }
+        },
+
+        filterLineBreak: function (el) {
+            if (this.isCommonBlock(el.previousElementSibling)) {
+                // remove stray br's following common block elements
+                this.removeWithParent(el);
+            } else if (this.isCommonBlock(el.parentNode) && (el.parentNode.firstChild === el || el.parentNode.lastChild === el)) {
+                // remove br's just inside open or close tags of a div/p
+                this.removeWithParent(el);
+            } else if (el.parentNode && el.parentNode.childElementCount === 1 && el.parentNode.textContent === '') {
+                // and br's that are the only child of elements other than div/p
+                this.removeWithParent(el);
+            }
+        },
+
+        // remove an element, including its parent, if it is the only element within its parent
+        removeWithParent: function (el) {
+            if (el && el.parentNode) {
+                if (el.parentNode.parentNode && el.parentNode.childElementCount === 1) {
+                    el.parentNode.parentNode.removeChild(el.parentNode);
+                } else {
+                    el.parentNode.removeChild(el);
+                }
+            }
+        },
+
+        cleanupSpans: function (containerEl) {
+            var i,
+                el,
+                newEl,
+                spans = containerEl.querySelectorAll('.replace-with'),
+                isCEF = function (el) {
+                    return (el && el.nodeName !== '#text' && el.getAttribute('contenteditable') === 'false');
+                };
+
+            for (i = 0; i < spans.length; i += 1) {
+                el = spans[i];
+                newEl = this.document.createElement(el.classList.contains('bold') ? 'b' : 'i');
+
+                if (el.classList.contains('bold') && el.classList.contains('italic')) {
+                    // add an i tag as well if this has both italics and bold
+                    newEl.innerHTML = '<i>' + el.innerHTML + '</i>';
+                } else {
+                    newEl.innerHTML = el.innerHTML;
+                }
+                el.parentNode.replaceChild(newEl, el);
+            }
+
+            spans = containerEl.querySelectorAll('span');
+            for (i = 0; i < spans.length; i += 1) {
+                el = spans[i];
+
+                // bail if span is in contenteditable = false
+                if (Util.traverseUp(el, isCEF)) {
+                    return false;
+                }
+
+                // remove empty spans, replace others with their contents
+                Util.unwrap(el, this.document);
+            }
+        }
+    });
+}());
+
+var Placeholder;
+
+(function () {
+    'use strict';
+
+    /*global Extension */
+
+    Placeholder = Extension.extend({
+        name: 'placeholder',
+
+        /* Placeholder Options */
+
+        /* text: [string]
+         * Text to display in the placeholder
+         */
+        text: 'Type your text',
+
+        /* hideOnClick: [boolean]
+         * Should we hide the placeholder on click (true) or when user starts typing (false)
+         */
+        hideOnClick: true,
+
+        init: function () {
+            Extension.prototype.init.apply(this, arguments);
+
+            this.initPlaceholders();
+            this.attachEventHandlers();
+        },
+
+        initPlaceholders: function () {
+            this.getEditorElements().forEach(function (el) {
+                if (!el.getAttribute('data-placeholder')) {
+                    el.setAttribute('data-placeholder', this.text);
+                }
+                this.updatePlaceholder(el);
+            }, this);
+        },
+
+        destroy: function () {
+            this.getEditorElements().forEach(function (el) {
+                if (el.getAttribute('data-placeholder') === this.text) {
+                    el.removeAttribute('data-placeholder');
+                }
+            }, this);
+        },
+
+        showPlaceholder: function (el) {
+            if (el) {
+                el.classList.add('medium-editor-placeholder');
+            }
+        },
+
+        hidePlaceholder: function (el) {
+            if (el) {
+                el.classList.remove('medium-editor-placeholder');
+            }
+        },
+
+        updatePlaceholder: function (el) {
+            // if one of these element ('img, blockquote, ul, ol') are found inside the given element, we won't display the placeholder
+            if (!(el.querySelector('img, blockquote, ul, ol')) && el.textContent.replace(/^\s+|\s+$/g, '') === '') {
+                return this.showPlaceholder(el);
+            }
+
+            this.hidePlaceholder(el);
+        },
+
+        attachEventHandlers: function () {
+            // Custom events
+            this.subscribe('blur', this.handleExternalInteraction.bind(this));
+
+            // Check placeholder on blur
+            this.subscribe('editableBlur', this.handleBlur.bind(this));
+
+            // if we don't want the placeholder to be removed on click but when user start typing
+            if (this.hideOnClick) {
+                this.subscribe('editableClick', this.handleHidePlaceholderEvent.bind(this));
+            } else {
+                this.subscribe('editableKeyup', this.handleBlur.bind(this));
+            }
+
+            // Events where we always hide the placeholder
+            this.subscribe('editableKeypress', this.handleHidePlaceholderEvent.bind(this));
+            this.subscribe('editablePaste', this.handleHidePlaceholderEvent.bind(this));
+        },
+
+        handleHidePlaceholderEvent: function (event, element) {
+            // Events where we hide the placeholder
+            this.hidePlaceholder(element);
+        },
+
+        handleBlur: function (event, element) {
+            // Update placeholder for element that lost focus
+            this.updatePlaceholder(element);
+        },
+
+        handleExternalInteraction: function () {
+            // Update all placeholders
+            this.initPlaceholders();
+        }
+    });
+}());
+
+var Toolbar;
+(function () {
+    'use strict';
+
+    /*global Util, Selection, Extension */
+
+    Toolbar = Extension.extend({
+        name: 'toolbar',
+
+        /* Toolbar Options */
+
+        /* align: ['left'|'center'|'right']
+         * When the __static__ option is true, this aligns the static toolbar
+         * relative to the medium-editor element.
+         */
+        align: 'center',
+
+        /* allowMultiParagraphSelection: [boolean]
+         * enables/disables whether the toolbar should be displayed when
+         * selecting multiple paragraphs/block elements
+         */
+        allowMultiParagraphSelection: true,
+
+        /* buttons: [Array]
+         * the names of the set of buttons to display on the toolbar.
+         */
+        buttons: ['bold', 'italic', 'underline', 'anchor', 'h2', 'h3', 'quote'],
+
+        /* diffLeft: [Number]
+         * value in pixels to be added to the X axis positioning of the toolbar.
+         */
+        diffLeft: 0,
+
+        /* diffTop: [Number]
+         * value in pixels to be added to the Y axis positioning of the toolbar.
+         */
+        diffTop: -10,
+
+        /* firstButtonClass: [string]
+         * CSS class added to the first button in the toolbar.
+         */
+        firstButtonClass: 'medium-editor-button-first',
+
+        /* lastButtonClass: [string]
+         * CSS class added to the last button in the toolbar.
+         */
+        lastButtonClass: 'medium-editor-button-last',
+
+        /* standardizeSelectionStart: [boolean]
+         * enables/disables standardizing how the beginning of a range is decided
+         * between browsers whenever the selected text is analyzed for updating toolbar buttons status.
+         */
+        standardizeSelectionStart: false,
+
+        /* static: [boolean]
+         * enable/disable the toolbar always displaying in the same location
+         * relative to the medium-editor element.
+         */
+        static: false,
+
+        /* sticky: [boolean]
+         * When the __static__ option is true, this enables/disables the toolbar
+         * "sticking" to the viewport and staying visible on the screen while
+         * the page scrolls.
+         */
+        sticky: false,
+
+        /* updateOnEmptySelection: [boolean]
+         * When the __static__ option is true, this enables/disables updating
+         * the state of the toolbar buttons even when the selection is collapsed
+         * (there is no selection, just a cursor).
+         */
+        updateOnEmptySelection: false,
+
+        init: function () {
+            Extension.prototype.init.apply(this, arguments);
+
+            this.initThrottledMethods();
+            this.getEditorOption('elementsContainer').appendChild(this.getToolbarElement());
+        },
+
+        // Helper method to execute method for every extension, but ignoring the toolbar extension
+        forEachExtension: function (iterator, context) {
+            return this.base.extensions.forEach(function (command) {
+                if (command === this) {
+                    return;
+                }
+                return iterator.apply(context || this, arguments);
+            }, this);
+        },
+
+        // Toolbar creation/deletion
 
         createToolbar: function () {
-            var toolbar = this.options.ownerDocument.createElement('div');
-            toolbar.id = 'medium-editor-toolbar-' + this.id;
+            var toolbar = this.document.createElement('div');
+
+            toolbar.id = 'medium-editor-toolbar-' + this.getEditorId();
             toolbar.className = 'medium-editor-toolbar';
 
-            if (this.options.staticToolbar) {
-                toolbar.className += " static-toolbar";
+            if (this.static) {
+                toolbar.className += ' static-toolbar';
             } else {
-                toolbar.className += " stalker-toolbar";
+                toolbar.className += ' medium-editor-stalker-toolbar';
             }
 
-            toolbar.appendChild(this.toolbarButtons());
+            toolbar.appendChild(this.createToolbarButtons());
 
             // Add any forms that extensions may have
-            this.commands.forEach(function (extension) {
+            this.forEachExtension(function (extension) {
                 if (extension.hasForm) {
                     toolbar.appendChild(extension.getForm());
                 }
             });
 
-            this.options.elementsContainer.appendChild(toolbar);
+            this.attachEventHandlers();
+
             return toolbar;
         },
 
-        //TODO: actionTemplate
-        toolbarButtons: function () {
-            var ul = this.options.ownerDocument.createElement('ul'),
+        createToolbarButtons: function () {
+            var ul = this.document.createElement('ul'),
                 li,
-                btn;
+                btn,
+                buttons,
+                extension,
+                buttonName,
+                buttonOpts;
 
-            ul.id = 'medium-editor-toolbar-actions' + this.id;
-            ul.className = 'medium-editor-toolbar-actions clearfix';
+            ul.id = 'medium-editor-toolbar-actions' + this.getEditorId();
+            ul.className = 'medium-editor-toolbar-actions';
+            ul.style.display = 'block';
 
-            this.commands.forEach(function (extension) {
-                if (typeof extension.getButton === 'function') {
-                    btn = extension.getButton(this);
-                    li = this.options.ownerDocument.createElement('li');
+            this.buttons.forEach(function (button) {
+                if (typeof button === 'string') {
+                    buttonName = button;
+                    buttonOpts = null;
+                } else {
+                    buttonName = button.name;
+                    buttonOpts = button;
+                }
+
+                // If the button already exists as an extension, it'll be returned
+                // othwerise it'll create the default built-in button
+                extension = this.base.addBuiltInExtension(buttonName, buttonOpts);
+
+                if (extension && typeof extension.getButton === 'function') {
+                    btn = extension.getButton(this.base);
+                    li = this.document.createElement('li');
                     if (Util.isElement(btn)) {
                         li.appendChild(btn);
                     } else {
@@ -46585,156 +49233,192 @@ function MediumEditor(elements, options) {
                     }
                     ul.appendChild(li);
                 }
-            }.bind(this));
+            }, this);
+
+            buttons = ul.querySelectorAll('button');
+            if (buttons.length > 0) {
+                buttons[0].classList.add(this.firstButtonClass);
+                buttons[buttons.length - 1].classList.add(this.lastButtonClass);
+            }
 
             return ul;
         },
 
-        bindSelect: function () {
-            var i,
-                blurHelper = function (event) {
-                    // Do not close the toolbar when bluring the editable area and clicking into the anchor form
-                    if (event &&
-                            event.type &&
-                            event.type.toLowerCase() === 'blur' &&
-                            event.relatedTarget &&
-                            Util.isDescendant(this.toolbar, event.relatedTarget)) {
-                        return false;
-                    }
-                    this.checkSelection();
-                }.bind(this),
-                timeoutHelper = function () {
-                    setTimeout(function () {
-                        this.checkSelection();
-                    }.bind(this), 0);
-                }.bind(this);
-
-            this.on(this.options.ownerDocument.documentElement, 'mouseup', this.checkSelection.bind(this));
-
-            for (i = 0; i < this.elements.length; i += 1) {
-                this.on(this.elements[i], 'keyup', this.checkSelection.bind(this));
-                this.on(this.elements[i], 'blur', blurHelper);
-                this.on(this.elements[i], 'click', timeoutHelper);
-            }
-
-            return this;
-        },
-
-        bindDragDrop: function () {
-            var self = this, i, className, onDrag, onDrop, element;
-
-            if (!self.options.imageDragging) {
-                return this;
-            }
-
-            className = 'medium-editor-dragover';
-
-            onDrag = function (e) {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = "copy";
-
-                if (e.type === "dragover") {
-                    this.classList.add(className);
-                } else {
-                    this.classList.remove(className);
+        destroy: function () {
+            if (this.toolbar) {
+                if (this.toolbar.parentNode) {
+                    this.toolbar.parentNode.removeChild(this.toolbar);
                 }
-            };
-
-            onDrop = function (e) {
-                var files;
-                e.preventDefault();
-                e.stopPropagation();
-                files = Array.prototype.slice.call(e.dataTransfer.files, 0);
-                files.some(function (file) {
-                    if (file.type.match("image")) {
-                        var fileReader, id;
-                        fileReader = new FileReader();
-                        fileReader.readAsDataURL(file);
-
-                        id = 'medium-img-' + (+new Date());
-                        Util.insertHTMLCommand(self.options.ownerDocument, '<img class="medium-image-loading" id="' + id + '" />');
-
-                        fileReader.onload = function () {
-                            var img = document.getElementById(id);
-                            if (img) {
-                                img.removeAttribute('id');
-                                img.removeAttribute('class');
-                                img.src = fileReader.result;
-                            }
-                        };
-                    }
-                });
-                this.classList.remove(className);
-            };
-
-            for (i = 0; i < this.elements.length; i += 1) {
-                element = this.elements[i];
-
-
-                this.on(element, 'dragover', onDrag);
-                this.on(element, 'dragleave', onDrag);
-                this.on(element, 'drop', onDrop);
+                delete this.toolbar;
             }
-            return this;
         },
 
-        stopSelectionUpdates: function () {
-            this.preventSelectionUpdates = true;
+        // Toolbar accessors
+
+        getToolbarElement: function () {
+            if (!this.toolbar) {
+                this.toolbar = this.createToolbar();
+            }
+
+            return this.toolbar;
         },
 
-        startSelectionUpdates: function () {
-            this.preventSelectionUpdates = false;
+        getToolbarActionsElement: function () {
+            return this.getToolbarElement().querySelector('.medium-editor-toolbar-actions');
         },
 
-        checkSelection: function () {
-            var newSelection,
-                selectionElement;
+        // Toolbar event handlers
 
-            if (!this.preventSelectionUpdates &&
-                    this.keepToolbarAlive !== true &&
-                    !this.options.disableToolbar) {
-
-                newSelection = this.options.contentWindow.getSelection();
-                if ((!this.options.updateOnEmptySelection && newSelection.toString().trim() === '') ||
-                        (this.options.allowMultiParagraphSelection === false && this.multipleBlockElementsSelected()) ||
-                        Selection.selectionInContentEditableFalse(this.options.contentWindow)) {
-                    if (!this.options.staticToolbar) {
-                        this.hideToolbarActions();
-                    } else {
-                        this.showAndUpdateToolbar();
-                    }
-
-                } else {
-                    selectionElement = Selection.getSelectionElement(this.options.contentWindow);
-                    if (!selectionElement || selectionElement.getAttribute('data-disable-toolbar')) {
-                        if (!this.options.staticToolbar) {
-                            this.hideToolbarActions();
-                        }
-                    } else {
-                        this.checkSelectionElement(newSelection, selectionElement);
-                    }
+        initThrottledMethods: function () {
+            // throttledPositionToolbar is throttled because:
+            // - It will be called when the browser is resizing, which can fire many times very quickly
+            // - For some event (like resize) a slight lag in UI responsiveness is OK and provides performance benefits
+            this.throttledPositionToolbar = Util.throttle(function () {
+                if (this.base.isActive) {
+                    this.positionToolbarIfShown();
                 }
-            }
-            return this;
+            }.bind(this));
         },
+
+        attachEventHandlers: function () {
+            // MediumEditor custom events for when user beings and ends interaction with a contenteditable and its elements
+            this.subscribe('blur', this.handleBlur.bind(this));
+            this.subscribe('focus', this.handleFocus.bind(this));
+
+            // Updating the state of the toolbar as things change
+            this.subscribe('editableClick', this.handleEditableClick.bind(this));
+            this.subscribe('editableKeyup', this.handleEditableKeyup.bind(this));
+
+            // Handle mouseup on document for updating the selection in the toolbar
+            this.on(this.document.documentElement, 'mouseup', this.handleDocumentMouseup.bind(this));
+
+            // Add a scroll event for sticky toolbar
+            if (this.static && this.sticky) {
+                // On scroll (capture), re-position the toolbar
+                this.on(this.window, 'scroll', this.handleWindowScroll.bind(this), true);
+            }
+
+            // On resize, re-position the toolbar
+            this.on(this.window, 'resize', this.handleWindowResize.bind(this));
+        },
+
+        handleWindowScroll: function () {
+            this.positionToolbarIfShown();
+        },
+
+        handleWindowResize: function () {
+            this.throttledPositionToolbar();
+        },
+
+        handleDocumentMouseup: function (event) {
+            // Do not trigger checkState when mouseup fires over the toolbar
+            if (event &&
+                    event.target &&
+                    Util.isDescendant(this.getToolbarElement(), event.target)) {
+                return false;
+            }
+            this.checkState();
+        },
+
+        handleEditableClick: function () {
+            // Delay the call to checkState to handle bug where selection is empty
+            // immediately after clicking inside a pre-existing selection
+            setTimeout(function () {
+                this.checkState();
+            }.bind(this), 0);
+        },
+
+        handleEditableKeyup: function () {
+            this.checkState();
+        },
+
+        handleBlur: function () {
+            // Kill any previously delayed calls to hide the toolbar
+            clearTimeout(this.hideTimeout);
+
+            // Blur may fire even if we have a selection, so we want to prevent any delayed showToolbar
+            // calls from happening in this specific case
+            clearTimeout(this.delayShowTimeout);
+
+            // Delay the call to hideToolbar to handle bug with multiple editors on the page at once
+            this.hideTimeout = setTimeout(function () {
+                this.hideToolbar();
+            }.bind(this), 1);
+        },
+
+        handleFocus: function () {
+            this.checkState();
+        },
+
+        // Hiding/showing toolbar
+
+        isDisplayed: function () {
+            return this.getToolbarElement().classList.contains('medium-editor-toolbar-active');
+        },
+
+        showToolbar: function () {
+            clearTimeout(this.hideTimeout);
+            if (!this.isDisplayed()) {
+                this.getToolbarElement().classList.add('medium-editor-toolbar-active');
+                this.trigger('showToolbar', {}, this.base.getFocusedElement());
+            }
+        },
+
+        hideToolbar: function () {
+            if (this.isDisplayed()) {
+                this.getToolbarElement().classList.remove('medium-editor-toolbar-active');
+                this.trigger('hideToolbar', {}, this.base.getFocusedElement());
+            }
+        },
+
+        isToolbarDefaultActionsDisplayed: function () {
+            return this.getToolbarActionsElement().style.display === 'block';
+        },
+
+        hideToolbarDefaultActions: function () {
+            if (this.isToolbarDefaultActionsDisplayed()) {
+                this.getToolbarActionsElement().style.display = 'none';
+            }
+        },
+
+        showToolbarDefaultActions: function () {
+            this.hideExtensionForms();
+
+            if (!this.isToolbarDefaultActionsDisplayed()) {
+                this.getToolbarActionsElement().style.display = 'block';
+            }
+
+            // Using setTimeout + options.delay because:
+            // We will actually be displaying the toolbar, which should be controlled by options.delay
+            this.delayShowTimeout = this.base.delay(function () {
+                this.showToolbar();
+            }.bind(this));
+        },
+
+        hideExtensionForms: function () {
+            // Hide all extension forms
+            this.forEachExtension(function (extension) {
+                if (extension.hasForm && extension.isDisplayed()) {
+                    extension.hideForm();
+                }
+            });
+        },
+
+        // Responding to changes in user selection
 
         // Checks for existance of multiple block elements in the current selection
         multipleBlockElementsSelected: function () {
-            /*jslint regexp: true*/
-            var selectionHtml = Selection.getSelectionHtml.call(this).replace(/<[\S]+><\/[\S]+>/gim, ''),
-                hasMultiParagraphs = selectionHtml.match(/<(p|h[1-6]|blockquote)[^>]*>/g);
-            /*jslint regexp: false*/
+            var regexEmptyHTMLTags = /<[^\/>][^>]*><\/[^>]+>/gim, // http://stackoverflow.com/questions/3129738/remove-empty-tags-using-regex
+                regexBlockElements = new RegExp('<(' + Util.blockContainerElementNames.join('|') + ')[^>]*>', 'g'),
+                selectionHTML = Selection.getSelectionHtml(this.document).replace(regexEmptyHTMLTags, ''), // Filter out empty blocks from selection
+                hasMultiParagraphs = selectionHTML.match(regexBlockElements); // Find how many block elements are within the html
 
             return !!hasMultiParagraphs && hasMultiParagraphs.length > 1;
         },
 
-        checkSelectionElement: function (newSelection, selectionElement) {
-            var i,
-                adjacentNode,
-                offset = 0,
-                newRange;
-            this.selection = newSelection;
-            this.selectionRange = this.selection.getRangeAt(0);
+        modifySelection: function () {
+            var selection = this.window.getSelection(),
+                selectionRange = selection.getRangeAt(0);
 
             /*
             * In firefox, there are cases (ie doubleclick of a word) where the selectionRange start
@@ -46752,218 +49436,1113 @@ function MediumEditor(elements, options) {
             * So, for cases where the selectionRange start is at the end of an element/node, find the next
             * adjacent text node that actually has content in it, and move the selectionRange start there.
             */
-            if (this.options.standardizeSelectionStart &&
-                    this.selectionRange.startContainer.nodeValue &&
-                    (this.selectionRange.startOffset === this.selectionRange.startContainer.nodeValue.length)) {
-                adjacentNode = Util.findAdjacentTextNodeWithContent(Selection.getSelectionElement(this.options.contentWindow), this.selectionRange.startContainer, this.options.ownerDocument);
+            if (this.standardizeSelectionStart &&
+                    selectionRange.startContainer.nodeValue &&
+                    (selectionRange.startOffset === selectionRange.startContainer.nodeValue.length)) {
+                var adjacentNode = Util.findAdjacentTextNodeWithContent(Selection.getSelectionElement(this.window), selectionRange.startContainer, this.document);
                 if (adjacentNode) {
-                    offset = 0;
+                    var offset = 0;
                     while (adjacentNode.nodeValue.substr(offset, 1).trim().length === 0) {
                         offset = offset + 1;
                     }
-                    newRange = this.options.ownerDocument.createRange();
-                    newRange.setStart(adjacentNode, offset);
-                    newRange.setEnd(this.selectionRange.endContainer, this.selectionRange.endOffset);
-                    this.selection.removeAllRanges();
-                    this.selection.addRange(newRange);
-                    this.selectionRange = newRange;
+                    selectionRange = Selection.select(this.document, adjacentNode, offset,
+                        selectionRange.endContainer, selectionRange.offset);
                 }
-            }
-
-            for (i = 0; i < this.elements.length; i += 1) {
-                if (this.elements[i] === selectionElement) {
-                    this.showAndUpdateToolbar();
-                    return;
-                }
-            }
-
-            if (!this.options.staticToolbar) {
-                this.hideToolbarActions();
             }
         },
+
+        checkState: function () {
+            if (this.base.preventSelectionUpdates) {
+                return;
+            }
+
+            // If no editable has focus OR selection is inside contenteditable = false
+            // hide toolbar
+            if (!this.base.getFocusedElement() ||
+                    Selection.selectionInContentEditableFalse(this.window)) {
+                return this.hideToolbar();
+            }
+
+            // If there's no selection element, selection element doesn't belong to this editor
+            // or toolbar is disabled for this selection element
+            // hide toolbar
+            var selectionElement = Selection.getSelectionElement(this.window);
+            if (!selectionElement ||
+                    this.getEditorElements().indexOf(selectionElement) === -1 ||
+                    selectionElement.getAttribute('data-disable-toolbar')) {
+                return this.hideToolbar();
+            }
+
+            // Now we know there's a focused editable with a selection
+
+            // If the updateOnEmptySelection option is true, show the toolbar
+            if (this.updateOnEmptySelection && this.static) {
+                return this.showAndUpdateToolbar();
+            }
+
+            // If we don't have a 'valid' selection -> hide toolbar
+            if (this.window.getSelection().toString().trim() === '' ||
+                (this.allowMultiParagraphSelection === false && this.multipleBlockElementsSelected())) {
+                return this.hideToolbar();
+            }
+
+            this.showAndUpdateToolbar();
+        },
+
+        // Updating the toolbar
 
         showAndUpdateToolbar: function () {
-            this.setToolbarButtonStates()
-                .setToolbarPosition()
-                .showToolbarDefaultActions();
-        },
-
-        setToolbarPosition: function () {
-            // document.documentElement for IE 9
-            var scrollTop = (this.options.ownerDocument.documentElement && this.options.ownerDocument.documentElement.scrollTop) || this.options.ownerDocument.body.scrollTop,
-                selection = this.options.contentWindow.getSelection(),
-                windowWidth = this.options.contentWindow.innerWidth,
-                container = Selection.getSelectionElement(this.options.contentWindow),
-                buttonHeight = 50,
-                toolbarWidth,
-                toolbarHeight,
-                halfOffsetWidth,
-                defaultLeft,
-                containerRect,
-                containerTop,
-                containerCenter,
-                range,
-                boundary,
-                middleBoundary,
-                targetLeft;
-
-            // If there isn't a valid selection, bail
-            if (!container || !this.options.contentWindow.getSelection().focusNode) {
-                return this;
-            }
-
-            // If the container isn't part of this medium-editor instance, bail
-            if (this.elements.indexOf(container) === -1) {
-                return this;
-            }
-
-            // Calculate container dimensions
-            containerRect = container.getBoundingClientRect();
-            containerTop = containerRect.top + scrollTop;
-            containerCenter = (containerRect.left + (containerRect.width / 2));
-
-            // position the toolbar at left 0, so we can get the real width of the toolbar
-            this.toolbar.style.left = '0';
-            toolbarWidth = this.toolbar.offsetWidth;
-            toolbarHeight = this.toolbar.offsetHeight;
-            halfOffsetWidth = toolbarWidth / 2;
-            defaultLeft = this.options.diffLeft - halfOffsetWidth;
-
-            if (this.options.staticToolbar) {
-                this.showToolbar();
-
-                if (this.options.stickyToolbar) {
-                    // If it's beyond the height of the editor, position it at the bottom of the editor
-                    if (scrollTop > (containerTop + container.offsetHeight - toolbarHeight)) {
-                        this.toolbar.style.top = (containerTop + container.offsetHeight - toolbarHeight) + 'px';
-                        this.toolbar.classList.remove('sticky-toolbar');
-
-                    // Stick the toolbar to the top of the window
-                    } else if (scrollTop > (containerTop - toolbarHeight)) {
-                        this.toolbar.classList.add('sticky-toolbar');
-                        this.toolbar.style.top = "0px";
-
-                    // Normal static toolbar position
-                    } else {
-                        this.toolbar.classList.remove('sticky-toolbar');
-                        this.toolbar.style.top = containerTop - toolbarHeight + "px";
-                    }
-                } else {
-                    this.toolbar.style.top = containerTop - toolbarHeight + "px";
-                }
-
-                if (this.options.toolbarAlign === 'left') {
-                    targetLeft = containerRect.left;
-                } else if (this.options.toolbarAlign === 'center') {
-                    targetLeft = containerCenter - halfOffsetWidth;
-                } else if (this.options.toolbarAlign === 'right') {
-                    targetLeft = containerRect.right - toolbarWidth;
-                }
-
-                if (targetLeft < 0) {
-                    targetLeft = 0;
-                } else if ((targetLeft + toolbarWidth) > windowWidth) {
-                    targetLeft = windowWidth - toolbarWidth;
-                }
-
-                this.toolbar.style.left = targetLeft + 'px';
-
-            } else if (!selection.isCollapsed) {
-                this.showToolbar();
-
-                range = selection.getRangeAt(0);
-                boundary = range.getBoundingClientRect();
-                middleBoundary = (boundary.left + boundary.right) / 2;
-
-                if (boundary.top < buttonHeight) {
-                    this.toolbar.classList.add('medium-toolbar-arrow-over');
-                    this.toolbar.classList.remove('medium-toolbar-arrow-under');
-                    this.toolbar.style.top = buttonHeight + boundary.bottom - this.options.diffTop + this.options.contentWindow.pageYOffset - toolbarHeight + 'px';
-                } else {
-                    this.toolbar.classList.add('medium-toolbar-arrow-under');
-                    this.toolbar.classList.remove('medium-toolbar-arrow-over');
-                    this.toolbar.style.top = boundary.top + this.options.diffTop + this.options.contentWindow.pageYOffset - toolbarHeight + 'px';
-                }
-                if (middleBoundary < halfOffsetWidth) {
-                    this.toolbar.style.left = defaultLeft + halfOffsetWidth + 'px';
-                } else if ((windowWidth - middleBoundary) < halfOffsetWidth) {
-                    this.toolbar.style.left = windowWidth + defaultLeft - halfOffsetWidth + 'px';
-                } else {
-                    this.toolbar.style.left = defaultLeft + middleBoundary + 'px';
-                }
-            }
-
-            this.hideAnchorPreview();
-
-            return this;
+            this.modifySelection();
+            this.setToolbarButtonStates();
+            this.trigger('positionToolbar', {}, this.base.getFocusedElement());
+            this.showToolbarDefaultActions();
+            this.setToolbarPosition();
         },
 
         setToolbarButtonStates: function () {
-            this.commands.forEach(function (extension) {
-                if (typeof extension.isActive === 'function') {
+            this.forEachExtension(function (extension) {
+                if (typeof extension.isActive === 'function' &&
+                    typeof extension.setInactive === 'function') {
                     extension.setInactive();
                 }
-            }.bind(this));
+            });
+
             this.checkActiveButtons();
-            return this;
         },
 
         checkActiveButtons: function () {
-            var elements = Array.prototype.slice.call(this.elements),
-                manualStateChecks = [],
+            var manualStateChecks = [],
                 queryState = null,
+                selectionRange = Selection.getSelectionRange(this.document),
                 parentNode,
-                checkExtension = function (extension) {
+                updateExtensionState = function (extension) {
                     if (typeof extension.checkState === 'function') {
                         extension.checkState(parentNode);
                     } else if (typeof extension.isActive === 'function' &&
-                               typeof extension.isAlreadyApplied === 'function') {
+                               typeof extension.isAlreadyApplied === 'function' &&
+                               typeof extension.setActive === 'function') {
                         if (!extension.isActive() && extension.isAlreadyApplied(parentNode)) {
                             extension.setActive();
                         }
                     }
                 };
 
-            if (!this.selectionRange) {
+            if (!selectionRange) {
                 return;
             }
-            parentNode = Selection.getSelectedParentElement(this.selectionRange);
 
-            // Loop through all commands
-            this.commands.forEach(function (command) {
-                // For those commands where we can use document.queryCommandState(), do so
-                if (typeof command.queryCommandState === 'function') {
-                    queryState = command.queryCommandState();
+            // Loop through all extensions
+            this.forEachExtension(function (extension) {
+                // For those extensions where we can use document.queryCommandState(), do so
+                if (typeof extension.queryCommandState === 'function') {
+                    queryState = extension.queryCommandState();
                     // If queryCommandState returns a valid value, we can trust the browser
                     // and don't need to do our manual checks
                     if (queryState !== null) {
-                        if (queryState) {
-                            command.setActive();
+                        if (queryState && typeof extension.setActive === 'function') {
+                            extension.setActive();
                         }
                         return;
                     }
                 }
-                // We can't use queryCommandState for this command, so add to manualStateChecks
-                manualStateChecks.push(command);
+                // We can't use queryCommandState for this extension, so add to manualStateChecks
+                manualStateChecks.push(extension);
             });
 
-            // Climb up the DOM and do manual checks for whether a certain command is currently enabled for this node
-            while (parentNode.tagName !== undefined && Util.parentElements.indexOf(parentNode.tagName.toLowerCase) === -1) {
-                manualStateChecks.forEach(checkExtension.bind(this));
+            parentNode = Selection.getSelectedParentElement(selectionRange);
+
+            // Make sure the selection parent isn't outside of the contenteditable
+            if (!this.getEditorElements().some(function (element) {
+                    return Util.isDescendant(element, parentNode, true);
+                })) {
+                return;
+            }
+
+            // Climb up the DOM and do manual checks for whether a certain extension is currently enabled for this node
+            while (parentNode) {
+                manualStateChecks.forEach(updateExtensionState);
 
                 // we can abort the search upwards if we leave the contentEditable element
-                if (elements.indexOf(parentNode) !== -1) {
+                if (Util.isMediumEditorElement(parentNode)) {
                     break;
                 }
                 parentNode = parentNode.parentNode;
             }
         },
 
-        setFirstAndLastButtons: function () {
-            var buttons = this.toolbar.querySelectorAll('button');
-            if (buttons.length > 0) {
-                buttons[0].className += ' ' + this.options.firstButtonClass;
-                buttons[buttons.length - 1].className += ' ' + this.options.lastButtonClass;
+        // Positioning toolbar
+
+        positionToolbarIfShown: function () {
+            if (this.isDisplayed()) {
+                this.setToolbarPosition();
+            }
+        },
+
+        setToolbarPosition: function () {
+            var container = this.base.getFocusedElement(),
+                selection = this.window.getSelection(),
+                anchorPreview;
+
+            // If there isn't a valid selection, bail
+            if (!container) {
+                return this;
+            }
+
+            if (this.static) {
+                this.showToolbar();
+                this.positionStaticToolbar(container);
+            } else if (!selection.isCollapsed) {
+                this.showToolbar();
+                this.positionToolbar(selection);
+            }
+
+            anchorPreview = this.base.getExtensionByName('anchor-preview');
+
+            if (anchorPreview && typeof anchorPreview.hidePreview === 'function') {
+                anchorPreview.hidePreview();
+            }
+        },
+
+        positionStaticToolbar: function (container) {
+            // position the toolbar at left 0, so we can get the real width of the toolbar
+            this.getToolbarElement().style.left = '0';
+
+            // document.documentElement for IE 9
+            var scrollTop = (this.document.documentElement && this.document.documentElement.scrollTop) || this.document.body.scrollTop,
+                windowWidth = this.window.innerWidth,
+                toolbarElement = this.getToolbarElement(),
+                containerRect = container.getBoundingClientRect(),
+                containerTop = containerRect.top + scrollTop,
+                containerCenter = (containerRect.left + (containerRect.width / 2)),
+                toolbarHeight = toolbarElement.offsetHeight,
+                toolbarWidth = toolbarElement.offsetWidth,
+                halfOffsetWidth = toolbarWidth / 2,
+                targetLeft;
+
+            if (this.sticky) {
+                // If it's beyond the height of the editor, position it at the bottom of the editor
+                if (scrollTop > (containerTop + container.offsetHeight - toolbarHeight)) {
+                    toolbarElement.style.top = (containerTop + container.offsetHeight - toolbarHeight) + 'px';
+                    toolbarElement.classList.remove('medium-editor-sticky-toolbar');
+
+                // Stick the toolbar to the top of the window
+                } else if (scrollTop > (containerTop - toolbarHeight)) {
+                    toolbarElement.classList.add('medium-editor-sticky-toolbar');
+                    toolbarElement.style.top = '0px';
+
+                // Normal static toolbar position
+                } else {
+                    toolbarElement.classList.remove('medium-editor-sticky-toolbar');
+                    toolbarElement.style.top = containerTop - toolbarHeight + 'px';
+                }
+            } else {
+                toolbarElement.style.top = containerTop - toolbarHeight + 'px';
+            }
+
+            switch (this.align) {
+                case 'left':
+                    targetLeft = containerRect.left;
+                    break;
+
+                case 'right':
+                    targetLeft = containerRect.right - toolbarWidth;
+                    break;
+
+                case 'center':
+                    targetLeft = containerCenter - halfOffsetWidth;
+                    break;
+            }
+
+            if (targetLeft < 0) {
+                targetLeft = 0;
+            } else if ((targetLeft + toolbarWidth) > windowWidth) {
+                targetLeft = (windowWidth - Math.ceil(toolbarWidth) - 1);
+            }
+
+            toolbarElement.style.left = targetLeft + 'px';
+        },
+
+        positionToolbar: function (selection) {
+            // position the toolbar at left 0, so we can get the real width of the toolbar
+            this.getToolbarElement().style.left = '0';
+
+            var windowWidth = this.window.innerWidth,
+                range = selection.getRangeAt(0),
+                boundary = range.getBoundingClientRect(),
+                middleBoundary = (boundary.left + boundary.right) / 2,
+                toolbarElement = this.getToolbarElement(),
+                toolbarHeight = toolbarElement.offsetHeight,
+                toolbarWidth = toolbarElement.offsetWidth,
+                halfOffsetWidth = toolbarWidth / 2,
+                buttonHeight = 50,
+                defaultLeft = this.diffLeft - halfOffsetWidth;
+
+            if (boundary.top < buttonHeight) {
+                toolbarElement.classList.add('medium-toolbar-arrow-over');
+                toolbarElement.classList.remove('medium-toolbar-arrow-under');
+                toolbarElement.style.top = buttonHeight + boundary.bottom - this.diffTop + this.window.pageYOffset - toolbarHeight + 'px';
+            } else {
+                toolbarElement.classList.add('medium-toolbar-arrow-under');
+                toolbarElement.classList.remove('medium-toolbar-arrow-over');
+                toolbarElement.style.top = boundary.top + this.diffTop + this.window.pageYOffset - toolbarHeight + 'px';
+            }
+
+            if (middleBoundary < halfOffsetWidth) {
+                toolbarElement.style.left = defaultLeft + halfOffsetWidth + 'px';
+            } else if ((windowWidth - middleBoundary) < halfOffsetWidth) {
+                toolbarElement.style.left = windowWidth + defaultLeft - halfOffsetWidth + 'px';
+            } else {
+                toolbarElement.style.left = defaultLeft + middleBoundary + 'px';
+            }
+        }
+    });
+}());
+
+var ImageDragging;
+
+(function () {
+    'use strict';
+
+    ImageDragging = Extension.extend({
+        init: function () {
+            Extension.prototype.init.apply(this, arguments);
+
+            this.subscribe('editableDrag', this.handleDrag.bind(this));
+            this.subscribe('editableDrop', this.handleDrop.bind(this));
+        },
+
+        handleDrag: function (event) {
+            var className = 'medium-editor-dragover';
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'copy';
+
+            if (event.type === 'dragover') {
+                event.target.classList.add(className);
+            } else if (event.type === 'dragleave') {
+                event.target.classList.remove(className);
+            }
+        },
+
+        handleDrop: function (event) {
+            var className = 'medium-editor-dragover',
+                files;
+            event.preventDefault();
+            event.stopPropagation();
+
+            // IE9 does not support the File API, so prevent file from opening in a new window
+            // but also don't try to actually get the file
+            if (event.dataTransfer.files) {
+                files = Array.prototype.slice.call(event.dataTransfer.files, 0);
+                files.some(function (file) {
+                    if (file.type.match('image')) {
+                        var fileReader, id;
+                        fileReader = new FileReader();
+                        fileReader.readAsDataURL(file);
+
+                        id = 'medium-img-' + (+new Date());
+                        Util.insertHTMLCommand(this.document, '<img class="medium-editor-image-loading" id="' + id + '" />');
+
+                        fileReader.onload = function () {
+                            var img = this.document.getElementById(id);
+                            if (img) {
+                                img.removeAttribute('id');
+                                img.removeAttribute('class');
+                                img.src = fileReader.result;
+                            }
+                        }.bind(this);
+                    }
+                }.bind(this));
+            }
+            event.target.classList.remove(className);
+        }
+    });
+}());
+
+var extensionDefaults;
+(function () {
+    // for now this is empty because nothing interally uses an Extension default.
+    // as they are converted, provide them here.
+    extensionDefaults = {
+        button: Button,
+        form: FormExtension,
+
+        anchor: AnchorForm,
+        anchorPreview: AnchorPreview,
+        autoLink: AutoLink,
+        fileDragging: FileDragging,
+        fontSize: FontSizeForm,
+        imageDragging: ImageDragging, // deprecated
+        keyboardCommands: KeyboardCommands,
+        paste: PasteHandler,
+        placeholder: Placeholder,
+        toolbar: Toolbar
+    };
+})();
+
+function MediumEditor(elements, options) {
+    'use strict';
+    return this.init(elements, options);
+}
+
+(function () {
+    'use strict';
+
+    // Event handlers that shouldn't be exposed externally
+
+    function handleDisabledEnterKeydown(event, element) {
+        if (this.options.disableReturn || element.getAttribute('data-disable-return')) {
+            event.preventDefault();
+        } else if (this.options.disableDoubleReturn || element.getAttribute('data-disable-double-return')) {
+            var node = Selection.getSelectionStart(this.options.ownerDocument);
+
+            // if current text selection is empty OR previous sibling text is empty
+            if ((node && node.textContent.trim() === '') ||
+                (node.previousElementSibling && node.previousElementSibling.textContent.trim() === '')) {
+                event.preventDefault();
+            }
+        }
+    }
+
+    function handleTabKeydown(event) {
+        // Override tab only for pre nodes
+        var node = Selection.getSelectionStart(this.options.ownerDocument),
+            tag = node && node.nodeName.toLowerCase();
+
+        if (tag === 'pre') {
+            event.preventDefault();
+            Util.insertHTMLCommand(this.options.ownerDocument, '    ');
+        }
+
+        // Tab to indent list structures!
+        if (Util.isListItem(node)) {
+            event.preventDefault();
+
+            // If Shift is down, outdent, otherwise indent
+            if (event.shiftKey) {
+                this.options.ownerDocument.execCommand('outdent', false, null);
+            } else {
+                this.options.ownerDocument.execCommand('indent', false, null);
+            }
+        }
+    }
+
+    function handleBlockDeleteKeydowns(event) {
+        var p, node = Selection.getSelectionStart(this.options.ownerDocument),
+            tagName = node.nodeName.toLowerCase(),
+            isEmpty = /^(\s+|<br\/?>)?$/i,
+            isHeader = /h\d/i;
+
+        if (Util.isKey(event, [Util.keyCode.BACKSPACE, Util.keyCode.ENTER]) &&
+                // has a preceeding sibling
+                node.previousElementSibling &&
+                // in a header
+                isHeader.test(tagName) &&
+                // at the very end of the block
+                Selection.getCaretOffsets(node).left === 0) {
+            if (Util.isKey(event, Util.keyCode.BACKSPACE) && isEmpty.test(node.previousElementSibling.innerHTML)) {
+                // backspacing the begining of a header into an empty previous element will
+                // change the tagName of the current node to prevent one
+                // instead delete previous node and cancel the event.
+                node.previousElementSibling.parentNode.removeChild(node.previousElementSibling);
+                event.preventDefault();
+            } else if (Util.isKey(event, Util.keyCode.ENTER)) {
+                // hitting return in the begining of a header will create empty header elements before the current one
+                // instead, make "<p><br></p>" element, which are what happens if you hit return in an empty paragraph
+                p = this.options.ownerDocument.createElement('p');
+                p.innerHTML = '<br>';
+                node.previousElementSibling.parentNode.insertBefore(p, node);
+            }
+                event.preventDefault();
+        } else if (Util.isKey(event, Util.keyCode.DELETE) &&
+                    // between two sibling elements
+                    node.nextElementSibling &&
+                    node.previousElementSibling &&
+                    // not in a header
+                    !isHeader.test(tagName) &&
+                    // in an empty tag
+                    isEmpty.test(node.innerHTML) &&
+                    // when the next tag *is* a header
+                    isHeader.test(node.nextElementSibling.nodeName.toLowerCase())) {
+            // hitting delete in an empty element preceding a header, ex:
+            //  <p>[CURSOR]</p><h1>Header</h1>
+            // Will cause the h1 to become a paragraph.
+            // Instead, delete the paragraph node and move the cursor to the begining of the h1
+
+            // remove node and move cursor to start of header
+            Selection.moveCursor(this.options.ownerDocument, node.nextElementSibling);
+
+            node.previousElementSibling.parentNode.removeChild(node);
+
+            event.preventDefault();
+        } else if (Util.isKey(event, Util.keyCode.BACKSPACE) &&
+                tagName === 'li' &&
+                // hitting backspace inside an empty li
+                isEmpty.test(node.innerHTML) &&
+                // is first element (no preceeding siblings)
+                !node.previousElementSibling &&
+                // parent also does not have a sibling
+                !node.parentElement.previousElementSibling &&
+                // is not the only li in a list
+                node.nextElementSibling &&
+                node.nextElementSibling.nodeName.toLowerCase() === 'li') {
+            // backspacing in an empty first list element in the first list (with more elements) ex:
+            //  <ul><li>[CURSOR]</li><li>List Item 2</li></ul>
+            // will remove the first <li> but add some extra element before (varies based on browser)
+            // Instead, this will:
+            // 1) remove the list element
+            // 2) create a paragraph before the list
+            // 3) move the cursor into the paragraph
+
+            // create a paragraph before the list
+            p = this.options.ownerDocument.createElement('br');
+            //p.innerHTML = '<br>';
+            node.parentElement.parentElement.insertBefore(p, node.parentElement);
+
+            // move the cursor into the new paragraph
+            Selection.moveCursor(this.options.ownerDocument, p);
+
+            // remove the list element
+            node.parentElement.removeChild(node);
+
+            event.preventDefault();
+        }
+    }
+
+    function handleKeyup(event) {
+
+        var node = Selection.getSelectionStart(this.options.ownerDocument),
+            tagName;
+
+        if (!node) {
+            return;
+        }
+
+        if (Util.isMediumEditorElement(node) && node.children.length === 0) {
+            this.options.ownerDocument.execCommand('formatBlock', false, 'p');
+        }
+
+        if (Util.isKey(event, Util.keyCode.ENTER) && !Util.isListItem(node)) {
+            tagName = node.nodeName.toLowerCase();
+            // For anchor tags, unlink
+            if (tagName === 'a') {
+                this.options.ownerDocument.execCommand('unlink', false, null);
+            } else if (!event.shiftKey && !event.ctrlKey) {
+                // only format block if this is not a header tag
+                if (!/h\d/.test(tagName)) {
+                    this.options.ownerDocument.execCommand('formatBlock', false, 'p');
+                }
+                event.preventDefault();
+            }
+        }
+    }
+
+    // Internal helper methods which shouldn't be exposed externally
+
+    function addToEditors(win) {
+        if (!win._mediumEditors) {
+            // To avoid breaking users who are assuming that the unique id on
+            // medium-editor elements will start at 1, inserting a 'null' in the
+            // array so the unique-id can always map to the index of the editor instance
+            win._mediumEditors = [null];
+        }
+
+        // If this already has a unique id, re-use it
+        if (!this.id) {
+            this.id = win._mediumEditors.length;
+        }
+
+        win._mediumEditors[this.id] = this;
+    }
+
+    function removeFromEditors(win) {
+        if (!win._mediumEditors || !win._mediumEditors[this.id]) {
+            return;
+        }
+
+        /* Setting the instance to null in the array instead of deleting it allows:
+         * 1) Each instance to preserve its own unique-id, even after being destroyed
+         *    and initialized again
+         * 2) The unique-id to always correspond to an index in the array of medium-editor
+         *    instances. Thus, we will be able to look at a contenteditable, and determine
+         *    which instance it belongs to, by indexing into the global array.
+         */
+        win._mediumEditors[this.id] = null;
+    }
+
+    function createElementsArray(selector) {
+        if (!selector) {
+            selector = [];
+        }
+        // If string, use as query selector
+        if (typeof selector === 'string') {
+            selector = this.options.ownerDocument.querySelectorAll(selector);
+        }
+        // If element, put into array
+        if (Util.isElement(selector)) {
+            selector = [selector];
+        }
+        // Convert NodeList (or other array like object) into an array
+        var elements = Array.prototype.slice.apply(selector);
+
+        // Loop through elements and convert textarea's into divs
+        this.elements = [];
+        elements.forEach(function (element, index) {
+            if (element.nodeName.toLowerCase() === 'textarea') {
+                this.elements.push(createContentEditable.call(this, element, index));
+            } else {
+                this.elements.push(element);
+            }
+        }, this);
+    }
+
+    function setExtensionDefaults(extension, defaults) {
+        Object.keys(defaults).forEach(function (prop) {
+            if (extension[prop] === undefined) {
+                extension[prop] = defaults[prop];
+            }
+        });
+        return extension;
+    }
+
+    function initExtension(extension, name, instance) {
+        var extensionDefaults = {
+            'window': instance.options.contentWindow,
+            'document': instance.options.ownerDocument,
+            'base': instance
+        };
+
+        // Add default options into the extension
+        extension = setExtensionDefaults(extension, extensionDefaults);
+
+        // Call init on the extension
+        if (typeof extension.init === 'function') {
+            extension.init();
+        }
+
+        // Set extension name (if not already set)
+        if (!extension.name) {
+            extension.name = name;
+        }
+        return extension;
+    }
+
+    function isToolbarEnabled() {
+        // If any of the elements don't have the toolbar disabled
+        // We need a toolbar
+        if (this.elements.every(function (element) {
+                return !!element.getAttribute('data-disable-toolbar');
+            })) {
+            return false;
+        }
+
+        return this.options.toolbar !== false;
+    }
+
+    function isAnchorPreviewEnabled() {
+        // If toolbar is disabled, don't add
+        if (!isToolbarEnabled.call(this)) {
+            return false;
+        }
+
+        return this.options.anchorPreview !== false;
+    }
+
+    function isPlaceholderEnabled() {
+        return this.options.placeholder !== false;
+    }
+
+    function isAutoLinkEnabled() {
+        return this.options.autoLink !== false;
+    }
+
+    function isImageDraggingEnabled() {
+        return this.options.imageDragging !== false;
+    }
+
+    function isKeyboardCommandsEnabled() {
+        return this.options.keyboardCommands !== false;
+    }
+
+    function shouldUseFileDraggingExtension() {
+        // Since the file-dragging extension replaces the image-dragging extension,
+        // we need to check if the user passed an overrided image-dragging extension.
+        // If they have, to avoid breaking users, we won't use file-dragging extension.
+        return !this.options.extensions['imageDragging'];
+    }
+
+    function createContentEditable(textarea, id) {
+        var div = this.options.ownerDocument.createElement('div'),
+            uniqueId = 'medium-editor-' + Date.now() + '-' + id,
+            attributesToClone = [
+                'data-disable-editing',
+                'data-disable-toolbar',
+                'data-placeholder',
+                'data-disable-return',
+                'data-disable-double-return',
+                'data-disable-preview',
+                'spellcheck'
+            ];
+
+        div.className = textarea.className;
+        div.id = uniqueId;
+        div.innerHTML = textarea.value;
+        div.setAttribute('medium-editor-textarea-id', id);
+        attributesToClone.forEach(function (attr) {
+            if (textarea.hasAttribute(attr)) {
+                div.setAttribute(attr, textarea.getAttribute(attr));
+            }
+        });
+
+        textarea.classList.add('medium-editor-hidden');
+        textarea.setAttribute('medium-editor-textarea-id', id);
+        textarea.parentNode.insertBefore(
+            div,
+            textarea
+        );
+
+        return div;
+    }
+
+    function initElements() {
+        this.elements.forEach(function (element, index) {
+            if (!this.options.disableEditing && !element.getAttribute('data-disable-editing')) {
+                element.setAttribute('contentEditable', true);
+                element.setAttribute('spellcheck', this.options.spellcheck);
+            }
+            element.setAttribute('data-medium-editor-element', true);
+            element.setAttribute('role', 'textbox');
+            element.setAttribute('aria-multiline', true);
+            element.setAttribute('medium-editor-index', index);
+
+            if (element.hasAttribute('medium-editor-textarea-id')) {
+                this.on(element, 'input', function (event) {
+                    var target = event.target,
+                        textarea = target.parentNode.querySelector('textarea[medium-editor-textarea-id="' + target.getAttribute('medium-editor-textarea-id') + '"]');
+                    if (textarea) {
+                        textarea.value = this.serialize()[target.id].value;
+                    }
+                }.bind(this));
+            }
+        }, this);
+    }
+
+    function attachHandlers() {
+        var i;
+
+        // attach to tabs
+        this.subscribe('editableKeydownTab', handleTabKeydown.bind(this));
+
+        // Bind keys which can create or destroy a block element: backspace, delete, return
+        this.subscribe('editableKeydownDelete', handleBlockDeleteKeydowns.bind(this));
+        this.subscribe('editableKeydownEnter', handleBlockDeleteKeydowns.bind(this));
+
+        // disabling return or double return
+        if (this.options.disableReturn || this.options.disableDoubleReturn) {
+            this.subscribe('editableKeydownEnter', handleDisabledEnterKeydown.bind(this));
+        } else {
+            for (i = 0; i < this.elements.length; i += 1) {
+                if (this.elements[i].getAttribute('data-disable-return') || this.elements[i].getAttribute('data-disable-double-return')) {
+                    this.subscribe('editableKeydownEnter', handleDisabledEnterKeydown.bind(this));
+                    break;
+                }
+            }
+        }
+
+        // if we're not disabling return, add a handler to help handle cleanup
+        // for certain cases when enter is pressed
+        if (!this.options.disableReturn) {
+            this.elements.forEach(function (element) {
+                if (!element.getAttribute('data-disable-return')) {
+                    this.on(element, 'keyup', handleKeyup.bind(this));
+                }
+            }, this);
+        }
+    }
+
+    function initExtensions() {
+
+        this.extensions = [];
+
+        // Passed in extensions
+        Object.keys(this.options.extensions).forEach(function (name) {
+            // Always save the toolbar extension for last
+            if (name !== 'toolbar' && this.options.extensions[name]) {
+                this.extensions.push(initExtension(this.options.extensions[name], name, this));
+            }
+        }, this);
+
+        // 4 Cases for imageDragging + fileDragging extensons:
+        //
+        // 1. ImageDragging ON + No Custom Image Dragging Extension:
+        //    * Use fileDragging extension (default options)
+        // 2. ImageDragging OFF + No Custom Image Dragging Extension:
+        //    * Use fileDragging extension w/ images turned off
+        // 3. ImageDragging ON + Custom Image Dragging Extension:
+        //    * Don't use fileDragging (could interfere with custom image dragging extension)
+        // 4. ImageDragging OFF + Custom Image Dragging:
+        //    * Don't use fileDragging (could interfere with custom image dragging extension)
+        if (shouldUseFileDraggingExtension.call(this)) {
+            var opts = this.options.fileDragging;
+            if (!opts) {
+                opts = {};
+
+                // Image is in the 'allowedTypes' list by default.
+                // If imageDragging is off override the 'allowedTypes' list with an empty one
+                if (!isImageDraggingEnabled.call(this)) {
+                    opts.allowedTypes = [];
+                }
+            }
+            this.addBuiltInExtension('fileDragging', opts);
+        }
+
+        // Built-in extensions
+        var builtIns = {
+            paste: true,
+            anchorPreview: isAnchorPreviewEnabled.call(this),
+            autoLink: isAutoLinkEnabled.call(this),
+            keyboardCommands: isKeyboardCommandsEnabled.call(this),
+            placeholder: isPlaceholderEnabled.call(this)
+        };
+        Object.keys(builtIns).forEach(function (name) {
+            if (builtIns[name]) {
+                this.addBuiltInExtension(name);
+            }
+        }, this);
+
+        // Users can pass in a custom toolbar extension
+        // so check for that first and if it's not present
+        // just create the default toolbar
+        var toolbarExtension = this.options.extensions['toolbar'];
+        if (!toolbarExtension && isToolbarEnabled.call(this)) {
+            // Backwards compatability
+            var toolbarOptions = Util.extend({}, this.options.toolbar, {
+                allowMultiParagraphSelection: this.options.allowMultiParagraphSelection // deprecated
+            });
+            toolbarExtension = new MediumEditor.extensions.toolbar(toolbarOptions);
+        }
+
+        // If the toolbar is not disabled, so we actually have an extension
+        // initialize it and add it to the extensions array
+        if (toolbarExtension) {
+            this.extensions.push(initExtension(toolbarExtension, 'toolbar', this));
+        }
+    }
+
+    function mergeOptions(defaults, options) {
+        var deprecatedProperties = [
+            ['allowMultiParagraphSelection', 'toolbar.allowMultiParagraphSelection']
+        ];
+        // warn about using deprecated properties
+        if (options) {
+            deprecatedProperties.forEach(function (pair) {
+                if (options.hasOwnProperty(pair[0]) && options[pair[0]] !== undefined) {
+                    Util.deprecated(pair[0], pair[1], 'v6.0.0');
+                }
+            });
+        }
+
+        return Util.defaults({}, options, defaults);
+    }
+
+    function execActionInternal(action, opts) {
+        /*jslint regexp: true*/
+        var appendAction = /^append-(.+)$/gi,
+            justifyAction = /justify([A-Za-z]*)$/g, /* Detecting if is justifyCenter|Right|Left */
+            match;
+        /*jslint regexp: false*/
+
+        // Actions starting with 'append-' should attempt to format a block of text ('formatBlock') using a specific
+        // type of block element (ie append-blockquote, append-h1, append-pre, etc.)
+        match = appendAction.exec(action);
+        if (match) {
+            return Util.execFormatBlock(this.options.ownerDocument, match[1]);
+        }
+
+        if (action === 'fontSize') {
+            return this.options.ownerDocument.execCommand('fontSize', false, opts.size);
+        }
+
+        if (action === 'createLink') {
+            return this.createLink(opts);
+        }
+
+        if (action === 'image') {
+            return this.options.ownerDocument.execCommand('insertImage', false, this.options.contentWindow.getSelection());
+        }
+
+        /* Issue: https://github.com/yabwe/medium-editor/issues/595
+         * If the action is to justify the text */
+        if (justifyAction.exec(action)) {
+            var result = this.options.ownerDocument.execCommand(action, false, null),
+                parentNode = Selection.getSelectedParentElement(Selection.getSelectionRange(this.options.ownerDocument));
+            if (parentNode) {
+                cleanupJustifyDivFragments.call(this, Util.getTopBlockContainer(parentNode));
+            }
+
+            return result;
+        }
+
+        return this.options.ownerDocument.execCommand(action, false, null);
+    }
+
+    /* If we've just justified text within a container block
+     * Chrome may have removed <br> elements and instead wrapped lines in <div> elements
+     * with a text-align property.  If so, we want to fix this
+     */
+    function cleanupJustifyDivFragments(blockContainer) {
+        if (!blockContainer) {
+            return;
+        }
+
+        var textAlign,
+            childDivs = Array.prototype.slice.call(blockContainer.childNodes).filter(function (element) {
+                var isDiv = element.nodeName.toLowerCase() === 'div';
+                if (isDiv && !textAlign) {
+                    textAlign = element.style.textAlign;
+                }
+                return isDiv;
+            });
+
+        /* If we found child <div> elements with text-align style attributes
+         * we should fix this by:
+         *
+         * 1) Unwrapping each <div> which has a text-align style
+         * 2) Insert a <br> element after each set of 'unwrapped' div children
+         * 3) Set the text-align style of the parent block element
+         */
+        if (childDivs.length) {
+            // Since we're mucking with the HTML, preserve selection
+            this.saveSelection();
+            childDivs.forEach(function (div) {
+                if (div.style.textAlign === textAlign) {
+                    var lastChild = div.lastChild;
+                    if (lastChild) {
+                        // Instead of a div, extract the child elements and add a <br>
+                        Util.unwrap(div, this.options.ownerDocument);
+                        var br = this.options.ownerDocument.createElement('BR');
+                        lastChild.parentNode.insertBefore(br, lastChild.nextSibling);
+                    }
+                }
+            }, this);
+            blockContainer.style.textAlign = textAlign;
+            // We're done, so restore selection
+            this.restoreSelection();
+        }
+    }
+
+    MediumEditor.Extension = Extension;
+
+    MediumEditor.extensions = extensionDefaults;
+    MediumEditor.util = Util;
+    MediumEditor.selection = Selection;
+
+    MediumEditor.prototype = {
+        defaults: editorDefaults,
+
+        // NOT DOCUMENTED - exposed for backwards compatability
+        init: function (elements, options) {
+            this.options = mergeOptions.call(this, this.defaults, options);
+            this.origElements = elements;
+
+            if (!this.options.elementsContainer) {
+                this.options.elementsContainer = this.options.ownerDocument.body;
+            }
+
+            return this.setup();
+        },
+
+        setup: function () {
+            if (this.isActive) {
+                return;
+            }
+
+            createElementsArray.call(this, this.origElements);
+
+            if (this.elements.length === 0) {
+                return;
+            }
+
+            this.isActive = true;
+            addToEditors.call(this, this.options.contentWindow);
+
+            this.events = new Events(this);
+
+            // Call initialization helpers
+            initElements.call(this);
+            initExtensions.call(this);
+            attachHandlers.call(this);
+        },
+
+        destroy: function () {
+            if (!this.isActive) {
+                return;
+            }
+
+            this.isActive = false;
+
+            this.extensions.forEach(function (extension) {
+                if (typeof extension.destroy === 'function') {
+                    extension.destroy();
+                }
+            }, this);
+
+            this.events.destroy();
+
+            this.elements.forEach(function (element) {
+                // Reset elements content, fix for issue where after editor destroyed the red underlines on spelling errors are left
+                if (this.options.spellcheck) {
+                    element.innerHTML = element.innerHTML;
+                }
+
+                // cleanup extra added attributes
+                element.removeAttribute('contentEditable');
+                element.removeAttribute('spellcheck');
+                element.removeAttribute('data-medium-editor-element');
+                element.removeAttribute('role');
+                element.removeAttribute('aria-multiline');
+                element.removeAttribute('medium-editor-index');
+
+                // Remove any elements created for textareas
+                if (element.hasAttribute('medium-editor-textarea-id')) {
+                    var textarea = element.parentNode.querySelector('textarea[medium-editor-textarea-id="' + element.getAttribute('medium-editor-textarea-id') + '"]');
+                    if (textarea) {
+                        // Un-hide the textarea
+                        textarea.classList.remove('medium-editor-hidden');
+                    }
+                    if (element.parentNode) {
+                        element.parentNode.removeChild(element);
+                    }
+                }
+            }, this);
+            this.elements = [];
+
+            removeFromEditors.call(this, this.options.contentWindow);
+        },
+
+        on: function (target, event, listener, useCapture) {
+            this.events.attachDOMEvent(target, event, listener, useCapture);
+        },
+
+        off: function (target, event, listener, useCapture) {
+            this.events.detachDOMEvent(target, event, listener, useCapture);
+        },
+
+        subscribe: function (event, listener) {
+            this.events.attachCustomEvent(event, listener);
+        },
+
+        unsubscribe: function (event, listener) {
+            this.events.detachCustomEvent(event, listener);
+        },
+
+        trigger: function (name, data, editable) {
+            this.events.triggerCustomEvent(name, data, editable);
+        },
+
+        delay: function (fn) {
+            var self = this;
+            return setTimeout(function () {
+                if (self.isActive) {
+                    fn();
+                }
+            }, this.options.delay);
+        },
+
+        serialize: function () {
+            var i,
+                elementid,
+                content = {};
+            for (i = 0; i < this.elements.length; i += 1) {
+                elementid = (this.elements[i].id !== '') ? this.elements[i].id : 'element-' + i;
+                content[elementid] = {
+                    value: this.elements[i].innerHTML.trim()
+                };
+            }
+            return content;
+        },
+
+        getExtensionByName: function (name) {
+            var extension;
+            if (this.extensions && this.extensions.length) {
+                this.extensions.some(function (ext) {
+                    if (ext.name === name) {
+                        extension = ext;
+                        return true;
+                    }
+                    return false;
+                });
+            }
+            return extension;
+        },
+
+        /**
+         * NOT DOCUMENTED - exposed as a helper for other extensions to use
+         */
+        addBuiltInExtension: function (name, opts) {
+            var extension = this.getExtensionByName(name),
+                merged;
+            if (extension) {
+                return extension;
+            }
+
+            switch (name) {
+                case 'anchor':
+                    merged = Util.extend({}, this.options.anchor, opts);
+                    extension = new MediumEditor.extensions.anchor(merged);
+                    break;
+                case 'anchorPreview':
+                    extension = new MediumEditor.extensions.anchorPreview(this.options.anchorPreview);
+                    break;
+                case 'autoLink':
+                    extension = new MediumEditor.extensions.autoLink();
+                    break;
+                case 'fileDragging':
+                    extension = new MediumEditor.extensions.fileDragging(opts);
+                    break;
+                case 'fontsize':
+                    extension = new MediumEditor.extensions.fontSize(opts);
+                    break;
+                case 'keyboardCommands':
+                    extension = new MediumEditor.extensions.keyboardCommands(this.options.keyboardCommands);
+                    break;
+                case 'paste':
+                    extension = new MediumEditor.extensions.paste(this.options.paste);
+                    break;
+                case 'placeholder':
+                    extension = new MediumEditor.extensions.placeholder(this.options.placeholder);
+                    break;
+                default:
+                    // All of the built-in buttons for MediumEditor are extensions
+                    // so check to see if the extension we're creating is a built-in button
+                    if (MediumEditor.extensions.button.isBuiltInButton(name)) {
+                        if (opts) {
+                            merged = Util.defaults({}, opts, MediumEditor.extensions.button.prototype.defaults[name]);
+                            extension = new MediumEditor.extensions.button(merged);
+                        } else {
+                            extension = new MediumEditor.extensions.button(name);
+                        }
+                    }
+            }
+
+            if (extension) {
+                this.extensions.push(initExtension(extension, name, this));
+            }
+
+            return extension;
+        },
+
+        stopSelectionUpdates: function () {
+            this.preventSelectionUpdates = true;
+        },
+
+        startSelectionUpdates: function () {
+            this.preventSelectionUpdates = false;
+        },
+
+        checkSelection: function () {
+            var toolbar = this.getExtensionByName('toolbar');
+            if (toolbar) {
+                toolbar.checkState();
             }
             return this;
         },
@@ -47005,165 +50584,31 @@ function MediumEditor(elements, options) {
                 this.saveSelection();
                 // Select all of the contents before calling the action
                 this.selectAllContents();
-                result = this.execActionInternal(match[1], opts);
+                result = execActionInternal.call(this, match[1], opts);
                 // Restore the previous selection
                 this.restoreSelection();
             } else {
-                result = this.execActionInternal(action, opts);
+                result = execActionInternal.call(this, action, opts);
+            }
+
+            // do some DOM clean-up for known browser issues after the action
+            if (action === 'insertunorderedlist' || action === 'insertorderedlist') {
+                Util.cleanListDOM(this.options.ownerDocument, this.getSelectedParentElement());
             }
 
             this.checkSelection();
             return result;
         },
 
-        execActionInternal: function (action, opts) {
-            /*jslint regexp: true*/
-            var appendAction = /^append-(.+)$/gi,
-                match;
-            /*jslint regexp: false*/
-
-            // Actions starting with 'append-' should attempt to format a block of text ('formatBlock') using a specific
-            // type of block element (ie append-blockquote, append-h1, append-pre, etc.)
-            match = appendAction.exec(action);
-            if (match) {
-                return this.execFormatBlock(match[1]);
+        getSelectedParentElement: function (range) {
+            if (range === undefined) {
+                range = this.options.contentWindow.getSelection().getRangeAt(0);
             }
-
-            if (action === 'createLink') {
-                return this.createLink(opts);
-            }
-
-            if (action === 'image') {
-                return this.options.ownerDocument.execCommand('insertImage', false, this.options.contentWindow.getSelection());
-            }
-
-            return this.options.ownerDocument.execCommand(action, false, null);
-        },
-
-        // TODO: move these two methods to selection.js
-        // http://stackoverflow.com/questions/15867542/range-object-get-selection-parent-node-chrome-vs-firefox
-        rangeSelectsSingleNode: function (range) {
-            var startNode = range.startContainer;
-            return startNode === range.endContainer &&
-                startNode.hasChildNodes() &&
-                range.endOffset === range.startOffset + 1;
-        },
-
-        getSelectedParentElement: function () {
-            var selectedParentElement = null,
-                range = this.selectionRange;
-            if (this.rangeSelectsSingleNode(range) && range.startContainer.childNodes[range.startOffset].nodeType !== 3) {
-                selectedParentElement = range.startContainer.childNodes[range.startOffset];
-            } else if (range.startContainer.nodeType === 3) {
-                selectedParentElement = range.startContainer.parentNode;
-            } else {
-                selectedParentElement = range.startContainer;
-            }
-            return selectedParentElement;
-        },
-
-        execFormatBlock: function (el) {
-            var selectionData = Selection.getSelectionData(this.selection.anchorNode);
-            // FF handles blockquote differently on formatBlock
-            // allowing nesting, we need to use outdent
-            // https://developer.mozilla.org/en-US/docs/Rich-Text_Editing_in_Mozilla
-            if (el === 'blockquote' && selectionData.el &&
-                    selectionData.el.parentNode.tagName.toLowerCase() === 'blockquote') {
-                return this.options.ownerDocument.execCommand('outdent', false, null);
-            }
-            if (selectionData.tagName === el) {
-                el = 'p';
-            }
-            // When IE we need to add <> to heading elements and
-            //  blockquote needs to be called as indent
-            // http://stackoverflow.com/questions/10741831/execcommand-formatblock-headings-in-ie
-            // http://stackoverflow.com/questions/1816223/rich-text-editor-with-blockquote-function/1821777#1821777
-            if (Util.isIE) {
-                if (el === 'blockquote') {
-                    return this.options.ownerDocument.execCommand('indent', false, el);
-                }
-                el = '<' + el + '>';
-            }
-            return this.options.ownerDocument.execCommand('formatBlock', false, el);
-        },
-
-        isToolbarDefaultActionsShown: function () {
-            return !!this.toolbarActions && this.toolbarActions.style.display === 'block';
-        },
-
-        hideToolbarDefaultActions: function () {
-            if (this.toolbarActions && this.isToolbarDefaultActionsShown()) {
-                this.commands.forEach(function (extension) {
-                    if (extension.onHide && typeof extension.onHide === 'function') {
-                        extension.onHide();
-                    }
-                });
-                this.toolbarActions.style.display = 'none';
-            }
-        },
-
-        showToolbarDefaultActions: function () {
-            this.hideExtensionForms();
-
-            if (this.toolbarActions && !this.isToolbarDefaultActionsShown()) {
-                this.toolbarActions.style.display = 'block';
-            }
-
-            this.keepToolbarAlive = false;
-            // Using setTimeout + options.delay because:
-            // We will actually be displaying the toolbar, which should be controlled by options.delay
-            this.delay(function () {
-                this.showToolbar();
-            }.bind(this));
-
-            return this;
-        },
-
-        hideExtensionForms: function () {
-            // Hide all extension forms
-            this.commands.forEach(function (extension) {
-                if (extension.hasForm && extension.isDisplayed()) {
-                    extension.hideForm();
-                }
-            });
-        },
-
-        isToolbarShown: function () {
-            return this.toolbar && this.toolbar.classList.contains('medium-editor-toolbar-active');
-        },
-
-        showToolbar: function () {
-            if (this.toolbar && !this.isToolbarShown()) {
-                this.toolbar.classList.add('medium-editor-toolbar-active');
-                if (typeof this.options.onShowToolbar === 'function') {
-                    this.options.onShowToolbar();
-                }
-            }
-        },
-
-        hideToolbar: function () {
-            if (this.isToolbarShown()) {
-                this.toolbar.classList.remove('medium-editor-toolbar-active');
-                if (typeof this.options.onHideToolbar === 'function') {
-                    this.options.onHideToolbar();
-                }
-            }
-        },
-
-        hideToolbarActions: function () {
-            this.commands.forEach(function (extension) {
-                if (extension.onHide && typeof extension.onHide === 'function') {
-                    extension.onHide();
-                }
-            });
-            this.keepToolbarAlive = false;
-            this.hideToolbar();
+            return Selection.getSelectedParentElement(range);
         },
 
         selectAllContents: function () {
-            var range = this.options.ownerDocument.createRange(),
-                sel = this.options.contentWindow.getSelection(),
-                currNode = Selection.getSelectionElement(this.options.contentWindow);
+            var currNode = Selection.getSelectionElement(this.options.contentWindow);
 
             if (currNode) {
                 // Move to the lowest descendant node that still selects all of the contents
@@ -47171,275 +50616,69 @@ function MediumEditor(elements, options) {
                     currNode = currNode.children[0];
                 }
 
-                range.selectNodeContents(currNode);
-                sel.removeAllRanges();
-                sel.addRange(range);
+                this.selectElement(currNode);
             }
         },
 
-        // http://stackoverflow.com/questions/17678843/cant-restore-selection-after-html-modify-even-if-its-the-same-html
-        // Tim Down
-        // TODO: move to selection.js and clean up old methods there
-        saveSelection: function () {
-            this.selectionState = null;
+        selectElement: function (element) {
+            Selection.selectNode(element, this.options.ownerDocument);
 
-            var selection = this.options.contentWindow.getSelection(),
-                range,
-                preSelectionRange,
-                start,
-                editableElementIndex = -1;
+            var selElement = Selection.getSelectionElement(this.options.contentWindow);
+            if (selElement) {
+                this.events.focusElement(selElement);
+            }
+        },
 
-            if (selection.rangeCount > 0) {
-                range = selection.getRangeAt(0);
-                preSelectionRange = range.cloneRange();
-
-                // Find element current selection is inside
-                this.elements.forEach(function (el, index) {
-                    if (el === range.startContainer || Util.isDescendant(el, range.startContainer)) {
-                        editableElementIndex = index;
-                        return false;
-                    }
-                });
-
-                if (editableElementIndex > -1) {
-                    preSelectionRange.selectNodeContents(this.elements[editableElementIndex]);
-                    preSelectionRange.setEnd(range.startContainer, range.startOffset);
-                    start = preSelectionRange.toString().length;
-
-                    this.selectionState = {
-                        start: start,
-                        end: start + range.toString().length,
-                        editableElementIndex: editableElementIndex
-                    };
+        getFocusedElement: function () {
+            var focused;
+            this.elements.some(function (element) {
+                // Find the element that has focus
+                if (!focused && element.getAttribute('data-medium-focused')) {
+                    focused = element;
                 }
-            }
+
+                // bail if we found the element that had focus
+                return !!focused;
+            }, this);
+
+            return focused;
         },
 
-        // http://stackoverflow.com/questions/17678843/cant-restore-selection-after-html-modify-even-if-its-the-same-html
-        // Tim Down
-        // TODO: move to selection.js and clean up old methods there
-        restoreSelection: function () {
-            if (!this.selectionState) {
+        // Export the state of the selection in respect to one of this
+        // instance of MediumEditor's elements
+        exportSelection: function () {
+            var selectionElement = Selection.getSelectionElement(this.options.contentWindow),
+                editableElementIndex = this.elements.indexOf(selectionElement),
+                selectionState = null;
+
+            if (editableElementIndex >= 0) {
+                selectionState = Selection.exportSelection(selectionElement, this.options.ownerDocument);
+            }
+
+            if (selectionState !== null && editableElementIndex !== 0) {
+                selectionState.editableElementIndex = editableElementIndex;
+            }
+
+            return selectionState;
+        },
+
+        saveSelection: function () {
+            this.selectionState = this.exportSelection();
+        },
+
+        // Restore a selection based on a selectionState returned by a call
+        // to MediumEditor.exportSelection
+        importSelection: function (selectionState, favorLaterSelectionAnchor) {
+            if (!selectionState) {
                 return;
             }
 
-            var editableElement = this.elements[this.selectionState.editableElementIndex],
-                charIndex = 0,
-                range = this.options.ownerDocument.createRange(),
-                nodeStack = [editableElement],
-                node,
-                foundStart = false,
-                stop = false,
-                i,
-                sel,
-                nextCharIndex;
-
-            range.setStart(editableElement, 0);
-            range.collapse(true);
-
-            node = nodeStack.pop();
-            while (!stop && node) {
-                if (node.nodeType === 3) {
-                    nextCharIndex = charIndex + node.length;
-                    if (!foundStart && this.selectionState.start >= charIndex && this.selectionState.start <= nextCharIndex) {
-                        range.setStart(node, this.selectionState.start - charIndex);
-                        foundStart = true;
-                    }
-                    if (foundStart && this.selectionState.end >= charIndex && this.selectionState.end <= nextCharIndex) {
-                        range.setEnd(node, this.selectionState.end - charIndex);
-                        stop = true;
-                    }
-                    charIndex = nextCharIndex;
-                } else {
-                    i = node.childNodes.length - 1;
-                    while (i >= 0) {
-                        nodeStack.push(node.childNodes[i]);
-                        i -= 1;
-                    }
-                }
-                if (!stop) {
-                    node = nodeStack.pop();
-                }
-            }
-
-            sel = this.options.contentWindow.getSelection();
-            sel.removeAllRanges();
-            sel.addRange(range);
+            var editableElement = this.elements[selectionState.editableElementIndex || 0];
+            Selection.importSelection(selectionState, editableElement, this.options.ownerDocument, favorLaterSelectionAnchor);
         },
 
-        hideAnchorPreview: function () {
-            this.anchorPreview.classList.remove('medium-editor-anchor-preview-active');
-        },
-
-        // TODO: break method
-        showAnchorPreview: function (anchorEl) {
-            if (this.anchorPreview.classList.contains('medium-editor-anchor-preview-active')
-                    || anchorEl.getAttribute('data-disable-preview')) {
-                return true;
-            }
-
-            var self = this,
-                buttonHeight = 40,
-                boundary = anchorEl.getBoundingClientRect(),
-                middleBoundary = (boundary.left + boundary.right) / 2,
-                halfOffsetWidth,
-                defaultLeft;
-
-            self.anchorPreview.querySelector('i').textContent = anchorEl.attributes.href.value;
-            halfOffsetWidth = self.anchorPreview.offsetWidth / 2;
-            defaultLeft = self.options.diffLeft - halfOffsetWidth;
-
-            self.observeAnchorPreview(anchorEl);
-
-            self.anchorPreview.classList.add('medium-toolbar-arrow-over');
-            self.anchorPreview.classList.remove('medium-toolbar-arrow-under');
-            self.anchorPreview.style.top = Math.round(buttonHeight + boundary.bottom - self.options.diffTop + this.options.contentWindow.pageYOffset - self.anchorPreview.offsetHeight) + 'px';
-            if (middleBoundary < halfOffsetWidth) {
-                self.anchorPreview.style.left = defaultLeft + halfOffsetWidth + 'px';
-            } else if ((this.options.contentWindow.innerWidth - middleBoundary) < halfOffsetWidth) {
-                self.anchorPreview.style.left = this.options.contentWindow.innerWidth + defaultLeft - halfOffsetWidth + 'px';
-            } else {
-                self.anchorPreview.style.left = defaultLeft + middleBoundary + 'px';
-            }
-
-            if (this.anchorPreview && !this.anchorPreview.classList.contains('medium-editor-anchor-preview-active')) {
-                this.anchorPreview.classList.add('medium-editor-anchor-preview-active');
-            }
-
-            return this;
-        },
-
-        // TODO: break method
-        observeAnchorPreview: function (anchorEl) {
-            var self = this,
-                lastOver = (new Date()).getTime(),
-                over = true,
-                stamp = function () {
-                    lastOver = (new Date()).getTime();
-                    over = true;
-                },
-                unstamp = function (e) {
-                    if (!e.relatedTarget || !/anchor-preview/.test(e.relatedTarget.className)) {
-                        over = false;
-                    }
-                },
-                interval_timer = setInterval(function () {
-                    if (over) {
-                        return true;
-                    }
-                    var durr = (new Date()).getTime() - lastOver;
-                    if (durr > self.options.anchorPreviewHideDelay) {
-                        // hide the preview 1/2 second after mouse leaves the link
-                        self.hideAnchorPreview();
-
-                        // cleanup
-                        clearInterval(interval_timer);
-                        self.off(self.anchorPreview, 'mouseover', stamp);
-                        self.off(self.anchorPreview, 'mouseout', unstamp);
-                        self.off(anchorEl, 'mouseover', stamp);
-                        self.off(anchorEl, 'mouseout', unstamp);
-
-                    }
-                }, 200);
-
-            this.on(self.anchorPreview, 'mouseover', stamp);
-            this.on(self.anchorPreview, 'mouseout', unstamp);
-            this.on(anchorEl, 'mouseover', stamp);
-            this.on(anchorEl, 'mouseout', unstamp);
-        },
-
-        createAnchorPreview: function () {
-            var self = this,
-                anchorPreview = this.options.ownerDocument.createElement('div');
-
-            anchorPreview.id = 'medium-editor-anchor-preview-' + this.id;
-            anchorPreview.className = 'medium-editor-anchor-preview';
-            anchorPreview.innerHTML = this.anchorPreviewTemplate();
-            this.options.elementsContainer.appendChild(anchorPreview);
-
-            this.on(anchorPreview, 'click', function () {
-                self.anchorPreviewClickHandler();
-            });
-
-            return anchorPreview;
-        },
-
-        anchorPreviewTemplate: function () {
-            return '<div class="medium-editor-toolbar-anchor-preview" id="medium-editor-toolbar-anchor-preview">' +
-                '    <i class="medium-editor-toolbar-anchor-preview-inner"></i>' +
-                '</div>';
-        },
-
-        anchorPreviewClickHandler: function (event) {
-            var range,
-                sel,
-                anchorExtension = this.getExtensionByName('anchor');
-
-            if (anchorExtension && this.activeAnchor) {
-                range = this.options.ownerDocument.createRange();
-                range.selectNodeContents(this.activeAnchor);
-
-                sel = this.options.contentWindow.getSelection();
-                sel.removeAllRanges();
-                sel.addRange(range);
-                // Using setTimeout + options.delay because:
-                // We may actually be displaying the anchor form, which should be controlled by options.delay
-                this.delay(function () {
-                    if (this.activeAnchor) {
-                        anchorExtension.showForm(this.activeAnchor.attributes.href.value);
-                    }
-                    this.keepToolbarAlive = false;
-                }.bind(this));
-            }
-
-            this.hideAnchorPreview();
-        },
-
-        editorAnchorObserver: function (e) {
-            var self = this,
-                overAnchor = true,
-                leaveAnchor = function () {
-                    // mark the anchor as no longer hovered, and stop listening
-                    overAnchor = false;
-                    self.off(self.activeAnchor, 'mouseout', leaveAnchor);
-                };
-
-            if (e.target && e.target.tagName.toLowerCase() === 'a') {
-
-                // Detect empty href attributes
-                // The browser will make href="" or href="#top"
-                // into absolute urls when accessed as e.targed.href, so check the html
-                if (!/href=["']\S+["']/.test(e.target.outerHTML) || /href=["']#\S+["']/.test(e.target.outerHTML)) {
-                    return true;
-                }
-
-                // only show when hovering on anchors
-                if (this.isToolbarShown()) {
-                    // only show when toolbar is not present
-                    return true;
-                }
-                this.activeAnchor = e.target;
-                this.on(this.activeAnchor, 'mouseout', leaveAnchor);
-                // Using setTimeout + options.delay because:
-                // - We're going to show the anchor preview according to the configured delay
-                //   if the mouse has not left the anchor tag in that time
-                this.delay(function () {
-                    if (overAnchor) {
-                        self.showAnchorPreview(e.target);
-                    }
-                });
-            }
-        },
-
-        bindAnchorPreview: function (index) {
-            var i, self = this;
-            this.editorAnchorObserverWrapper = function (e) {
-                self.editorAnchorObserver(e);
-            };
-            for (i = 0; i < this.elements.length; i += 1) {
-                this.on(this.elements[i], 'mouseover', this.editorAnchorObserverWrapper);
-            }
-            return this;
+        restoreSelection: function () {
+            this.importSelection(this.selectionState);
         },
 
         createLink: function (opts) {
@@ -47447,146 +50686,120 @@ function MediumEditor(elements, options) {
                 i;
 
             if (opts.url && opts.url.trim().length > 0) {
-                this.options.ownerDocument.execCommand('createLink', false, opts.url);
+                var currentSelection = this.options.contentWindow.getSelection();
+                if (currentSelection) {
+                    var exportedSelection,
+                        startContainerParentElement,
+                        endContainerParentElement,
+                        textNodes;
 
-                if (this.options.targetBlank || opts.target === '_blank') {
-                    Util.setTargetBlank(Selection.getSelectionStart(this.options.ownerDocument));
-                }
+                    startContainerParentElement = Util.getClosestBlockContainer(
+                        currentSelection.getRangeAt(0).startContainer);
+                    endContainerParentElement = Util.getClosestBlockContainer(
+                        currentSelection.getRangeAt(0).endContainer);
 
-                if (opts.buttonClass) {
-                    this.setButtonClass(opts.buttonClass);
+                    if (startContainerParentElement === endContainerParentElement) {
+                        var currentEditor = Selection.getSelectionElement(this.options.contentWindow),
+                            parentElement = (startContainerParentElement || currentEditor),
+                            fragment = this.options.ownerDocument.createDocumentFragment();
+                        exportedSelection = this.exportSelection();
+                        fragment.appendChild(parentElement.cloneNode(true));
+                        if (currentEditor === parentElement) {
+                            // We have to avoid the editor itself being wiped out when it's the only block element,
+                            // as our reference inside this.elements gets detached from the page when insertHTML runs.
+                            // If we just use [parentElement, 0] and [parentElement, parentElement.childNodes.length]
+                            // as the range boundaries, this happens whenever parentElement === currentEditor.
+                            // The tradeoff to this workaround is that a orphaned tag can sometimes be left behind at
+                            // the end of the editor's content.
+                            // In Gecko:
+                            // as an empty <strong></strong> if parentElement.lastChild is a <strong> tag.
+                            // In WebKit:
+                            // an invented <br /> tag at the end in the same situation
+
+                            Selection.select(this.options.ownerDocument,
+                                parentElement.firstChild, 0,
+                                parentElement.lastChild, parentElement.lastChild.nodeType === 3 ?
+                                parentElement.lastChild.nodeValue.length : parentElement.lastChild.childNodes.length);
+                        } else {
+                            Selection.select(this.options.ownerDocument,
+                                parentElement, 0,
+                                parentElement, parentElement.childNodes.length);
+                        }
+                        var modifiedExportedSelection = this.exportSelection();
+
+                        textNodes = Util.findOrCreateMatchingTextNodes(this.options.ownerDocument,
+                                fragment,
+                                {
+                                    start: exportedSelection.start - modifiedExportedSelection.start,
+                                    end: exportedSelection.end - modifiedExportedSelection.start,
+                                    editableElementIndex: exportedSelection.editableElementIndex
+                                });
+                        // Creates the link in the document fragment
+                        Util.createLink(this.options.ownerDocument, textNodes, opts.url.trim());
+                        // Chrome trims the leading whitespaces when inserting HTML, which messes up restoring the selection.
+                        var leadingWhitespacesCount = (fragment.firstChild.innerHTML.match(/^\s+/) || [''])[0].length;
+                        // Now move the created link back into the original document in a way to preserve undo/redo history
+                        Util.insertHTMLCommand(this.options.ownerDocument,
+                            fragment.firstChild.innerHTML.replace(/^\s+/, ''));
+                        exportedSelection.start -= leadingWhitespacesCount;
+                        exportedSelection.end -= leadingWhitespacesCount;
+                        this.importSelection(exportedSelection);
+                    } else {
+                        this.options.ownerDocument.execCommand('createLink', false, opts.url);
+                    }
+                    if (this.options.targetBlank || opts.target === '_blank') {
+                        Util.setTargetBlank(Selection.getSelectionStart(this.options.ownerDocument), opts.url);
+                    }
+
+                    if (opts.buttonClass) {
+                        Util.addClassToAnchors(Selection.getSelectionStart(this.options.ownerDocument), opts.buttonClass);
+                    }
                 }
             }
 
-            if (this.options.targetBlank || opts.target === "_blank" || opts.buttonClass) {
-                customEvent = this.options.ownerDocument.createEvent("HTMLEvents");
-                customEvent.initEvent("input", true, true, this.options.contentWindow);
+            if (this.options.targetBlank || opts.target === '_blank' || opts.buttonClass) {
+                customEvent = this.options.ownerDocument.createEvent('HTMLEvents');
+                customEvent.initEvent('input', true, true, this.options.contentWindow);
                 for (i = 0; i < this.elements.length; i += 1) {
                     this.elements[i].dispatchEvent(customEvent);
                 }
             }
         },
 
-        setButtonClass: function (buttonClass) {
-            var el = Selection.getSelectionStart(this.options.ownerDocument),
-                classes = buttonClass.split(' '),
-                i,
-                j;
-            if (el.tagName.toLowerCase() === 'a') {
-                for (j = 0; j < classes.length; j += 1) {
-                    el.classList.add(classes[j]);
-                }
-            } else {
-                el = el.getElementsByTagName('a');
-                for (i = 0; i < el.length; i += 1) {
-                    for (j = 0; j < classes.length; j += 1) {
-                        el[i].classList.add(classes[j]);
-                    }
-                }
-            }
-        },
-
-        positionToolbarIfShown: function () {
-            if (this.isToolbarShown()) {
-                this.setToolbarPosition();
-            }
-        },
-
-        bindWindowActions: function () {
-            var self = this;
-
-            // Add a scroll event for sticky toolbar
-            if (this.options.staticToolbar && this.options.stickyToolbar) {
-                // On scroll, re-position the toolbar
-                this.on(this.options.contentWindow, 'scroll', function () {
-                    self.positionToolbarIfShown();
-                }, true);
-            }
-
-            this.on(this.options.contentWindow, 'resize', function () {
-                self.handleResize();
-            });
-
-            this.bindBlur();
-
-            return this;
-        },
-
-        activate: function () {
-            if (this.isActive) {
-                return;
-            }
-
-            this.setup();
-        },
-
-        // TODO: break method
-        deactivate: function () {
-            var i;
-            if (!this.isActive) {
-                return;
-            }
-            this.isActive = false;
-
-            if (this.toolbar !== undefined) {
-                this.options.elementsContainer.removeChild(this.anchorPreview);
-                this.options.elementsContainer.removeChild(this.toolbar);
-                delete this.toolbar;
-                delete this.anchorPreview;
-            }
-
-            for (i = 0; i < this.elements.length; i += 1) {
-                this.elements[i].removeAttribute('contentEditable');
-                this.elements[i].removeAttribute('data-medium-element');
-            }
-
-            this.commands.forEach(function (extension) {
-                if (typeof extension.deactivate === 'function') {
-                    extension.deactivate();
-                }
-            }.bind(this));
-
-            this.removeAllEvents();
-        },
-
-        bindPaste: function () {
-            var i, self = this;
-            this.pasteWrapper = function (e) {
-                pasteHandler.handlePaste(this, e, self.options);
-            };
-            for (i = 0; i < this.elements.length; i += 1) {
-                this.on(this.elements[i], 'paste', this.pasteWrapper);
-            }
-            return this;
-        },
-
-        setPlaceholders: function () {
-            if (!this.options.disablePlaceholders && this.elements && this.elements.length) {
-                this.elements.forEach(function (el) {
-                    this.activatePlaceholder(el);
-                    this.on(el, 'blur', this.placeholderWrapper.bind(this));
-                    this.on(el, 'keypress', this.placeholderWrapper.bind(this));
-                }.bind(this));
-            }
-
-            return this;
-        },
-
         cleanPaste: function (text) {
-            pasteHandler.cleanPaste(text, this.options);
+            this.getExtensionByName('paste').cleanPaste(text);
         },
 
-        pasteHTML: function (html) {
-            pasteHandler.pasteHTML(html, this.options.ownerDocument);
+        pasteHTML: function (html, options) {
+            this.getExtensionByName('paste').pasteHTML(html, options);
         }
     };
-
 }());
+
+MediumEditor.parseVersionString = function (release) {
+    var split = release.split('-'),
+        version = split[0].split('.'),
+        preRelease = (split.length > 1) ? split[1] : '';
+    return {
+        major: parseInt(version[0], 10),
+        minor: parseInt(version[1], 10),
+        revision: parseInt(version[2], 10),
+        preRelease: preRelease,
+        toString: function () {
+            return [version[0], version[1], version[2]].join('.') + (preRelease ? '-' + preRelease : '');
+        }
+    };
+};
+
+MediumEditor.version = MediumEditor.parseVersionString.call(this, ({
+    // grunt-bump looks for this:
+    'version': '5.4.0'
+}).version);
 
     return MediumEditor;
 }()));
 
-;//jshint browser: true
+//jshint browser: true
 if (typeof window.plugins !== "object") {
   window.plugins = {};
 }
@@ -47608,7 +50821,7 @@ window.plugins.minislate = {
   }
 };
 
-;/*!
+/*!
  * Minislate
  * Version: 0.2.0
  *
@@ -52048,7 +55261,7 @@ window.plugins.minislate = {
     }, {}, [ 9 ])(9);
 });
 
-;//jshint browser: true, strict: false
+//jshint browser: true, strict: false
 if (typeof window.plugins !== "object") {
   window.plugins = {};
 }
@@ -52112,7 +55325,7 @@ window.plugins.sample = {
   }
 };
 
-;//jshint browser: true, strict: false
+//jshint browser: true, strict: false
 /*global require */
 if (typeof window.plugins !== "object") {
   window.plugins = {};
@@ -52206,7 +55419,7 @@ window.plugins.vcard = {
   }
 };
 
-;(function(){
+(function(){
 (function(){
 var _1="0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".split("");
 Math.uuid=function(_2,_3){
@@ -52721,7 +55934,7 @@ window.VCard = _9;
 }());
 
 
-;/**
+/**
  *  Copyright (c) 2014, Facebook, Inc.
  *  All rights reserved.
  *
@@ -52749,7 +55962,3556 @@ var u=ce(t._size),s=ee(t._root&&t._root.array,t._level,-t._origin,u-t._origin-1)
 },__deepEqual:function(t){var e=this.entries();return t.every(function(t,n){var r=e.next().value;return r&&R(r[0],n)&&R(r[1],t)})},__ensureOwner:function(t){if(t===this.__ownerID)return this;var e=this._map.__ensureOwner(t),n=this._vector.__ensureOwner(t);return t?le(e,n,t,this.__hash):(this.__ownerID=t,this._map=e,this._vector=n,this)}},{empty:function(){return kn||(kn=le(Qe.empty(),cn.empty()))}},Qe),Sn.from=Sn,Sn.prototype[qe]=Sn.prototype.remove;var kn,bn=function(t,e){var n=function(t){return this instanceof n?void(this._map=Qe(t)):new n(t)};t=Ue(t);var r=n.prototype=Object.create(Dn);r.constructor=n,r._name=e,r._defaultValues=t;var i=Object.keys(t);return n.prototype.length=i.length,Object.defineProperty&&t.forEach(function(t,e){Object.defineProperty(n.prototype,e,{get:function(){return this.get(e)},set:function(t){h(this.__ownerID,"Cannot set on an immutable record."),this.set(e,t)}})}),n},Mn=bn;de.createClass(bn,{toString:function(){return this.__toString((this._name||"Record")+" {","}")},has:function(t){return this._defaultValues.has(t)},get:function(t,e){return void 0===e||this.has(t)?this._map.get(t,this._defaultValues.get(t)):e},clear:function(){if(this.__ownerID)return this._map.clear(),this;Object.getPrototypeOf(this).constructor;return Mn._empty||(Mn._empty=ve(this,Qe.empty()))},set:function(t,e){if(null==t||!this.has(t))return this;var n=this._map.set(t,e);return this.__ownerID||n===this._map?this:ve(this,n)},remove:function(t){if(null==t||!this.has(t))return this;var e=this._map.remove(t);return this.__ownerID||e===this._map?this:ve(this,e)},keys:function(){return this._map.keys()},values:function(){return this._map.values()},entries:function(){return this._map.entries()},wasAltered:function(){return this._map.wasAltered()},__iterate:function(t,e){var n=this;return this._defaultValues.map(function(t,e){return n.get(e)}).__iterate(t,e)},__ensureOwner:function(t){if(t===this.__ownerID)return this;var e=this._map&&this._map.__ensureOwner(t);return t?ve(this,e,t):(this.__ownerID=t,this._map=e,this)}},{},Ue);
 var Dn=bn.prototype;Dn[qe]=Dn.remove,Dn[Oe]=Xe[Oe],Dn.merge=Xe.merge,Dn.mergeWith=Xe.mergeWith,Dn.mergeDeep=Xe.mergeDeep,Dn.mergeDeepWith=Xe.mergeDeepWith,Dn.update=Xe.update,Dn.updateIn=Xe.updateIn,Dn.cursor=Xe.cursor,Dn.withMutations=Xe.withMutations,Dn.asMutable=Xe.asMutable,Dn.asImmutable=Xe.asImmutable,Dn.__deepEqual=Xe.__deepEqual;var qn=function(t,e,n){return this instanceof On?(h(0!==n,"Cannot step a Range by 0"),t=t||0,null==e&&(e=1/0),t===e&&An?An:(n=null==n?1:Math.abs(n),t>e&&(n=-n),this._start=t,this._end=e,this._step=n,void(this.length=Math.max(0,Math.ceil((e-t)/n-1)+1)))):new On(t,e,n)},On=qn;de.createClass(qn,{toString:function(){return 0===this.length?"Range []":"Range [ "+this._start+"..."+this._end+(this._step>1?" by "+this._step:"")+" ]"},has:function(t){return h(t>=0,"Index out of bounds"),this.length>t},get:function(t,e){return h(t>=0,"Index out of bounds"),1/0===this.length||this.length>t?this._start+t*this._step:e},contains:function(t){var e=(t-this._start)/this._step;return e>=0&&this.length>e&&e===Math.floor(e)},slice:function(t,e,n){return m(t,e,this.length)?this:n?de.superCall(this,On.prototype,"slice",[t,e,n]):(t=y(t,this.length),e=d(e,this.length),t>=e?An:new On(this.get(t,this._end),this.get(e,this._end),this._step))},indexOf:function(t){var e=t-this._start;if(e%this._step===0){var n=e/this._step;if(n>=0&&this.length>n)return n}return-1},lastIndexOf:function(t){return this.indexOf(t)},take:function(t){return this.slice(0,t)},skip:function(t,e){return e?de.superCall(this,On.prototype,"skip",[t]):this.slice(t)},__iterate:function(t,e,n){for(var r=e^n,i=this.length-1,u=this._step,s=e?this._start+i*u:this._start,a=0;i>=a&&t(s,r?i-a:a,this)!==!1;a++)s+=e?-u:u;return r?this.length:a},__deepEquals:function(t){return this._start===t._start&&this._end===t._end&&this._step===t._step}},{},Be);var xn=qn.prototype;xn.__toJS=xn.toArray,xn.first=ln.first,xn.last=ln.last;var An=qn(0,0),Cn=function(t,e){return 0===e&&Pn?Pn:this instanceof En?(this._value=t,void(this.length=null==e?1/0:Math.max(0,e))):new En(t,e)
 },En=Cn;de.createClass(Cn,{toString:function(){return 0===this.length?"Repeat []":"Repeat [ "+this._value+" "+this.length+" times ]"},get:function(t,e){return h(t>=0,"Index out of bounds"),1/0===this.length||this.length>t?this._value:e},first:function(){return this._value},contains:function(t){return R(this._value,t)},slice:function(t,e,n){if(n)return de.superCall(this,En.prototype,"slice",[t,e,n]);var r=this.length;return t=0>t?Math.max(0,r+t):Math.min(r,t),e=null==e?r:e>0?Math.min(r,e):Math.max(0,r+e),e>t?new En(this._value,e-t):Pn},reverse:function(t){return t?de.superCall(this,En.prototype,"reverse",[t]):this},indexOf:function(t){return R(this._value,t)?0:-1},lastIndexOf:function(t){return R(this._value,t)?this.length:-1},__iterate:function(t,e,n){var r=e^n;h(!r||1/0>this.length,"Cannot access end of infinite range.");for(var i=this.length-1,u=0;i>=u&&t(this._value,r?i-u:u,this)!==!1;u++);return r?this.length:u},__deepEquals:function(t){return R(this._value,t._value)}},{},Be);var jn=Cn.prototype;jn.last=jn.first,jn.has=xn.has,jn.take=xn.take,jn.skip=xn.skip,jn.__toJS=xn.__toJS;var Pn=new Cn(void 0,0),Wn={Sequence:Ue,Map:Qe,Vector:cn,Set:mn,OrderedMap:Sn,Record:bn,Range:qn,Repeat:Cn,is:R,fromJS:ge};return Wn}"object"==typeof exports?module.exports=t():"function"==typeof define&&define.amd?define(t):Immutable=t();
-;/*! http://mths.be/he v0.4.1 by @mathias | MIT license */
+!function(t,e){return"function"==typeof define&&define.amd?define([],e):"object"==typeof module&&module.exports?module.exports=e():t.AriaTips=e()}(this,function(){var t,e,n,i,r,o,u,s,a;return t=6,a=[],e=function(){var t,e,i,r,o,u,c,d;for(s(),e=document.querySelectorAll("[role=tooltip]"),d=[],u=0,c=e.length;c>u;u++)t=e[u],document.body.appendChild(t),r=document.querySelectorAll("[aria-describedby="+t.id+"]"),d.push(function(){var t,e,u;for(u=[],t=0,e=r.length;e>t;t++)i=r[t],o=n.call(i),u.push(a.push(o));return u}());return d},s=function(){var t,e,n;for(e=0,n=a.length;n>e;e++)(t=a[e])();return a=[]},r=function(t){switch(t){case"top":return"bottom";case"bottom":return"top";case"left":return"right";case"right":return"left"}},o=function(e){var n,i,o,s,a,c,d,l;switch(u.call(this),o=e.dataset.tooltipDirection||this.dataset.tooltipDirection,n=e.getBoundingClientRect(),i={x:0|n.left+(n.right-n.left)/2,y:0|n.top+(n.bottom-n.top)/2},i.x=i.x+window.pageXOffset,i.y=i.y+window.pageYOffset,d={top:"auto",bottom:"auto",left:"auto",right:"auto"},a=function(){switch(o){case"top":return window.innerHeight-n.top-window.pageYOffset;case"bottom":return n.bottom+window.pageYOffset;case"left":return window.innerWidth-n.left-window.pageXOffset;case"right":return n.right+window.pageXOffset}}(),s=r(o),d[s]=""+(0|a+t)+"px",o){case"top":case"bottom":d.left=""+i.x+"px";break;case"left":case"right":d.top=""+i.y+"px"}for(c in d)l=d[c],this.style[c]=l;return o!==this.dataset.tooltipDirection?(this.origDirection=this.dataset.tooltipDirection,this.dataset.tooltipDirection=o):void 0},u=function(){return this.origDirection?(this.dataset.tooltipDirection=this.origDirection,this.origDirection=null):void 0},i=function(t){var e,n,i,r,o;for(i=this.querySelectorAll("pre.label"),r=0,o=i.length;o>r;r++)e=i[r],e.parentNode.removeChild(e);return n=t.dataset.accesskey||t.getAttribute("aria-label"),n?(e=document.createElement("pre"),e.classList.add("label"),e.innerHTML="("+n+")",this.appendChild(e)):void 0},n=function(){var t,e,n,r,u,s,a;return s=this.getAttribute("aria-describedby"),u=document.querySelector("#"+s),r=null,n=function(e){return function(){return u.addEventListener("mouseover",n),u.addEventListener("mouseout",t),r?(clearTimeout(r),r=null,u.setAttribute("aria-hidden",!1)):(i.call(u,e),o.call(u,e),r=setTimeout(function(){return u.setAttribute("aria-hidden",!1)},300))}}(this),t=function(){return clearTimeout(r),r=setTimeout(function(){return r=null,u.removeEventListener("mouseover",n),u.removeEventListener("mouseout",t),u.setAttribute("aria-hidden",!0)},30)},e=function(e){return 27===e.keyCode?t():void 0},this.addEventListener("mouseover",n),this.addEventListener("focus",n),this.addEventListener("mouseout",t),this.addEventListener("blur",t),this.addEventListener("keyup",e),this.addEventListener("click",t),a=function(i){return function(){return t(),i.removeEventListener("mouseover",n),i.removeEventListener("focus",n),i.removeEventListener("mouseout",t),i.removeEventListener("blur",t),i.removeEventListener("keyup",e),i.removeEventListener("click",t)}}(this)},{bind:function(){return e()},unbind:function(){return s()}}});
+/*! DatePicker v6.3.6 MIT/GPL2 @freqdec */
+var datePickerController = (function datePickerController() {
+
+    "use strict";
+
+    var debug               = false,
+        isOpera             = Object.prototype.toString.call(window.opera) === "[object Opera]",
+        describedBy         = "",
+        languageInfo        = parseUILanguage(),
+        nbsp                = String.fromCharCode(160),
+        datePickers         = {},
+        weeksInYearCache    = {},
+        bespokeTitles       = {},
+        uniqueId            = 0,
+        finalOpacity        = 100,
+        cssAnimations       = null,
+        transitionEnd       = "",
+        buttonTabIndex      = true,
+        mouseWheel          = true,
+        deriveLocale        = true,
+        localeImport        = false,
+        nodrag              = false,
+        langFileFolder      = false,
+        returnLocaleDate    = false,
+        kbEvent             = false,
+        dateParseFallback   = true,
+        cellFormat          = "%d %F %Y",
+        titleFormat         = "%F %d, %Y",
+        statusFormat        = "",
+        formatParts         = isOpera ? ["%j"] : ["%j", " %F %Y"],
+        dPartsRegExp        = /%([d|j])/,
+        mPartsRegExp        = /%([M|F|m|n])/,
+        yPartsRegExp        = /%[y|Y]/,
+        noSelectionRegExp   = /date-picker-unused|out-of-range|day-disabled|not-selectable/,
+        formatTestRegExp    = /%([d|j|M|F|m|n|Y|y])/,
+        formatSplitRegExp   = /%([d|D|l|j|N|w|S|W|M|F|m|n|t|Y|y])/,
+        rangeRegExp         = /^((\d\d\d\d)(0[1-9]|1[012])(0[1-9]|[12][0-9]|3[01]))$/,
+        wcDateRegExp        = /^(((\d\d\d\d)|(\*\*\*\*))((0[1-9]|1[012])|(\*\*))(0[1-9]|[12][0-9]|3[01]))$/,
+        wsCharClass         = "\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u180E\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029",
+        // https://gist.github.com/padolsey/527683
+        oldIE               = (function(){var undef,v = 3,div = document.createElement('div'),all = div.getElementsByTagName('i');while (div.innerHTML = '<!--[if gt IE ' + (++v) + ']><i></i><![endif]-->',all[0]); return v > 4 ? v : undef;}());
+
+    (function() {
+        var scriptFiles = document.getElementsByTagName('script'),
+            json        = parseJSON(String(scriptFiles[scriptFiles.length - 1].innerHTML).replace(/[\n\r\s\t]+/g, " ").replace(/^\s+/, "").replace(/\s+$/, ""));
+
+        if(typeof json === "object" && !("err" in json)) {
+            affectJSON(json);
+        };
+
+        if(deriveLocale && typeof(fdLocale) != "object") {
+            var head   = document.getElementsByTagName("head")[0] || document.documentElement,
+                loc    = langFileFolder ? langFileFolder : scriptFiles[scriptFiles.length - 1].src.substr(0, scriptFiles[scriptFiles.length - 1].src.lastIndexOf("/")) + "/lang/",
+                script,
+                i;
+
+            for(i = 0; i < languageInfo.length; i++) {
+                script          = document.createElement('script');
+                script.type     = "text/javascript";
+                script.src      = loc + languageInfo[i] + ".js";
+                script.charSet  = "utf-8";
+
+                if(oldIE && oldIE < 8) {
+                    var bases = document.getElementsByTagName('base');
+                    if (bases.length && bases[0].childNodes.length) {
+                            bases[0].appendChild(script);
+                    } else {
+                            head.appendChild(script);
+                    };
+                    bases = null;
+                } else {
+                    head.appendChild(script);
+                };
+            };
+
+            script = null;
+        } else {
+            returnLocaleDate = true;
+        };
+    })();
+
+    function removeChildNodes(elem) {
+        while(elem.firstChild) {
+            elem.removeChild(elem.firstChild);
+        };
+    };
+
+    function addClass(e, c) {
+        if(new RegExp("(^|[" + wsCharClass + "])" + c + "([" + wsCharClass + "]|$)").test(e.className)) {
+            return;
+        };
+        e.className += ( e.className ? " " : "" ) + c;
+    };
+
+    function removeClass(e, c) {
+        e.className = !c ? "" : e.className.replace(new RegExp("(^|[" + wsCharClass + "])" + c + "([" + wsCharClass + "]|$)"), " ").replace(new RegExp("/^[" + wsCharClass + "][" + wsCharClass + "]*/"), '').replace(new RegExp("/[" + wsCharClass + "][" + wsCharClass + "]*$/"), '');
+    };
+
+    // Attempts to parse the current language from the HTML element. Defaults to "en" if none given
+    function parseUILanguage() {
+        var languageTag = document.getElementsByTagName('html')[0].getAttribute('lang') || document.getElementsByTagName('html')[0].getAttribute('xml:lang');
+        languageTag = !languageTag ? "en" : languageTag.toLowerCase();
+        return languageTag.search(/^([a-z]{2,3})-([a-z]{2})$/) != -1 ? [languageTag.match(/^([a-z]{2,3})-([a-z]{2})$/)[1], languageTag] : [languageTag];
+    };
+
+    // Cross browser split from http://blog.stevenlevithan.com/archives/cross-browser-split
+    var cbSplit = function(str, separator, limit) {
+        // if `separator` is not a regex, use the native `split`
+        if(Object.prototype.toString.call(separator) !== "[object RegExp]") {
+                return cbSplit._nativeSplit.call(str, separator, limit);
+        };
+
+        var output        = [],
+            lastLastIndex = 0,
+            flags         = "",
+            separator     = RegExp(separator.source, "g"),
+            separator2, match, lastIndex, lastLength;
+
+        str = str + "";
+
+        if(!cbSplit._compliantExecNpcg) {
+            separator2 = RegExp("^" + separator.source + "$(?!\\s)", flags);
+        };
+
+        /* behavior for `limit`: if it's...
+        - `undefined`: no limit.
+        - `NaN` or zero: return an empty array.
+        - a positive number: use `Math.floor(limit)`.
+        - a negative number: no limit.
+        - other: type-convert, then use the above rules. */
+        if(limit === undefined || +limit < 0) {
+            limit = Infinity;
+        } else {
+            limit = Math.floor(+limit);
+            if(!limit) {
+                return [];
+            };
+        };
+
+        while(match = separator.exec(str)) {
+            lastIndex = match.index + match[0].length; // `separator.lastIndex` is not reliable cross-browser
+
+            if (lastIndex > lastLastIndex) {
+                output.push(str.slice(lastLastIndex, match.index));
+
+                // fix browsers whose `exec` methods don't consistently return `undefined` for nonparticipating capturing groups
+                if(!cbSplit._compliantExecNpcg && match.length > 1) {
+                    match[0].replace(separator2, function () {
+                        for (var i = 1; i < arguments.length - 2; i++) {
+                            if(arguments[i] === undefined) {
+                                match[i] = undefined;
+                            };
+                        };
+                    });
+                };
+
+                if(match.length > 1 && match.index < str.length) {
+                    Array.prototype.push.apply(output, match.slice(1));
+                };
+
+                lastLength = match[0].length;
+                lastLastIndex = lastIndex;
+
+                if(output.length >= limit) {
+                    break;
+                };
+            };
+
+            if(separator.lastIndex === match.index) {
+                // avoid an infinite loop
+                separator.lastIndex++;
+            };
+        };
+
+        if(lastLastIndex === str.length) {
+            if (lastLength || !separator.test("")) {
+                output.push("");
+            };
+        } else {
+            output.push(str.slice(lastLastIndex));
+        };
+
+        return output.length > limit ? output.slice(0, limit) : output;
+    };
+    // NPCG: nonparticipating capturing group
+    cbSplit._compliantExecNpcg = /()??/.exec("")[1] === undefined;
+    cbSplit._nativeSplit = String.prototype.split;
+
+    // Affects the JSON passed to the script
+    function affectJSON(json) {
+        if(!(typeof json === "object")) {
+            return;
+        };
+
+        var key,
+            switchObj = {
+                "debug":function(value) {
+                    debug = !!value;
+                    return true;
+                },
+                "lang":function(value) {
+                    if(typeof value === "string" && value.search(/^[a-z]{2,3}(-([a-z]{2}))?$/i) != -1) {
+                        languageInfo = [value.toLowerCase()];
+                        returnLocaleDate = true;
+                        deriveLocale = true;
+                    };
+                    return true;
+                },
+                "nodrag":function(value) {
+                    nodrag = !!value;
+                    return true;
+                },
+                "buttontabindex":function(value) {
+                    buttonTabIndex = !!value;
+                    return true;
+                },
+                "derivelocale":function(value) {
+                    deriveLocale = !!value;
+                    return true;
+                },
+                "mousewheel":function(value) {
+                    mouseWheel = !!value;
+                    return true;
+                },
+                "cellformat":function(value) {
+                    if(typeof value === "string") {
+                        parseCellFormat(value);
+                    };
+                    return true;
+                },
+                "titleformat":function(value) {
+                    if(typeof value === "string") {
+                        titleFormat = value;
+                    };
+                    return true;
+                },
+                "statusformat":function(value) {
+                    if(typeof value === "string") {
+                        statusFormat = value;
+                    };
+                    return true;
+                },
+                "describedby":function(value) {
+                    if(typeof value === "string") {
+                        describedBy = value;
+                    };
+                    return true;
+                },
+                "finalopacity":function(value) {
+                    if(typeof value === 'number' && (+value > 20 && +value <= 100)) {
+                        finalOpacity = parseInt(value, 10);
+                    };
+                    return true;
+                },
+                "bespoketitles":function(value) {
+                    if(typeof value === "object") {
+                        bespokeTitles = {};
+                        for(var dt in value) {
+                            if(value.hasOwnProperty(dt) && String(dt).match(wcDateRegExp) != -1) {
+                                bespokeTitles[dt] = String(value[dt]);
+                            };
+                        };
+                    };
+                    return true;
+                },
+                "dateparsefallback":function(value) {
+                    dateParseFallback = !!value;
+                    return true;
+                },
+                "languagefilelocation":function(value) {
+                    langFileFolder = value;
+                    return true;
+                },
+                "_default":function() {
+                    if(debug) {
+                        throw "Unknown key located within JSON data: " + key;
+                    };
+                    return true;
+                }
+            };
+
+        for(key in json) {
+            if(!json.hasOwnProperty(key)) {
+                continue;
+            };
+            (switchObj.hasOwnProperty(String(key).toLowerCase()) && switchObj[String(key).toLowerCase()] || switchObj._default)(json[key]);
+        };
+    };
+
+    // Parses the JSON passed either between the script tags or by using the
+    // setGlobalOptions method
+    function parseJSON(str) {
+        if(!(typeof str === 'string') || str == "") {
+            return {};
+        };
+        try {
+            // Does a JSON (native or not) Object exist
+            if(typeof JSON === "object" && JSON.parse) {
+                return window.JSON.parse(str);
+            // Genious code taken from: http://kentbrewster.com/badges/
+            } else if(/debug|lang|nodrag|buttontabindex|derivelocale|mousewheel|cellformat|titleformat|statusformat|describedby|finalopacity|bespoketitles|dateparsefallback/.test(str.toLowerCase())) {
+                var f = Function(['var document,top,self,window,parent,Number,Date,Object,Function,',
+                    'Array,String,Math,RegExp,Image,ActiveXObject;',
+                    'return (' , str.replace(/<\!--.+-->/gim,'').replace(/\bfunction\b/g,'function-') , ');'].join(''));
+                return f();
+            };
+        } catch (e) { };
+
+        if(debug) {
+            throw "Could not parse the JSON object";
+        };
+
+        return {"err":1};
+    };
+
+    // Parses the cell format to use whenever the datepicker has keyboard focus
+    function parseCellFormat(value) {
+        if(isOpera) {
+            // Don't use hidden text for opera due to the default
+            // "blue" browser focus outline stretching outside of the viewport
+            // and degrading visual accessibility. Harsh & hackish though...
+            formatParts = ["%j"];
+            cellFormat  = "%j %F %Y";
+            return;
+        };
+
+        // If no day part stipulated then use presets
+        if(value.match(/%([d|j])/) == -1) {
+            return;
+        };
+
+        // Basic split on the %j or %d modifiers
+        formatParts = cbSplit(value, /%([d|j])/);
+        cellFormat  = value;
+    };
+
+    function pad(value, length) {
+        length = Math.min(4, length || 2);
+        return "0000".substr(0,length - Math.min(String(value).length, length)) + value;
+    };
+
+    // Very, very basic event functions
+    function addEvent(obj, type, fn) {
+        if(obj.addEventListener) {
+            obj.addEventListener(type, fn, true);
+        } else if(obj.attachEvent) {
+            obj.attachEvent("on"+type, fn);
+        };
+    };
+    function removeEvent(obj, type, fn) {
+        try {
+            if(obj.removeEventListener) {
+                obj.removeEventListener(type, fn, true);
+            } else if(obj.detachEvent) {
+                obj.detachEvent("on"+type, fn);
+            };
+        } catch(err) {};
+    };
+    function stopEvent(e) {
+        e = e || document.parentWindow.event;
+        if(e.stopPropagation) {
+            e.stopPropagation();
+            e.preventDefault();
+        };
+
+        if(oldIE) {
+            e.cancelBubble = true;
+            e.returnValue = false;
+        };
+
+        return false;
+    };
+
+    function setARIARole(element, role) {
+        if(element && element.tagName) {
+            element.setAttribute("role", role);
+        };
+    };
+
+    function setARIAProperty(element, property, value) {
+        if(element && element.tagName) {
+            element.setAttribute("aria-" + property, value);
+        };
+    };
+
+    // Sets a tabindex attribute on an element, bends over for IE.
+    function setTabIndex(e, i) {
+        e.setAttribute(oldIE ? "tabIndex" : "tabindex", i);
+        e.tabIndex = i;
+    };
+
+    function dateToYYYYMMDD(dt) {
+        return dt instanceof Date && !isNaN(dt) ? dt.getFullYear() + pad(dt.getMonth() + 1) + "" + pad(dt.getDate()) : dt;
+    };
+
+    // The datePicker object itself
+    function datePicker(options) {
+        this.dateSet             = null;
+        this.timerSet            = false;
+        this.visible             = false;
+        this.fadeTimer           = null;
+        this.timer               = null;
+        this.yearInc             = 0;
+        this.monthInc            = 0;
+        this.dayInc              = 0;
+        this.mx                  = 0;
+        this.my                  = 0;
+        this.x                   = 0;
+        this.y                   = 0;
+        this.created             = false;
+        this.disabled            = false;
+        this.opacity             = 0;
+        this.opacityTo           = 100;
+        this.finalOpacity        = 100;
+        this.inUpdate            = false;
+        this.kbEventsAdded       = false;
+        this.fullCreate          = false;
+        this.selectedTD          = null;
+        this.cursorTD            = null;
+        this.cursorDate          = options.cursorDate ? options.cursorDate : "",
+        this.date                = options.cursorDate ? new Date(+options.cursorDate.substr(0,4), +options.cursorDate.substr(4,2) - 1, +options.cursorDate.substr(6,2),5,0,0) : new Date();
+        this.defaults            = {};
+        this.dynDisabledDates    = {};
+        this.dateList            = [];
+        this.bespokeClass        = options.bespokeClass;
+        this.firstDayOfWeek      = localeImport.firstDayOfWeek;
+        this.interval            = new Date();
+        this.clickActivated      = false;
+        this.showCursor          = false;
+        this.noFocus             = true;
+        this.kbEvent             = false;
+        this.delayedUpdate       = false;
+        this.bespokeTitles       = {};
+        this.bespokeTabIndex     = options.bespokeTabIndex;
+
+        for(var thing in options) {
+            if(!options.hasOwnProperty(thing) || String(thing).search(/^(callbacks|formElements|enabledDates|disabledDates)$/) != -1) {
+                continue;
+            };
+            this[thing] = options[thing];
+        };
+
+        if(oldIE) {
+            this.iePopUp = null;
+        };
+
+        for(var i = 0, prop; prop = ["callbacks", "formElements"][i]; i++) {
+            this[prop] = {};
+            if(prop in options) {
+                for(thing in options[prop]) {
+                    if(options[prop].hasOwnProperty(thing)) {
+                            this[prop][thing] = options[prop][thing];
+                    };
+                };
+            };
+        };
+
+        // Adjust time to stop daylight savings madness on windows
+        this.date.setHours(5);
+
+        // Called from an associated form elements onchange event
+        this.changeHandler = function() {
+            // In a perfect world this shouldn't ever happen
+            if(o.disabled) {
+                return;
+            };
+            o.setDateFromInput();
+            o.callback("dateset", o.createCbArgObj());
+        };
+
+        // Creates the object passed to the callback functions
+        this.createCbArgObj = function() {
+            return this.dateSet ? {
+                "id"    :this.id,
+                "date"  :this.dateSet,
+                "dd"    :pad(this.date.getDate()),
+                "mm"    :pad(this.date.getMonth() + 1),
+                "yyyy"  :this.date.getFullYear()
+                } : {
+                "id"    :this.id,
+                "date"  :null,
+                "dd"    :null,
+                "mm"    :null,
+                "yyyy"  :null
+                };
+        };
+
+        // Attempts to grab the window scroll offsets
+        this.getScrollOffsets = function() {
+            if(typeof(window.pageYOffset) == 'number') {
+                //Netscape compliant
+                return [window.pageXOffset, window.pageYOffset];
+            } else if(document.body && (document.body.scrollLeft || document.body.scrollTop)) {
+                //DOM compliant
+                return [document.body.scrollLeft, document.body.scrollTop];
+            } else if(document.documentElement && (document.documentElement.scrollLeft || document.documentElement.scrollTop)) {
+                //IE6 standards compliant mode
+                return [document.documentElement.scrollLeft, document.documentElement.scrollTop];
+            };
+            return [0,0];
+        };
+
+        // Calculates the current list of disabled & enabled dates for a specific year/month
+        this.getDateExceptions = function(y, m) {
+
+            m = pad(m);
+
+            var obj     = {},
+                lower   = o.firstDateShown,
+                upper   = o.lastDateShown,
+                rLength = o.dateList.length,
+                rNumber, workingDt, workingY, workingM, dtLower, dtUpper, i, dt, dt1, dt2, rngLower, rngUpper, cDate;
+
+            if(!upper || !lower) {
+                lower = o.firstDateShown = y + pad(m) + "01";
+                upper = o.lastDateShown  = y + pad(m) + pad(daysInMonth(m, y));
+            };
+
+            dtLower = Number(lower.substr(0,6));
+            dtUpper = Number(upper.substr(0,6));
+
+            workingDt = String(dtLower);
+
+            while(+workingDt <= dtUpper) {
+                workingY = workingDt.substr(0,4);
+                workingM = workingDt.substr(4,2);
+
+                for(rNumber = 0; rNumber < rLength; rNumber++) {
+                    dt1 = String(o.dateList[rNumber].rLow).replace(/^(\*\*\*\*)/, workingY).replace(/^(\d\d\d\d)(\*\*)/, "$1"+workingM);
+                    dt2 = String(o.dateList[rNumber].rHigh).replace(/^(\*\*\*\*)/, workingY).replace(/^(\d\d\d\d)(\*\*)/, "$1"+workingM);
+
+                    // Single date
+                    if(dt2 == 1) {
+                        if(+dt1 >= +o.firstDateShown && +dt1 <= +o.lastDateShown) {
+                            obj[dt1] = o.dateList[rNumber].type;
+                        };
+                        continue;
+                    };
+
+                    // Date Range
+                    if(dt1 <= dt2
+                       &&
+                       workingDt >= dt1.substr(0,6)
+                       &&
+                       workingDt <= dt2.substr(0,6)
+                       ) {
+                        rngLower = Math.max(dt1, Math.max(String(workingDt) + "01", this.firstDateShown));
+                        rngUpper = Math.min(dt2, Math.min(String(workingDt) + "31", this.lastDateShown));
+                        for(i = rngLower; i <= rngUpper; i++) {
+                            obj[i] = o.dateList[rNumber].type;
+                        };
+                    };
+                };
+
+                // Let the Date Object take care of month overflowss
+                workingDt = new Date(workingY, +workingM, 2);
+                workingDt = workingDt.getFullYear()+""+pad(workingDt.getMonth()+1);
+            };
+
+            return obj;
+        };
+
+        // Repositions the datepicker beside the button - to the bottom by
+        // preference but to the top if there is not enough room to display the
+        // entire U.I. at the bottom (it really should be updated to favour
+        // bottom positioning if not enough room to display the entire U.I. at
+        // the top in that scenario though)
+        this.reposition = function() {
+            if(!o.created || o.staticPos) {
+                return;
+            };
+
+            o.div.style.visibility = "hidden";
+            o.div.style.left = o.div.style.top = "0px";
+            o.div.style.display = "block";
+
+            var osh         = o.div.offsetHeight,
+                osw         = o.div.offsetWidth,
+                elem        = document.getElementById('fd-but-' + o.id),
+                pos         = o.truePosition(elem),
+                trueBody    = (document.compatMode && document.compatMode!="BackCompat") ? document.documentElement : document.body,
+                sOffsets    = o.getScrollOffsets(),
+                scrollTop   = sOffsets[1],
+                scrollLeft  = sOffsets[0],
+                tSpace      = parseInt(pos[1] - 2) - parseInt(scrollTop),
+                bSpace      = parseInt(trueBody.clientHeight + scrollTop) - parseInt(pos[1] + elem.offsetHeight + 2);
+
+            o.div.style.visibility = "visible";
+
+            o.div.style.left = Number(parseInt(trueBody.clientWidth+scrollLeft) < parseInt(osw+pos[0]) ? Math.abs(parseInt((trueBody.clientWidth+scrollLeft) - osw)) : pos[0]) + "px";
+            o.div.style.top  = (bSpace > tSpace) ? Math.abs(parseInt(pos[1] + elem.offsetHeight + 2)) + "px" : Math.abs(parseInt(pos[1] - (osh + 2))) + "px";
+            if(oldIE === 6) {
+                o.iePopUp.style.top    = o.div.style.top;
+                o.iePopUp.style.left   = o.div.style.left;
+                o.iePopUp.style.width  = osw + "px";
+                o.iePopUp.style.height = (osh - 2) + "px";
+            };
+        };
+
+        this.removeCursorHighlight = function() {
+            var td = document.getElementById(o.id + "-date-picker-hover");
+            if(td) {
+                removeClass(td, "date-picker-hover");
+            };
+        };
+
+        this.addCursorHighlight = function() {
+            var td = document.getElementById(o.id + "-date-picker-hover");
+            if(td) {
+                addClass(td, "date-picker-hover");
+            };
+        };
+        // Resets the tabindex of the previously focused cell
+        this.removeOldFocus = function() {
+            var td = document.getElementById(o.id + "-date-picker-hover");
+            if(td) {
+                try {
+                    setTabIndex(td, -1);
+                    removeClass(td, "date-picker-hover");
+                    td.id = "";
+                    td.onblur  = null;
+                    td.onfocus = null;
+                } catch(err) {};
+            };
+        };
+
+        // Sets the tabindex & focus on the currently highlighted cell
+        this.setNewFocus = function() {
+            var td = document.getElementById(o.id + "-date-picker-hover");
+            if(td) {
+                try {
+                    setTabIndex(td, 0);
+                    if(this.showCursor) {
+                        addClass(td, "date-picker-hover");
+                    };
+                    // If opened with the keyboard then add focus & blur events to the cell
+                    if(!this.clickActivated) {
+                        td.onblur    = o.onblur;
+                        td.onfocus   = o.onfocus;
+                    };
+
+                    // If opened with the keyboard (and not in opera) then add a screen-reader friendly date format
+                    if(!isOpera && !this.clickActivated) {
+                        o.addAccessibleDate();
+                    };
+
+                    // Try to programmatically set focus on the cell
+                    if(!this.noFocus && !this.clickActivated) {
+                        setTimeout(function() { try { td.focus(); } catch(err) {}; }, 0);
+                    };
+                } catch(err) { };
+            };
+        };
+
+        // Adds a screen-reader friendly date to the current cell whenever
+        // the datepicker has been opened with the keyboard
+        this.addAccessibleDate = function() {
+            var td   = document.getElementById(o.id + "-date-picker-hover");
+
+            if(td && !(td.getElementsByTagName("span").length)) {
+                var ymd = td.className.match(/cd-([\d]{4})([\d]{2})([\d]{2})/),
+                    noS = td.className.search(noSelectionRegExp) != -1,
+                    spn = document.createElement('span'),
+                    spnC;
+
+                spn.className       = "fd-screen-reader";
+
+                removeChildNodes(td);
+
+                if(noS) {
+                    spnC = spn.cloneNode(false);
+                    spnC.appendChild(document.createTextNode(getTitleTranslation(13)));
+                    td.appendChild(spnC);
+                };
+
+                for(var pt = 0, part; part = formatParts[pt]; pt++) {
+                    if(part == "%j" || part == "%d") {
+                        td.appendChild(document.createTextNode(printFormattedDate(new Date(ymd[1], +ymd[2]-1, ymd[3], 5, 0, 0), part, true)));
+                    } else {
+                        spnC = spn.cloneNode(false);
+                        spnC.appendChild(document.createTextNode(printFormattedDate(new Date(ymd[1], +ymd[2]-1, ymd[3], 5, 0, 0), part, true)));
+                        td.appendChild(spnC);
+                    };
+                };
+            };
+        };
+
+        // Sets the current cursor to a specific date
+        this.setCursorDate = function(yyyymmdd) {
+            if(String(yyyymmdd).search(/^([0-9]{8})$/) != -1) {
+                this.date = new Date(+yyyymmdd.substr(0,4), +yyyymmdd.substr(4,2) - 1, +yyyymmdd.substr(6,2), 5, 0, 0);
+                this.cursorDate = yyyymmdd;
+
+                if(this.staticPos) {
+                    this.updateTable();
+                };
+            };
+        };
+
+        // Updates the table used to display the datepicker
+        this.updateTable = function(noCallback) {
+            if(!o || o.inUpdate || !o.created) {
+                return;
+            };
+
+            // We are currently updating (used to stop public methods from firing)
+            o.inUpdate = true;
+
+            // Remove the focus from the currently highlighted cell
+            o.removeOldFocus();
+
+            o.div.dir = localeImport.rtl ? "rtl" : "ltr";
+
+            // If the update timer initiated
+            if(o.timerSet && !o.delayedUpdate) {
+                // Are we incrementing/decrementing the month
+                if(o.monthInc) {
+                    var n = o.date.getDate(),
+                        d = new Date(o.date);
+
+                    d.setDate(2);
+                    d.setMonth(d.getMonth() + o.monthInc * 1);
+                    // Don't go over the days in the month
+                    d.setDate(Math.min(n, daysInMonth(d.getMonth(),d.getFullYear())));
+
+                    o.date = new Date(d);
+                } else {
+                    o.date.setDate(Math.min(o.date.getDate()+o.dayInc, daysInMonth(o.date.getMonth()+o.monthInc,o.date.getFullYear()+o.yearInc)));
+                    o.date.setMonth(o.date.getMonth() + o.monthInc);
+                    o.date.setFullYear(o.date.getFullYear() + o.yearInc);
+                };
+            };
+
+            // Make sure the internal date is within range
+            o.outOfRange();
+
+            // Disable/enable the today button
+            if(!o.noToday) {
+                o.disableTodayButton();
+            };
+
+            // Disable/enable the month & year buttons
+            o.showHideButtons(o.date);
+
+            var cd = o.date.getDate(),
+                cm = o.date.getMonth(),
+                cy = o.date.getFullYear(),
+                cursorDate = (String(cy) + pad(cm+1) + pad(cd)),
+                tmpDate    = new Date(cy, cm, 1, 5, 0, 0);
+
+            tmpDate.setHours(5);
+
+            var dt, dts, cName, row, td, i, currentDate, cellAdded, col, currentStub, abbr, bespokeRenderClass, spnC, dateSetD, selectable, weekDay,
+                // Weekday of the fist of the month
+                weekDayC            = (tmpDate.getDay() + 6) % 7,
+                // The column index this weekday will occupy
+                firstColIndex       = (((weekDayC - o.firstDayOfWeek) + 7 ) % 7) - 1,
+                // The number of days in the current month
+                dpm                 = daysInMonth(cm, cy),
+                // Today as a Date Object
+                today               = new Date(),
+                // Today as a YYYYMMDD String
+                today               = today.getFullYear() + pad(today.getMonth()+1) + pad(today.getDate()),
+                // A Sring date stub in a YYYYMM format for the current date
+                stub                = String(tmpDate.getFullYear()) + pad(tmpDate.getMonth()+1),
+                //
+                cellAdded           = [4,4,4,4,4,4],
+                // The first day of the previous month as a Date Object
+                lm                  = new Date(cy, cm-1, 1, 5, 0, 0),
+                // The first day of the next month as a Date Object
+                nm                  = new Date(cy, cm+1, 1, 5, 0, 0),
+                // The number of days in the previous month
+                daySub              = daysInMonth(lm.getMonth(), lm.getFullYear()),
+                // YYYYMM String date stub for the next month
+                stubN               = String(nm.getFullYear()) + pad(nm.getMonth()+1),
+                // YYYYMM String date stub for the previous month
+                stubP               = String(lm.getFullYear()) + pad(lm.getMonth()+1),
+                weekDayN            = (nm.getDay() + 6) % 7,
+                weekDayP            = (lm.getDay() + 6) % 7,
+                // A SPAN node to clone when adding dates to individual cells
+                spn                 = document.createElement('span');
+
+            // Give the "fd-screen-reader" class to the span in order to hide them in the UI
+            // but keep them accessible to screen-readers
+            spn.className       = "fd-screen-reader";
+
+            // The first & last dates shown on the datepicker UI - could be a date from the previous & next month respectively
+            o.firstDateShown    = !o.constrainSelection && o.fillGrid && (0 - firstColIndex < 1) ? String(stubP) + (daySub + (0 - firstColIndex)) : stub + "01";
+            o.lastDateShown     = !o.constrainSelection && o.fillGrid ? stubN + pad(41 - firstColIndex - dpm) : stub + String(dpm);
+
+            // Store a reference to the current YYYYMM String representation of the current month
+            o.currentYYYYMM     = stub;
+
+            bespokeRenderClass  = o.callback("redraw", {id:o.id, dd:pad(cd), mm:pad(cm+1), yyyy:cy, firstDateDisplayed:o.firstDateShown, lastDateDisplayed:o.lastDateShown}) || {};
+
+            // An Object of dates that have been explicitly disabled (1) or enabled (0)
+            dts                 = o.getDateExceptions(cy, cm+1);
+
+            // Double check current date within limits etc
+            o.checkSelectedDate();
+            //
+            dateSetD            = (o.dateSet != null) ? o.dateSet.getFullYear() + pad(o.dateSet.getMonth()+1) + pad(o.dateSet.getDate()) : false;
+
+            // If we have selected a date then set its ARIA selected property
+            // to false. We then set the ARIA selected property to true on the
+            // newly selected cell after redrawing the table
+            if(this.selectedTD != null) {
+                setARIAProperty(this.selectedTD, "selected", false);
+                this.selectedTD = null;
+            };
+
+            // Redraw all of the table cells representing the date parts of the UI
+            for(var curr = 0; curr < 42; curr++) {
+                // Current row
+                row  = Math.floor(curr / 7);
+                // Current TD node
+                td   = o.tds[curr];
+                // Clone our SPAN node
+                spnC = spn.cloneNode(false);
+                // Remove any previous contents from the cell
+                removeChildNodes(td);
+
+                // If the current cell contains a date
+                if((curr > firstColIndex && curr <= (firstColIndex + dpm)) || o.fillGrid) {
+                    currentStub     = stub;
+                    weekDay         = weekDayC;
+                    dt              = curr - firstColIndex;
+                    cName           = [];
+                    selectable      = true;
+
+                    // Are we drawing last month
+                    if(dt < 1) {
+                        dt              = daySub + dt;
+                        currentStub     = stubP;
+                        weekDay         = weekDayP;
+                        selectable      = !o.constrainSelection;
+                        cName.push("month-out");
+                    // Are we drawing next month
+                    } else if(dt > dpm) {
+                        dt -= dpm;
+                        currentStub     = stubN;
+                        weekDay         = weekDayN;
+                        selectable      = !o.constrainSelection;
+                        cName.push("month-out");
+                    };
+
+                    // Calcuate this cells weekday
+                    weekDay = (weekDay + dt + 6) % 7;
+
+                    // Push a classname representing the weekday e.g. "day-3"
+                    cName.push("day-" + weekDay + " cell-" + curr);
+
+                    // A YYYYMMDD String representation of this cells date
+                    currentDate = currentStub + String(dt < 10 ? "0" : "") + dt;
+
+                    // If this cells date is out of range
+                    if(o.rangeLow && +currentDate < +o.rangeLow || o.rangeHigh && +currentDate > +o.rangeHigh) {
+                        // Add a classname to style the cell and stop selection
+                        td.className = "out-of-range";
+                        // Reset this TD nodes title attribute
+                        td.title = "";
+                        // Append the cells date as a text node to the TD
+                        td.appendChild(document.createTextNode(dt));
+                        // Jaysus, what the feck does this line do again...
+                        if(o.showWeeks) {
+                            cellAdded[row] = Math.min(cellAdded[row], 2);
+                        };
+                    // This cells date is within the lower & upper ranges (or no ranges have been defined)
+                    } else {
+                        // If it's a date from last or next month and the "constrainSelection" option
+                        // is false then give the cell a CD-YYYYMMDD class
+                        if(selectable) {
+                            td.title = titleFormat ? printFormattedDate(new Date(+String(currentStub).substr(0,4), +String(currentStub).substr(4, 2) - 1, +dt, 5, 0, 0), titleFormat, true) : "";
+                            cName.push("cd-" + currentDate + " yyyymmdd-" + currentDate + " yyyymm-" + currentStub + " mmdd-" + currentStub.substr(4,2) + pad(dt));
+                        // Otherwise give a "not-selectable" class (which shouldn't be styled in any way, it's for internal use)
+                        } else {
+                            td.title = titleFormat ? getTitleTranslation(13) + " " + printFormattedDate(new Date(+String(currentStub).substr(0,4), +String(currentStub).substr(4, 2) - 1, +dt, 5, 0, 0), titleFormat, true) : "";
+                            cName.push("yyyymmdd-" + currentDate + " yyyymm-" + currentStub + " mmdd-" + currentStub.substr(4,2) + pad(dt) + " not-selectable");
+                        };
+
+                        // Add a classname if the current cells date is today
+                        if(currentDate == today) {
+                            cName.push("date-picker-today");
+                        };
+
+                        // If this cell represents the currently selected date
+                        if(dateSetD == currentDate) {
+                            // Add a classname (for styling purposes)
+                            cName.push("date-picker-selected-date");
+                            // Set the ARIA selected property to true
+                            setARIAProperty(td, "selected", "true");
+                            // And cache a reference to the current cell
+                            this.selectedTD = td;
+                        };
+
+                        // If the current cell has been explicitly disabled
+                        if(((currentDate in dts) && dts[currentDate] == 1)
+                           // or
+                           ||
+                           // ... the current weekday has been disabled
+                           (o.disabledDays[weekDay]
+                            &&
+                           // ... and the current date has not been explicitly enabled
+                           !((currentDate in dts) && dts[currentDate] == 0)
+                           )
+                          ) {
+                            // Add a classname to style the cell and stop selection
+                            cName.push("day-disabled");
+                            // Update the current cells title to say "Disabled date: ..." (or whatever the translation says)
+                            if(titleFormat && selectable) {
+                                td.title = getTitleTranslation(13) + " " + td.title;
+                            };
+                        };
+
+                        // Has the redraw callback given us a bespoke classname to add to this cell
+                        if(currentDate in bespokeRenderClass) {
+                            cName.push(bespokeRenderClass[currentDate]);
+                        };
+
+                        // Do we need to highlight this cells weekday representation
+                        if(o.highlightDays[weekDay]) {
+                            cName.push("date-picker-highlight");
+                        };
+
+                        // Is the current onscreen cursor set to this cells date
+                        if(cursorDate == currentDate) {
+                            td.id = o.id + "-date-picker-hover";
+                        };
+
+                        // Add the date to the TD cell as a text node. Note: If the datepicker has been given keyboard
+                        // events, this textnode is replaced by a more screen-reader friendly date during the focus event
+                        td.appendChild(document.createTextNode(dt));
+
+                        // Add the classnames to the TD node
+                        td.className = cName.join(" ");
+
+                        // If the UI displays week numbers then update the celladded
+                        if(o.showWeeks) {
+                            cellAdded[row] = Math.min(cName[0] == "month-out" ? 3 : 1, cellAdded[row]);
+                        };
+                    };
+                // The current TD node is empty i.e. represents no date in the UI
+                } else {
+                    // Add a classname to style the cell
+                    td.className = "date-picker-unused";
+                    // Add a non-breaking space to unused TD node (for IEs benefit mostly)
+                    td.appendChild(document.createTextNode(nbsp));
+                    // Reset the TD nodes title attribute
+                    td.title = "";
+                };
+                // Do we update the week number for this row
+                if(o.showWeeks && curr - (row * 7) == 6) {
+                    removeChildNodes(o.wkThs[row]);
+                    o.wkThs[row].appendChild(document.createTextNode(cellAdded[row] == 4 && !o.fillGrid ? nbsp : getWeekNumber(cy, cm, curr - firstColIndex - 6)));
+                    o.wkThs[row].className = "date-picker-week-header" + (["",""," out-of-range"," month-out",""][cellAdded[row]]);
+                };
+            };
+
+            // Update the UI title bar displaying the year & month
+            var span = o.titleBar.getElementsByTagName("span");
+            removeChildNodes(span[0]);
+            removeChildNodes(span[1]);
+            span[0].appendChild(document.createTextNode(getMonthTranslation(cm, false) + nbsp));
+            span[1].appendChild(document.createTextNode(cy));
+
+            // If we are in an animation
+            if(o.timerSet) {
+                // Speed the timer up a little bit to make the pause between updates quicker
+                o.timerInc = 50 + Math.round(((o.timerInc - 50) / 1.8));
+                // Recall this function in a timeout
+                o.timer = window.setTimeout(o.updateTable, o.timerInc);
+            };
+
+            // We are not currently updating the UI
+            o.inUpdate = o.delayedUpdate = false;
+            // Focus on the correct TD node
+            o.setNewFocus();
+        };
+
+        // Removes all scaffold from the DOM & events from memory
+        this.destroy = function() {
+
+            // Remove the button if it exists
+            if(document.getElementById("fd-but-" + this.id)) {
+                document.getElementById("fd-but-" + this.id).parentNode.removeChild(document.getElementById("fd-but-" + this.id));
+            };
+
+            if(!this.created) {
+                return;
+            };
+
+            // Event cleanup for Internet Explorers benefit
+            removeEvent(this.table, "mousedown", o.onmousedown);
+            removeEvent(this.table, "mouseover", o.onmouseover);
+            removeEvent(this.table, "mouseout", o.onmouseout);
+            removeEvent(document, "mousedown", o.onmousedown);
+            removeEvent(document, "mouseup",   o.clearTimer);
+
+            if (window.addEventListener && !window.devicePixelRatio) {
+                try {
+                    window.removeEventListener('DOMMouseScroll', this.onmousewheel, false);
+                } catch(err) {};
+            } else {
+                removeEvent(document, "mousewheel", this.onmousewheel);
+                removeEvent(window,   "mousewheel", this.onmousewheel);
+            };
+            o.removeOnFocusEvents();
+            clearTimeout(o.fadeTimer);
+            clearTimeout(o.timer);
+
+            if(oldIE === 6 && !o.staticPos) {
+                try {
+                    o.iePopUp.parentNode.removeChild(o.iePopUp);
+                    o.iePopUp = null;
+                } catch(err) {};
+            };
+
+            if(this.div && this.div.parentNode) {
+                this.div.parentNode.removeChild(this.div);
+            };
+
+            o = null;
+        };
+
+        this.resizeInlineDiv = function()  {
+            o.div.style.width = o.table.offsetWidth + "px";
+            o.div.style.height = o.table.offsetHeight + "px";
+        };
+
+        this.reset = function() {
+            var elemID, elem;
+            for(elemID in o.formElements) {
+                elem = document.getElementById(elemID);
+                if(elem) {
+                    if(elem.tagName.toLowerCase() == "select") {
+                        elem.selectedIndex = o.defaultVals[elemID];
+                    } else {
+                        elem.value = o.defaultVals[elemID];
+                    };
+                };
+            };
+            o.changeHandler();
+        };
+
+        // Creates the DOM scaffold
+        this.create = function() {
+
+            if(document.getElementById("fd-" + this.id)) {
+                return;
+            };
+
+            var tr, row, col, tableHead, tableBody, tableFoot;
+
+            this.noFocus = true;
+
+            function createTH(details) {
+                var th = document.createElement('th');
+                if(details.thClassName) {
+                    th.className = details.thClassName;
+                };
+                if(details.colspan) {
+                    th.setAttribute(oldIE ? 'colSpan' : "colspan", details.colspan);
+                };
+                th.unselectable = "on";
+                return th;
+            };
+            function createThAndButton(tr, obj) {
+                for(var i = 0, details; details = obj[i]; i++) {
+                    var th = createTH(details);
+                    tr.appendChild(th);
+                    var but = document.createElement('span');
+                    but.className = details.className;
+                    but.id = o.id + details.id;
+                    but.appendChild(document.createTextNode(details.text || o.nbsp));
+                    but.title = details.title || "";
+                    but.unselectable = "on";
+                    th.appendChild(but);
+                };
+            };
+
+            this.div                     = document.createElement('div');
+            this.div.id                  = "fd-" + this.id;
+            this.div.className           = "date-picker" + (cssAnimations ? " fd-dp-fade " : "") + this.bespokeClass;
+
+            // Attempt to hide the div from screen readers during content creation
+            this.div.style.visibility = "hidden";
+            this.div.style.display = "none";
+
+            // Set the ARIA describedby property if the required block available
+            if(this.describedBy && document.getElementById(this.describedBy)) {
+                setARIAProperty(this.div, "describedby", this.describedBy);
+            };
+
+            // Set the ARIA labelled property if the required label available
+            if(this.labelledBy) {
+                setARIAProperty(this.div, "labelledby", this.labelledBy.id);
+            };
+
+            this.idiv                     = document.createElement('div');
+
+            this.table             = document.createElement('table');
+            this.table.className   = "date-picker-table";
+            this.table.onmouseover = this.onmouseover;
+            this.table.onmouseout  = this.onmouseout;
+            this.table.onclick     = this.onclick;
+
+            if(this.finalOpacity < 100) {
+                this.idiv.style.opacity = Math.min(Math.max(parseInt(this.finalOpacity, 10) / 100, .2), 1);
+            };
+
+            if(this.staticPos) {
+                this.table.onmousedown  = this.onmousedown;
+            };
+
+            this.div.appendChild(this.idiv);
+            this.idiv.appendChild(this.table);
+
+            var dragEnabledCN = !this.dragDisabled ? " drag-enabled" : "";
+
+            if(!this.staticPos) {
+                this.div.style.visibility = "hidden";
+                this.div.className += dragEnabledCN;
+                document.getElementsByTagName('body')[0].appendChild(this.div);
+
+                if(oldIE === 6) {
+                    this.iePopUp = document.createElement('iframe');
+                    this.iePopUp.src = "javascript:'<html></html>';";
+                    this.iePopUp.setAttribute('className','iehack');
+                    // Remove iFrame from tabIndex
+                    this.iePopUp.setAttribute("tabIndex", -1);
+                    // Hide it from ARIA aware technologies
+                    setARIARole(this.iePopUp, "presentation");
+                    setARIAProperty(this.iePopUp, "hidden", "true");
+                    this.iePopUp.scrolling = "no";
+                    this.iePopUp.frameBorder = "0";
+                    this.iePopUp.name = this.iePopUp.id = this.id + "-iePopUpHack";
+                    document.body.appendChild(this.iePopUp);
+                };
+
+                // Aria "hidden" property for non active popup datepickers
+                setARIAProperty(this.div, "hidden", "true");
+            } else {
+                var elem = document.getElementById(this.positioned ? this.positioned : this.id);
+                if(!elem) {
+                    this.div = null;
+                    if(debug) {
+                        throw this.positioned ? "Could not locate a datePickers associated parent element with an id:" + this.positioned : "Could not locate a datePickers associated input with an id:" + this.id;
+                    };
+                    return;
+                };
+
+                this.div.className += " static-datepicker";
+
+                if(this.positioned) {
+                    elem.appendChild(this.div);
+                } else {
+                    elem.parentNode.insertBefore(this.div, elem.nextSibling);
+                };
+
+                if(this.hideInput) {
+                    for(var elemID in this.formElements) {
+                        elem = document.getElementById(elemID);
+                        if(elem) {
+                            elem.className += " fd-hidden-input";
+                        };
+                    };
+                };
+
+                setTimeout(this.resizeInlineDiv, 300);
+            };
+            // ARIA Application role
+            setARIARole(this.div, "application");
+            //setARIARole(this.table, "grid");
+
+            if(this.statusFormat) {
+                tableFoot = document.createElement('tfoot');
+                this.table.appendChild(tableFoot);
+                tr = document.createElement('tr');
+                tr.className = "date-picker-tfoot";
+                tableFoot.appendChild(tr);
+                this.statusBar = createTH({thClassName:"date-picker-statusbar" + dragEnabledCN, colspan:this.showWeeks ? 8 : 7});
+                tr.appendChild(this.statusBar);
+                this.updateStatus();
+            };
+
+            tableHead = document.createElement('thead');
+            tableHead.className = "date-picker-thead";
+            this.table.appendChild(tableHead);
+
+            tr  = document.createElement('tr');
+            setARIARole(tr, "presentation");
+
+            tableHead.appendChild(tr);
+
+            // Title Bar
+            this.titleBar = createTH({thClassName:"date-picker-title" + dragEnabledCN, colspan:this.showWeeks ? 8 : 7});
+
+            tr.appendChild(this.titleBar);
+            tr = null;
+
+            var span = document.createElement('span');
+            span.appendChild(document.createTextNode(nbsp));
+            span.className = "month-display" + dragEnabledCN;
+            this.titleBar.appendChild(span);
+
+            span = document.createElement('span');
+            span.appendChild(document.createTextNode(nbsp));
+            span.className = "year-display" + dragEnabledCN;
+            this.titleBar.appendChild(span);
+
+            span = null;
+
+            tr  = document.createElement('tr');
+            setARIARole(tr, "presentation");
+            tableHead.appendChild(tr);
+
+            createThAndButton(tr, [
+            {className:"prev-but prev-year",  id:"-prev-year-but", text:"\u00AB", title:getTitleTranslation(2) },
+            {className:"prev-but prev-month", id:"-prev-month-but", text:"\u2039", title:getTitleTranslation(0) },
+            {colspan:this.showWeeks ? 4 : 3, className:"today-but", id:"-today-but", text:getTitleTranslation(4)},
+            {className:"next-but next-month", id:"-next-month-but", text:"\u203A", title:getTitleTranslation(1)},
+            {className:"next-but next-year",  id:"-next-year-but", text:"\u00BB", title:getTitleTranslation(3) }
+            ]);
+
+            tableBody = document.createElement('tbody');
+            this.table.appendChild(tableBody);
+
+            var colspanTotal = this.showWeeks ? 8 : 7,
+                colOffset    = this.showWeeks ? 0 : -1,
+                but, abbr, formElemId, formElem;
+
+            for(var rows = 0; rows < 7; rows++) {
+                row = document.createElement('tr');
+
+                if(rows != 0) {
+                    // ARIA Grid role
+                    setARIARole(row, "row");
+                    tableBody.appendChild(row);
+                } else {
+                    tableHead.appendChild(row);
+                };
+
+                for(var cols = 0; cols < colspanTotal; cols++) {
+                    if(rows === 0 || (this.showWeeks && cols === 0)) {
+                        col = document.createElement('th');
+                    } else {
+                        col = document.createElement('td');
+                        setARIAProperty(col, "describedby", this.id + "-col-" + cols + (this.showWeeks ? " " + this.id + "-row-" + rows : ""));
+                        setARIAProperty(col, "selected", "false");
+                    };
+
+                    if(oldIE) {
+                        col.unselectable = "on";
+                    };
+
+                    row.appendChild(col);
+                    if((this.showWeeks && cols > 0 && rows > 0) || (!this.showWeeks && rows > 0)) {
+                        //setARIARole(col, "gridcell");
+                    } else {
+                        if(rows === 0 && cols > colOffset) {
+                            col.className = "date-picker-day-header";
+                            col.scope = "col";
+                            //setARIARole(col, "columnheader");
+                            col.id = this.id + "-col-" + cols;
+                        } else {
+                            col.className = "date-picker-week-header";
+                            col.scope = "row";
+                            //setARIARole(col, "rowheader");
+                            col.id = this.id + "-row-" + rows;
+                        };
+                    };
+                };
+            };
+
+            col = row = null;
+
+            this.ths = this.table.getElementsByTagName('thead')[0].getElementsByTagName('tr')[2].getElementsByTagName('th');
+
+            for (var y = 0; y < colspanTotal; y++) {
+
+                if(y == 0 && this.showWeeks) {
+                    this.ths[y].appendChild(document.createTextNode(getTitleTranslation(6)));
+                    this.ths[y].title = getTitleTranslation(8);
+                    continue;
+                };
+
+                if(y > (this.showWeeks ? 0 : -1)) {
+                    but = document.createElement("span");
+                    but.className = "fd-day-header";
+                    if(oldIE) {
+                        but.unselectable = "on";
+                    };
+                    this.ths[y].appendChild(but);
+                };
+            };
+
+            but = null;
+
+            this.trs             = this.table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+            this.tds             = this.table.getElementsByTagName('tbody')[0].getElementsByTagName('td');
+            this.butPrevYear     = document.getElementById(this.id + "-prev-year-but");
+            this.butPrevMonth    = document.getElementById(this.id + "-prev-month-but");
+            this.butToday        = document.getElementById(this.id + "-today-but");
+            this.butNextYear     = document.getElementById(this.id + "-next-year-but");
+            this.butNextMonth    = document.getElementById(this.id + "-next-month-but");
+
+            if(this.noToday) {
+                this.butToday.style.display = "none";
+            };
+
+            if(this.showWeeks) {
+                this.wkThs = this.table.getElementsByTagName('tbody')[0].getElementsByTagName('th');
+                this.div.className += " weeks-displayed";
+            };
+
+            tableBody = tableHead = tr = createThAndButton = createTH = null;
+
+            this.updateTableHeaders();
+            this.created = true;
+            this.updateTable();
+
+            if(this.staticPos) {
+                this.visible = true;
+                this.opacity = 100;
+                this.div.style.visibility = "visible";
+                this.div.style.display = "block";
+                this.noFocus = true;
+                this.fade();
+            } else {
+                this.reposition();
+                this.div.style.visibility = "visible";
+                this.fade();
+                this.noFocus = true;
+            };
+
+            this.callback("domcreate", { "id":this.id });
+        };
+
+        this.transEnd = function() {
+            o.div.style.display     = "none";
+            o.div.style.visibility  = "hidden";
+            setARIAProperty(o.div, "hidden", "true");
+        };
+
+        this.fade = function() {
+            window.clearTimeout(o.fadeTimer);
+            o.fadeTimer = null;
+            if(cssAnimations) {
+                o.opacity = o.opacityTo;
+                if(o.opacityTo == 0) {
+                    o.visible = false;
+                    addEvent(o.div, transitionEnd, o.transEnd);
+                    addClass(o.div, "fd-dp-fade");
+                } else {
+                    removeEvent(o.div, transitionEnd, o.transEnd);
+                    o.visible               = true;
+                    o.div.style.display     = "block";
+                    o.div.style.visibility  = "visible";
+                    setARIAProperty(o.div, "hidden", "false");
+                    removeClass(o.div, "fd-dp-fade");
+                };
+                return;
+            };
+
+            var diff = Math.round(o.opacity + ((o.opacityTo - o.opacity) / 4));
+            o.setOpacity(diff);
+            if(Math.abs(o.opacityTo - diff) > 3 && !o.noFadeEffect) {
+                o.fadeTimer = window.setTimeout(o.fade, 50);
+            } else {
+                o.setOpacity(o.opacityTo);
+                if(o.opacityTo == 0) {
+                    o.div.style.display    = "none";
+                    o.div.style.visibility = "hidden";
+                    setARIAProperty(o.div, "hidden", "true");
+                    o.visible = false;
+                } else {
+                    setARIAProperty(o.div, "hidden", "false");
+                    o.visible = true;
+                };
+            };
+        };
+        this.trackDrag = function(e) {
+            e = e || window.event;
+            var diffx = (e.pageX?e.pageX:e.clientX?e.clientX:e.x) - o.mx;
+            var diffy = (e.pageY?e.pageY:e.clientY?e.clientY:e.Y) - o.my;
+            o.div.style.left = Math.round(o.x + diffx) > 0 ? Math.round(o.x + diffx) + 'px' : "0px";
+            o.div.style.top  = Math.round(o.y + diffy) > 0 ? Math.round(o.y + diffy) + 'px' : "0px";
+            if(oldIE === 6 && !o.staticPos) {
+                o.iePopUp.style.top    = o.div.style.top;
+                o.iePopUp.style.left   = o.div.style.left;
+            };
+        };
+        this.stopDrag = function(e) {
+            var b = document.getElementsByTagName("body")[0];
+            removeClass(b, "fd-drag-active");
+            removeEvent(document,'mousemove',o.trackDrag, false);
+            removeEvent(document,'mouseup',o.stopDrag, false);
+            o.div.style.zIndex = 9999;
+        };
+        this.onmousedown = function(e) {
+            e = e || document.parentWindow.event;
+            var el     = e.target != null ? e.target : e.srcElement,
+                origEl = el,
+                hideDP = true,
+                reg    = new RegExp("^fd-(but-)?" + o.id + "$");
+
+            o.mouseDownElem = null;
+
+            // Are we within the wrapper div or the button
+            while(el) {
+                if(el.id && el.id.length && el.id.search(reg) != -1) {
+                    hideDP = false;
+                    break;
+                };
+                try {
+                    el = el.parentNode;
+                } catch(err) {
+                    break;
+                };
+            };
+
+            // If not, then ...
+            if(hideDP) {
+                hideAll();
+                return true;
+            };
+
+            if((o.div.className + origEl.className).search('fd-disabled') != -1) {
+                return true;
+            };
+
+            // We check the mousedown events on the buttons
+            if(origEl.id.search(new RegExp("^" + o.id + "(-prev-year-but|-prev-month-but|-next-month-but|-next-year-but)$")) != -1) {
+
+                o.mouseDownElem = origEl;
+
+                addEvent(document, "mouseup", o.clearTimer);
+                addEvent(origEl, "mouseout",  o.clearTimer);
+
+                var incs = {
+                        "-prev-year-but":[0,-1,0],
+                        "-prev-month-but":[0,0,-1],
+                        "-next-year-but":[0,1,0],
+                        "-next-month-but":[0,0,1]
+                    },
+                    check = origEl.id.replace(o.id, ""),
+                    dateYYYYMM = Number(o.date.getFullYear() + pad(o.date.getMonth()+1));
+
+                o.timerInc      = 800;
+                o.timerSet      = true;
+                o.dayInc        = incs[check][0];
+                o.yearInc       = incs[check][1];
+                o.monthInc      = incs[check][2];
+                o.accellerator  = 1;
+
+                if(!(o.currentYYYYMM == dateYYYYMM)) {
+                    if((o.currentYYYYMM < dateYYYYMM && (o.yearInc == -1 || o.monthInc == -1)) || (o.currentYYYYMM > dateYYYYMM && (o.yearInc == 1 || o.monthInc == 1))) {
+                        o.delayedUpdate = false;
+                        o.timerInc = 1200;
+                    } else {
+                        o.delayedUpdate = true;
+                    };
+                };
+
+                o.updateTable();
+
+                return stopEvent(e);
+
+            } else if(el.className.search("drag-enabled") != -1) {
+                    o.mx = e.pageX ? e.pageX : e.clientX ? e.clientX : e.x;
+                    o.my = e.pageY ? e.pageY : e.clientY ? e.clientY : e.Y;
+                    o.x  = parseInt(o.div.style.left, 10);
+                    o.y  = parseInt(o.div.style.top, 10);
+                    addEvent(document,'mousemove',o.trackDrag, false);
+                    addEvent(document,'mouseup',o.stopDrag, false);
+                    addClass(document.getElementsByTagName("body")[0], "fd-drag-active");
+                    o.div.style.zIndex = 10000;
+
+                    return stopEvent(e);
+            };
+            return true;
+        };
+        this.onclick = function(e) {
+            if((!cssAnimations && o.opacity != o.opacityTo) || o.disabled) {
+                return stopEvent(e);
+            };
+
+            e = e || document.parentWindow.event;
+            var el = e.target != null ? e.target : e.srcElement;
+
+            while(el.parentNode) {
+                // Are we within a valid i.e. clickable TD node
+                if(el.tagName && el.tagName.toLowerCase() == "td") {
+
+                    if(el.className.search(/cd-([0-9]{8})/) == -1 || el.className.search(noSelectionRegExp) != -1) {
+                        return stopEvent(e);
+                    };
+
+                    var cellDate = el.className.match(/cd-([0-9]{8})/)[1];
+                    o.date       = new Date(cellDate.substr(0,4),cellDate.substr(4,2)-1,cellDate.substr(6,2), 5, 0, 0);
+                    o.dateSet    = new Date(o.date);
+                    o.noFocus    = true;
+                    o.callback("dateset", { "id":o.id, "date":o.dateSet, "dd":o.dateSet.getDate(), "mm":o.dateSet.getMonth() + 1, "yyyy":o.dateSet.getFullYear() });
+                    o.returnFormattedDate();
+                    o.hide();
+                    o.stopTimer();
+                    break;
+                } else if(el.id && el.id == o.id + "-today-but") {
+                    o.date = new Date();
+                    o.updateTable();
+                    o.stopTimer();
+                    break;
+                } else if(el.className.search(/date-picker-day-header/) != -1) {
+                    var cnt = o.showWeeks ? -1 : 0,
+                        elem = el;
+
+                    while(elem.previousSibling) {
+                        elem = elem.previousSibling;
+                        if(elem.tagName && elem.tagName.toLowerCase() == "th") {
+                            cnt++;
+                        };
+                    };
+
+                    o.firstDayOfWeek = (o.firstDayOfWeek + cnt) % 7;
+                    o.updateTableHeaders();
+                    break;
+                };
+                try {
+                    el = el.parentNode;
+                } catch(err) {
+                    break;
+                };
+            };
+
+            return stopEvent(e);
+        };
+
+        this.show = function(autoFocus) {
+            if(this.staticPos) {
+                return;
+            };
+
+            var elem, elemID;
+            for(elemID in this.formElements) {
+                elem = document.getElementById(this.id);
+                if(!elem || (elem && elem.disabled)) {
+                    return;
+                };
+            };
+
+            this.noFocus = true;
+
+            // If the datepicker doesn't exist in the dom
+            if(!this.created || !document.getElementById('fd-' + this.id)) {
+                this.created    = false;
+                this.fullCreate = false;
+                this.create();
+                this.fullCreate = true;
+            } else {
+                this.setDateFromInput();
+                this.reposition();
+            };
+
+            this.noFocus = !!!autoFocus;
+
+            if(this.noFocus) {
+                this.clickActivated = true;
+                this.showCursor = false;
+                addEvent(document, "mousedown", this.onmousedown);
+                if(mouseWheel) {
+                    if (window.addEventListener && !window.devicePixelRatio) {
+                        window.addEventListener('DOMMouseScroll', this.onmousewheel, false);
+                    } else {
+                        addEvent(document, "mousewheel", this.onmousewheel);
+                        addEvent(window,   "mousewheel", this.onmousewheel);
+                    };
+                };
+            } else {
+                this.clickActivated = false;
+                this.showCursor = true;
+            };
+
+            this.opacityTo = 100;
+            this.div.style.display = "block";
+
+            if(oldIE === 6) {
+                this.iePopUp.style.width    = this.div.offsetWidth + "px";
+                this.iePopUp.style.height   = this.div.offsetHeight + "px";
+                this.iePopUp.style.display  = "block";
+            };
+
+            this.setNewFocus();
+            this.fade();
+            var butt = document.getElementById('fd-but-' + this.id);
+            if(butt) {
+                  addClass(butt, "date-picker-button-active");
+            };
+        };
+
+        this.hide = function() {
+            if(!this.visible || !this.created || !document.getElementById('fd-' + this.id)) {
+                return;
+            };
+
+            this.kbEvent = false;
+
+            removeClass(o.div, "date-picker-focus");
+
+            this.stopTimer();
+            this.removeOnFocusEvents();
+            this.clickActivated = false;
+            this.noFocus = true;
+            this.showCursor = false;
+            this.setNewFocus();
+
+            if(this.staticPos) {
+                return;
+            };
+
+            if(this.statusBar) {
+                this.updateStatus(getTitleTranslation(9));
+            };
+
+            var butt = document.getElementById('fd-but-' + this.id);
+
+            if(butt) {
+                removeClass(butt, "date-picker-button-active");
+            };
+
+            removeEvent(document, "mousedown", this.onmousedown);
+
+            if(mouseWheel) {
+                if (window.addEventListener && !window.devicePixelRatio) {
+                    try {
+                        window.removeEventListener('DOMMouseScroll', this.onmousewheel, false);
+                    } catch(err) {};
+                } else {
+                    removeEvent(document, "mousewheel", this.onmousewheel);
+                    removeEvent(window,   "mousewheel", this.onmousewheel);
+                };
+            };
+
+
+            if(oldIE === 6) {
+                this.iePopUp.style.display = "none";
+            };
+
+            this.opacityTo = 0;
+            this.fade();
+        };
+
+        this.onblur = function(e) {
+            o.removeCursorHighlight();
+            o.hide();
+        };
+        // The current cursor cell gains focus
+        this.onfocus = function(e) {
+            o.noFocus = false;
+            addClass(o.div, "date-picker-focus");
+            if(o.statusBar) {
+                o.updateStatus(printFormattedDate(o.date, o.statusFormat, true));
+            };
+            o.showCursor = true;
+            o.addCursorHighlight();
+            o.addOnFocusEvents();
+        };
+        this.onmousewheel = function(e) {
+            e = e || document.parentWindow.event;
+            var delta = 0;
+
+            if (e.wheelDelta) {
+                delta = e.wheelDelta/120;
+                if (isOpera && window.opera.version() < 9.2) {
+                    delta = -delta;
+                };
+            } else if(e.detail) {
+                delta = -e.detail/3;
+            };
+
+            var n = o.date.getDate(),
+                d = new Date(o.date),
+                inc = delta > 0 ? 1 : -1;
+
+            d.setDate(2);
+            d.setMonth(d.getMonth() + inc * 1);
+            d.setDate(Math.min(n, daysInMonth(d.getMonth(),d.getFullYear())));
+
+            if(o.outOfRange(d)) {
+                return stopEvent(e);
+            };
+
+            o.date = new Date(d);
+
+            o.updateTable();
+
+            if(o.statusBar) {
+                o.updateStatus(printFormattedDate(o.date, o.statusFormat, true));
+            };
+
+            return stopEvent(e);
+        };
+        this.onkeydown = function (e) {
+            o.stopTimer();
+
+            if(!o.visible) {
+                return false;
+            };
+
+            e = e || document.parentWindow.event;
+
+            var kc = e.keyCode ? e.keyCode : e.charCode;
+
+            if(kc == 13) {
+                // RETURN/ENTER: close & select the date
+                var td = document.getElementById(o.id + "-date-picker-hover");
+                if(!td || td.className.search(/cd-([0-9]{8})/) == -1 || td.className.search(/out-of-range|day-disabled/) != -1) {
+                    return stopEvent(e);
+                };
+                o.dateSet = new Date(o.date);
+                o.callback("dateset", o.createCbArgObj());
+                o.returnFormattedDate();
+                o.hide();
+                return stopEvent(e);
+            } else if(kc == 27) {
+                // ESC: close, no date selection, refocus on popup button
+                if(!o.staticPos) {
+                    o.hide();
+                    var butt = document.getElementById('fd-but-' + o.id);
+                    if(butt) {
+                        setTimeout(function(){try{butt.focus()}catch(err){}},0);
+                    };
+                    return stopEvent(e);
+                };
+                return true;
+            } else if(kc == 32 || kc == 0) {
+                // SPACE: goto todays date
+                o.date = new Date();
+                o.updateTable();
+
+                return stopEvent(e);
+            } else if(kc == 9) {
+                // TAB: pass focus - non popup datepickers only
+                if(!o.staticPos) {
+                    return stopEvent(e);
+                };
+                return true;
+            };
+            // TODO - test the need for the IE specific stuff in IE9
+
+            // Internet Explorer fires the keydown event faster than the JavaScript engine can
+            // update the interface. The following attempts to fix this.
+
+            if(oldIE) {
+                if(new Date().getTime() - o.interval.getTime() < 50) { return stopEvent(e); };
+                o.interval = new Date();
+            };
+
+            // A number key has been pressed so change the first day of the week
+            if((kc > 49 && kc < 56) || (kc > 97 && kc < 104)) {
+                if(kc > 96) {
+                    kc -= (96-48);
+                };
+                kc -= 49;
+                o.firstDayOfWeek = (o.firstDayOfWeek + kc) % 7;
+                o.updateTableHeaders();
+                return stopEvent(e);
+            };
+
+            // If outside any other tested keycodes then let the keystroke pass
+            if(kc < 33 || kc > 40) {
+                return true;
+            };
+
+            var d = new Date(o.date),
+                cursorYYYYMM = o.date.getFullYear() + pad(o.date.getMonth()+1),
+                tmp;
+
+            // HOME: Set date to first day of current month
+            if(kc == 36) {
+                d.setDate(1);
+            // END: Set date to last day of current month
+            } else if(kc == 35) {
+                d.setDate(daysInMonth(d.getMonth(),d.getFullYear()));
+            // PAGE UP & DOWN
+            } else if ( kc == 33 || kc == 34) {
+                var inc = (kc == 34) ? 1 : -1;
+
+                // CTRL + PAGE UP/DOWN: Moves to the same date in the previous/next year
+                if(e.ctrlKey) {
+                    d.setFullYear(d.getFullYear() + inc * 1);
+                // PAGE UP/DOWN: Moves to the same date in the previous/next month
+                } else {
+                    var n = o.date.getDate();
+
+                    d.setDate(2);
+                    d.setMonth(d.getMonth() + inc * 1);
+                    d.setDate(Math.min(n, daysInMonth(d.getMonth(),d.getFullYear())));
+                };
+            // LEFT ARROW
+            } else if ( kc == 37 ) {
+                d = new Date(o.date.getFullYear(), o.date.getMonth(), o.date.getDate() - 1, 5, 0, 0);
+            // RIGHT ARROW
+            } else if ( kc == 39 || kc == 34) {
+                d = new Date(o.date.getFullYear(), o.date.getMonth(), o.date.getDate() + 1, 5, 0, 0);
+            // UP ARROW
+            } else if ( kc == 38 ) {
+                d = new Date(o.date.getFullYear(), o.date.getMonth(), o.date.getDate() - 7, 5, 0, 0);
+            // DOWN ARROW
+            } else if ( kc == 40 ) {
+                d = new Date(o.date.getFullYear(), o.date.getMonth(), o.date.getDate() + 7, 5, 0, 0);
+            };
+
+            // If the new date is out of range then disallow action
+            if(o.outOfRange(d)) {
+                return stopEvent(e);
+            };
+
+            // Otherwise set the new cursor date
+            o.date = d;
+
+            // Update the status bar if needs be
+            if(o.statusBar) {
+                o.updateStatus(o.getBespokeTitle(o.date.getFullYear(),o.date.getMonth() + 1,o.date.getDate()) || printFormattedDate(o.date, o.statusFormat, true));
+            };
+
+            // YYYYMMDD format String of the current cursor date
+            var t = String(o.date.getFullYear()) + pad(o.date.getMonth()+1) + pad(o.date.getDate());
+
+            // If we need to redraw the UI completely
+            if(e.ctrlKey || (kc == 33 || kc == 34) || t < o.firstDateShown || t > o.lastDateShown) {
+                o.updateTable();
+                if(oldIE) {
+                    o.interval = new Date();
+                };
+            // Just highlight current cell
+            } else {
+                // Do we need to disable the today button for this date
+                if(!o.noToday) {
+                    o.disableTodayButton();
+                };
+                // Remove focus from the previous cell
+                o.removeOldFocus();
+                // Show/hide the month & year buttons
+                o.showHideButtons(o.date);
+
+                // Locate this TD
+                for(var i = 0, td; td = o.tds[i]; i++) {
+                    if(td.className.search("cd-" + t) == -1) {
+                        continue;
+                    };
+
+                    td.id = o.id + "-date-picker-hover";
+                    o.setNewFocus();
+                    break;
+                };
+            };
+
+            return stopEvent(e);
+        };
+        this.onmouseout = function(e) {
+            e = e || document.parentWindow.event;
+            var p = e.toElement || e.relatedTarget;
+
+            while(p && p != this) {
+                try {
+                    p = p.parentNode;
+                } catch(e) {
+                    p = this;
+                };
+            };
+
+            if(p == this) {
+                return false;
+            };
+
+            if(o.clickActivated || (o.staticPos && !o.kbEventsAdded)) {
+                o.showCursor = false;
+                o.removeCursorHighlight();
+            };
+
+            if(o.currentTR) {
+                o.currentTR.className = "";
+                o.currentTR = null;
+            };
+
+            if(o.statusBar) {
+                o.updateStatus(o.dateSet ? o.getBespokeTitle(o.dateSet.getFullYear(),o.dateSet.getMonth() + 1,o.dateSet.getDate()) || printFormattedDate(o.dateSet, o.statusFormat, true) : getTitleTranslation(9));
+            };
+        };
+        this.onmouseover = function(e) {
+            e = e || document.parentWindow.event;
+            var el = e.target != null ? e.target : e.srcElement;
+            while(el.nodeType != 1) {
+                el = el.parentNode;
+            };
+
+            if(!el || ! el.tagName) {
+                return;
+            };
+
+            o.noFocus = true;
+
+            var statusText = getTitleTranslation(9);
+            if(o.clickActivated || (o.staticPos && !o.kbEventsAdded)) {
+                o.showCursor = false;
+            };
+
+            switch (el.tagName.toLowerCase()) {
+                case "td":
+                    if(el.className.search(/date-picker-unused|out-of-range/) != -1) {
+                        statusText = getTitleTranslation(9);
+                    } if(el.className.search(/cd-([0-9]{8})/) != -1) {
+                        o.showCursor = true;
+
+                        o.stopTimer();
+                        var cellDate = el.className.match(/cd-([0-9]{8})/)[1];
+
+                        o.removeOldFocus();
+                        el.id = o.id+"-date-picker-hover";
+                        o.setNewFocus();
+
+                        o.date = new Date(+cellDate.substr(0,4),+cellDate.substr(4,2)-1,+cellDate.substr(6,2), 5, 0, 0);
+                        if(!o.noToday) {
+                            o.disableTodayButton();
+                        };
+
+                        statusText = o.getBespokeTitle(+cellDate.substr(0,4),+cellDate.substr(4,2),+cellDate.substr(6,2)) || printFormattedDate(o.date, o.statusFormat, true);
+                    };
+                    break;
+                case "th":
+                    if(!o.statusBar) {
+                        break;
+                    };
+                    if(el.className.search(/drag-enabled/) != -1) {
+                        statusText = getTitleTranslation(10);
+                    } else if(el.className.search(/date-picker-week-header/) != -1) {
+                        var txt = el.firstChild ? el.firstChild.nodeValue : "";
+                        statusText = txt.search(/^(\d+)$/) != -1 ? getTitleTranslation(7, [txt, txt < 3 && o.date.getMonth() == 11 ? getWeeksInYear(o.date.getFullYear()) + 1 : getWeeksInYear(o.date.getFullYear())]) : getTitleTranslation(9);
+                    };
+                    break;
+                case "span":
+                    if(!o.statusBar) {
+                        break;
+                    };
+
+                    if(el.className.search(/day-([0-6])/) != -1) {
+                        var day = el.className.match(/day-([0-6])/)[1];
+                        statusText = getTitleTranslation(11, [getDayTranslation(day, false)]);
+                    } else if(el.className.search(/(drag-enabled|today-but|prev-(year|month)|next-(year|month))/) != -1 && el.className.search(/disabled/) == -1) {
+                        statusText = getTitleTranslation({"drag-enabled":10,"prev-year":2,"prev-month":0,"next-year":3,"next-month":1,"today-but":12}[el.className.match(/(drag-enabled|today-but|prev-(year|month)|next-(year|month))/)[0]]);
+                    };
+
+                    break;
+                default:
+                    statusText = "";
+            };
+            while(el.parentNode) {
+                el = el.parentNode;
+                if(el.nodeType == 1 && el.tagName.toLowerCase() == "tr") {
+                    if(o.currentTR) {
+                        if(el == o.currentTR) {
+                            break;
+                        };
+                        o.currentTR.className = "";
+                    };
+                    el.className = "dp-row-highlight";
+                    o.currentTR = el;
+                    break;
+                };
+            };
+            if(o.statusBar && statusText) {
+                o.updateStatus(statusText);
+            };
+
+            if(!o.showCursor) {
+                o.removeCursorHighlight();
+            };
+        };
+        this.clearTimer = function() {
+            o.stopTimer();
+            o.timerInc      = 800;
+            o.yearInc       = 0;
+            o.monthInc      = 0;
+            o.dayInc        = 0;
+
+            removeEvent(document, "mouseup", o.clearTimer);
+            if(o.mouseDownElem != null) {
+                removeEvent(o.mouseDownElem, "mouseout",  o.clearTimer);
+            };
+            o.mouseDownElem = null;
+        };
+
+        var o = this;
+
+        this.setDateFromInput();
+
+        if(this.staticPos) {
+            this.create();
+        } else {
+            this.createButton();
+        };
+
+        (function() {
+            var elemID,
+                elem,
+                elemCnt = 0;
+
+            for(elemID in o.formElements) {
+                elem = document.getElementById(elemID);
+                if(elem && elem.tagName && elem.tagName.search(/select|input/i) != -1) {
+                    addEvent(elem, "change", o.changeHandler);
+                    if(elemCnt == 0 && elem.form) {
+                        addEvent(elem.form, "reset", o.reset);
+                    };
+                    elemCnt++;
+                };
+
+                if(!elem || elem.disabled == true) {
+                    o.disableDatePicker();
+                };
+            };
+        })();
+
+        // We have fully created the datepicker...
+        this.fullCreate = true;
+    };
+    datePicker.prototype.addButtonEvents = function(but) {
+        function buttonEvent (e) {
+            e = e || window.event;
+
+            var inpId     = this.id.replace('fd-but-',''),
+                dpVisible = isVisible(inpId),
+                autoFocus = false,
+                kbEvent   = datePickers[inpId].kbEvent;
+
+            if(kbEvent) {
+                datePickers[inpId].kbEvent = false;
+                return;
+            };
+
+            if(e.type == "keydown") {
+                var kc = e.keyCode != null ? e.keyCode : e.charCode;
+                if(kc != 13) return true;
+                datePickers[inpId].kbEvent = true;
+                if(dpVisible) {
+                    removeClass(this, "date-picker-button-active");
+                    hideAll();
+                    return stopEvent(e);
+                };
+                autoFocus = true;
+            } else {
+                datePickers[inpId].kbEvent = false;
+            };
+
+            if(!dpVisible) {
+                addClass(this, "date-picker-button-active");
+                hideAll(inpId);
+                showDatePicker(inpId, autoFocus);
+            } else {
+                removeClass(this, "date-picker-button-active");
+                hideAll();
+            };
+
+            return stopEvent(e);
+        };
+
+        but.onclick     = buttonEvent;
+        but.onkeydown   = buttonEvent;
+
+        if(!buttonTabIndex) {
+            setTabIndex(but, -1);
+        } else {
+            setTabIndex(but, this.bespokeTabIndex);
+        };
+    };
+
+    datePicker.prototype.createButton = function() {
+
+        if(this.staticPos || document.getElementById("fd-but-" + this.id)) {
+                return;
+        };
+
+        var inp         = document.getElementById(this.id),
+            span        = document.createElement('span'),
+            but         = document.createElement('a');
+
+        but.href        = "#" + this.id;
+        but.className   = "date-picker-control";
+        but.title       = getTitleTranslation(5);
+        but.id          = "fd-but-" + this.id;
+
+        span.appendChild(document.createTextNode(nbsp));
+        but.appendChild(span);
+
+        span = document.createElement('span');
+        span.className = "fd-screen-reader";
+        span.appendChild(document.createTextNode(but.title));
+        but.appendChild(span);
+
+        // Set the ARIA role to be "button"
+        setARIARole(but, "button");
+
+        // Set a "haspopup" ARIA property
+        setARIAProperty(but, "haspopup", true);
+
+        if(this.positioned && document.getElementById(this.positioned)) {
+            document.getElementById(this.positioned).appendChild(but);
+        } else {
+            inp.parentNode.insertBefore(but, inp.nextSibling);
+        };
+
+        this.addButtonEvents(but);
+
+        but = null;
+
+        this.callback("dombuttoncreate", {id:this.id});
+    };
+    datePicker.prototype.setBespokeTitles = function(titles) {
+        this.bespokeTitles = {};
+        this.addBespokeTitles(titles);
+    };
+    datePicker.prototype.addBespokeTitles = function(titles) {
+        for(var dt in titles) {
+            if(titles.hasOwnProperty(dt)) {
+                this.bespokeTitles[dt] = titles[dt];
+            };
+        };
+    };
+    datePicker.prototype.getBespokeTitle = function(y,m,d) {
+        var dt,
+            dtFull,
+            yyyymmdd = y + String(pad(m)) + pad(d);
+
+        // Try the datepickers bespoke titles
+        for(dt in this.bespokeTitles) {
+            if(this.bespokeTitles.hasOwnProperty(dt)) {
+                dtFull = String(dt).replace(/^(\*\*\*\*)/, y).replace(/^(\d\d\d\d)(\*\*)/, "$1"+ pad(m));
+                if(dtFull == yyyymmdd) {
+                    return this.bespokeTitles[dt];
+                };
+            };
+        };
+
+        // Try the generic bespoke titles
+        for(dt in bespokeTitles) {
+            if(bespokeTitles.hasOwnProperty(dt)) {
+                dtFull = String(dt).replace(/^(\*\*\*\*)/, y).replace(/^(\d\d\d\d)(\*\*)/, "$1"+ pad(m));
+                if(dtFull == yyyymmdd) {
+                    return bespokeTitles[dt];
+                };
+            };
+        };
+
+        return false;
+    };
+    datePicker.prototype.returnSelectedDate = function() {
+        return this.dateSet;
+    };
+    datePicker.prototype.setRangeLow = function(range) {
+        if(String(range).search(rangeRegExp) == -1) {
+            if(debug) {
+                throw "Invalid value passed to setRangeLow method: " + range;
+            };
+            return false;
+        };
+        this.rangeLow = range;
+        if(!this.inUpdate) {
+            this.setDateFromInput();
+        };
+    };
+    datePicker.prototype.setRangeHigh = function(range) {
+        if(String(range).search(rangeRegExp) == -1) {
+            if(debug) {
+                throw "Invalid value passed to setRangeHigh method: " + range;
+            };
+            return false;
+        };
+        this.rangeHigh = range;
+        if(!this.inUpdate) {
+            this.setDateFromInput();
+        };
+    };
+    datePicker.prototype.setDisabledDays = function(dayArray) {
+        if(!dayArray.length || dayArray.join("").search(/^([0|1]{7})$/) == -1) {
+            if(debug) {
+                throw "Invalid values located when attempting to call setDisabledDays";
+            };
+            return false;
+        };
+        this.disabledDays = dayArray;
+        if(!this.inUpdate) {
+            this.setDateFromInput();
+        };
+    };
+
+    datePicker.prototype.setDisabledDates = function(dateObj) {
+        this.filterDateList(dateObj, true);
+    };
+    datePicker.prototype.setEnabledDates = function(dateObj) {
+        this.filterDateList(dateObj, false);
+    };
+    datePicker.prototype.addDisabledDates = function(dateObj) {
+        this.addDatesToList(dateObj, true);
+    };
+    datePicker.prototype.addEnabledDates = function(dateObj) {
+        this.addDatesToList(dateObj, false);
+    };
+    datePicker.prototype.filterDateList = function(dateObj, type) {
+        var tmpDates = [];
+        for(var i = 0; i < this.dateList.length; i++) {
+            if(this.dateList[i].type != type) {
+                tmpDates.push(this.dateList[i]);
+            };
+        };
+
+        this.dateList = tmpDates.concat();
+        this.addDatesToList(dateObj, type);
+    };
+    datePicker.prototype.addDatesToList = function(dateObj, areDisabled) {
+        var startD;
+        for(startD in dateObj) {
+            if(String(startD).search(wcDateRegExp) != -1 && (dateObj[startD] == 1 || String(dateObj[startD]).search(wcDateRegExp) != -1)) {
+
+                if(dateObj[startD] != 1 && Number(String(startD).replace(/^\*\*\*\*/, 2010).replace(/^(\d\d\d\d)(\*\*)/, "$1"+"22")) > Number(String(dateObj[startD]).replace(/^\*\*\*\*/, 2010).replace(/^(\d\d\d\d)(\*\*)/, "$1"+"22"))) {
+                    continue;
+                };
+
+                this.dateList.push({
+                    type:!!(areDisabled),
+                    rLow:startD,
+                    rHigh:dateObj[startD]
+                });
+            };
+        };
+
+        if(!this.inUpdate) {
+            this.setDateFromInput();
+        };
+    };
+    datePicker.prototype.setSelectedDate = function(yyyymmdd) {
+        if(String(yyyymmdd).search(wcDateRegExp) == -1) {
+            return false;
+        };
+
+        var match = yyyymmdd.match(rangeRegExp),
+            dt    = new Date(+match[2],+match[3]-1,+match[4], 5, 0, 0);
+
+        if(!dt || isNaN(dt) || !this.canDateBeSelected(dt)) {
+            return false;
+        };
+
+        this.dateSet = new Date(dt);
+
+        if(!this.inUpdate) {
+            this.updateTable();
+        };
+
+        this.callback("dateset", this.createCbArgObj());
+        this.returnFormattedDate();
+    };
+    datePicker.prototype.checkSelectedDate = function() {
+        if(this.dateSet && !this.canDateBeSelected(this.dateSet)) {
+            this.dateSet = null;
+        };
+        if(!this.inUpdate) {
+            this.updateTable();
+        };
+    };
+    datePicker.prototype.addOnFocusEvents = function() {
+        if(this.kbEventsAdded || this.noFocus) {
+            return;
+        };
+
+        addEvent(document, "keypress", this.onkeydown);
+        addEvent(document, "mousedown", this.onmousedown);
+
+        if(oldIE) {
+            removeEvent(document, "keypress", this.onkeydown);
+            addEvent(document, "keydown", this.onkeydown);
+        };
+        if(window.devicePixelRatio) {
+            removeEvent(document, "keypress", this.onkeydown);
+            addEvent(document, "keydown", this.onkeydown);
+        };
+        this.noFocus = false;
+        this.kbEventsAdded = true;
+    };
+    datePicker.prototype.removeOnFocusEvents = function() {
+
+        if(!this.kbEventsAdded) {
+            return;
+        };
+
+        removeEvent(document, "keypress",  this.onkeydown);
+        removeEvent(document, "keydown",   this.onkeydown);
+        removeEvent(document, "mousedown", this.onmousedown);
+
+        this.kbEventsAdded = false;
+    };
+    datePicker.prototype.stopTimer = function() {
+        this.timerSet = false;
+        window.clearTimeout(this.timer);
+    };
+    datePicker.prototype.setOpacity = function(op) {
+        this.div.style.opacity = op/100;
+        this.div.style.filter = 'alpha(opacity=' + op + ')';
+        this.opacity = op;
+    };
+    datePicker.prototype.truePosition = function(element) {
+        var pos = this.cumulativeOffset(element);
+        if(isOpera) {
+                return pos;
+        };
+        var iebody      = (document.compatMode && document.compatMode != "BackCompat")? document.documentElement : document.body,
+            dsocleft    = document.all ? iebody.scrollLeft : window.pageXOffset,
+            dsoctop     = document.all ? iebody.scrollTop  : window.pageYOffset,
+            posReal     = this.realOffset(element);
+        return [pos[0] - posReal[0] + dsocleft, pos[1] - posReal[1] + dsoctop];
+    };
+    datePicker.prototype.realOffset = function(element) {
+        var t = 0, l = 0;
+        do {
+            t += element.scrollTop  || 0;
+            l += element.scrollLeft || 0;
+            element = element.parentNode;
+        } while(element);
+        return [l, t];
+    };
+    datePicker.prototype.cumulativeOffset = function(element) {
+        var t = 0, l = 0;
+        do {
+            t += element.offsetTop  || 0;
+            l += element.offsetLeft || 0;
+            element = element.offsetParent;
+        } while(element);
+        return [l, t];
+    };
+    datePicker.prototype.outOfRange = function(tmpDate) {
+
+        if(!this.rangeLow && !this.rangeHigh) {
+            return false;
+        };
+
+        var level = false;
+
+        if(!tmpDate) {
+            level   = true;
+            tmpDate = this.date;
+        };
+
+        var d  = pad(tmpDate.getDate()),
+            m  = pad(tmpDate.getMonth() + 1),
+            y  = tmpDate.getFullYear(),
+            dt = String(y)+String(m)+String(d);
+
+        if(this.rangeLow && +dt < +this.rangeLow) {
+            if(!level) {
+                return true;
+            };
+            this.date = new Date(this.rangeLow.substr(0,4), this.rangeLow.substr(4,2)-1, this.rangeLow.substr(6,2), 5, 0, 0);
+            return false;
+        };
+        if(this.rangeHigh && +dt > +this.rangeHigh) {
+            if(!level) {
+                return true;
+            };
+            this.date = new Date(this.rangeHigh.substr(0,4), this.rangeHigh.substr(4,2)-1, this.rangeHigh.substr(6,2), 5, 0, 0);
+        };
+        return false;
+    };
+    datePicker.prototype.canDateBeSelected = function(tmpDate) {
+        if(!tmpDate || isNaN(tmpDate)) {
+            return false;
+        };
+
+        var d  = pad(tmpDate.getDate()),
+            m  = pad(tmpDate.getMonth() + 1),
+            y  = tmpDate.getFullYear(),
+            dt = y + "" + m + "" + d,
+            dd = this.getDateExceptions(y, m),
+            wd = tmpDate.getDay() == 0 ? 7 : tmpDate.getDay();
+
+        // If date out of range
+        if((this.rangeLow && +dt < +this.rangeLow)
+           ||
+           (this.rangeHigh && +dt > +this.rangeHigh)
+           ||
+           // or the date has been explicitly disabled
+           ((dt in dd) && dd[dt] == 1)
+           ||
+           // or the date lies on a disabled weekday and it hasn't been explicitly enabled
+           (this.disabledDays[wd-1] && (!(dt in dd) || ((dt in dd) && dd[dt] == 1)))) {
+                return false;
+        };
+
+        return true;
+    };
+    datePicker.prototype.updateStatus = function(msg) {
+        removeChildNodes(this.statusBar);
+
+        // All this arseing about just for sups in the footer... nice typography and all that...
+        if(msg && this.statusFormat.search(/%S/) != -1 && msg.search(/([0-9]{1,2})(st|nd|rd|th)/) != -1) {
+            msg = cbSplit(msg.replace(/([0-9]{1,2})(st|nd|rd|th)/, "$1<sup>$2</sup>"), /<sup>|<\/sup>/);
+            var dc = document.createDocumentFragment();
+            for(var i = 0, nd; nd = msg[i]; i++) {
+                if(/^(st|nd|rd|th)$/.test(nd)) {
+                    var sup = document.createElement("sup");
+                    sup.appendChild(document.createTextNode(nd));
+                    dc.appendChild(sup);
+                } else {
+                    dc.appendChild(document.createTextNode(nd));
+                };
+            };
+            this.statusBar.appendChild(dc);
+        } else {
+            this.statusBar.appendChild(document.createTextNode(msg ? msg : getTitleTranslation(9)));
+        };
+    };
+
+    /* Still needs work... */
+    datePicker.prototype.setDateFromInput = function() {
+        var origDateSet = this.dateSet,
+            m           = false,
+            but         = this.staticPos ? false : document.getElementById("fd-but-" + this.id),
+            e           = localeImport.imported ? [].concat(localeDefaults.fullMonths).concat(localeDefaults.monthAbbrs) : [],
+            l           = localeImport.imported ? [].concat(localeImport.fullMonths).concat(localeImport.monthAbbrs) : [],
+            eosRegExp   = /(3[01]|[12][0-9]|0?[1-9])(st|nd|rd|th)/i,
+            elemCnt     = 0,
+            dt          = false,
+            allFormats, i, elemID, elem, elemFmt, d, y, elemVal, dp, mp, yp;
+
+        // Reset the internal dateSet variable
+        this.dateSet = null;
+
+        // Try and get a year, month and day from the form element values
+        for(elemID in this.formElements) {
+
+            elem = document.getElementById(elemID);
+
+            if(!elem) {
+                return false;
+            };
+
+            elemCnt++;
+
+            elemVal = String(elem.value);
+
+            if(!elemVal) {
+                continue;
+            };
+
+            elemFmt     = this.formElements[elemID];
+            allFormats  = [elemFmt];
+            dt          = false;
+            dp          = elemFmt.search(dPartsRegExp) != -1;
+            mp          = elemFmt.search(mPartsRegExp) != -1;
+            yp          = elemFmt.search(yPartsRegExp) != -1;
+
+            // Try to assign some default date formats to throw at
+            // the (simple) regExp parser for single date parts.
+            if(!(dp && mp && yp)) {
+                if(yp && !(mp || dp)) {
+                    allFormats = allFormats.concat([
+                        "%Y",
+                        "%y"
+                        ]);
+                } else if(mp && !(yp || dp)) {
+                    allFormats = allFormats.concat([
+                        "%M",
+                        "%F",
+                        "%m",
+                        "%n"
+                        ]);
+                } else if(dp && !(yp || mp)) {
+                    allFormats = allFormats.concat([
+                        "%d%",
+                        "%j"
+                        ]);
+                };
+            };
+
+            for(i = 0; i < allFormats.length; i++) {
+                dt = parseDateString(elemVal, allFormats[i]);
+
+                if(dt) {
+                    if(!d && dp && dt.d) {
+                        d = dt.d;
+                    };
+                    if(m === false && mp && dt.m) {
+                        m = dt.m;
+                    };
+                    if(!y && yp && dt.y) {
+                        y = dt.y;
+                    };
+                };
+
+                if(((dp && d) || !dp)
+                   &&
+                   ((mp && !m === false) || !mp)
+                   &&
+                   ((yp && y) || !yp)) {
+                    break;
+                };
+            };
+        };
+
+        // Last ditch attempt at date parsing for single inputs that
+        // represent the day, month and year parts of the date format.
+        // I'm - thankfully - passing this responsibility off to the browser.
+        // Date parsing in js sucks but the browsers' in-built Date.parse method
+        // will inevitably be better than anything I would hazard to write.
+        // Date.parse is implementation dependant though so don't expect
+        // consistency, rhyme or reason.
+        if(dateParseFallback && (!d || m === false || !y) && dp && mp && yp && elemCnt == 1 && elemVal) {
+            // If locale imported then replace month names with English
+            // counterparts if necessary
+            if(localeImport.imported) {
+                for(i = 0; i < l.length; i++) {
+                    elemVal = elemVal.replace(new RegExp(l[i], "i"), e[i]);
+                };
+            };
+
+            // Remove English ordinal suffix
+            if(elemVal.search(eosRegExp) != -1) {
+                elemVal = elemVal.replace(eosRegExp, elemVal.match(eosRegExp)[1]);
+            };
+
+            // Older browsers have problems with dashes so we replace with
+            // slashes which appear to be supported by all and then try to use
+            // the in-built Date Object to parse a valid date
+            dt = new Date(elemVal.replace(new RegExp("\-", "g"), "/"));
+
+            if(dt && !isNaN(dt)) {
+                d = dt.getDate();
+                m = dt.getMonth() + 1;
+                y = dt.getFullYear();
+            };
+        };
+
+        dt = false;
+
+        if(d && !(m === false) && y) {
+            if(+d > daysInMonth(+m - 1, +y)) {
+                d  = daysInMonth(+m - 1, +y);
+                dt = false;
+            } else {
+                dt = new Date(+y, +m - 1, +d, 5, 0, 0);
+            };
+        };
+
+        if(but) {
+            removeClass(but, "date-picker-dateval");
+        };
+
+        if(!dt || isNaN(dt)) {
+            var newDate = new Date(y || new Date().getFullYear(), !(m === false) ? m - 1 : new Date().getMonth(), 1, 5, 0, 0);
+            this.date = this.cursorDate ? new Date(+this.cursorDate.substr(0,4), +this.cursorDate.substr(4,2) - 1, +this.cursorDate.substr(6,2), 5, 0, 0) : new Date(newDate.getFullYear(), newDate.getMonth(), Math.min(+d || new Date().getDate(), daysInMonth(newDate.getMonth(), newDate.getFullYear())), 5, 0, 0);
+
+            this.outOfRange();
+            if(this.fullCreate) {
+                this.updateTable();
+            };
+            return;
+        };
+
+        dt.setHours(5);
+        this.date = new Date(dt);
+        this.outOfRange();
+
+        if(dt.getTime() == this.date.getTime() && this.canDateBeSelected(this.date)) {
+            this.dateSet = new Date(this.date);
+            if(but) {
+                addClass(but, "date-picker-dateval");
+            };
+            this.returnFormattedDate(true);
+        };
+
+        if(this.fullCreate) {
+            this.updateTable();
+        };
+    };
+    datePicker.prototype.setSelectIndex = function(elem, indx) {
+        for(var opt = elem.options.length-1; opt >= 0; opt--) {
+            if(elem.options[opt].value == indx) {
+                elem.selectedIndex = opt;
+                return;
+            };
+        };
+    };
+    datePicker.prototype.returnFormattedDate = function(noFocus) {
+        var but = this.staticPos ? false : document.getElementById("fd-but-" + this.id);
+
+        if(!this.dateSet) {
+            if(but) {
+                removeClass(but, "date-picker-dateval");
+            };
+            return;
+        };
+
+        var d   = pad(this.dateSet.getDate()),
+            m   = pad(this.dateSet.getMonth() + 1),
+            y   = this.dateSet.getFullYear(),
+            el  = false,
+            elemID, elem, elemFmt, fmtDate;
+
+        noFocus = !!noFocus;
+
+        for(elemID in this.formElements) {
+            elem    = document.getElementById(elemID);
+
+            if(!elem) {
+                return;
+            };
+
+            if(!el) {
+                el = elem;
+            };
+
+            elemFmt = this.formElements[elemID];
+
+            fmtDate = printFormattedDate(this.dateSet, elemFmt, returnLocaleDate);
+            if(elem.tagName.toLowerCase() == "input") {
+                elem.value = fmtDate;
+            } else {
+                this.setSelectIndex(elem, fmtDate);
+            };
+        };
+
+        if(this.staticPos) {
+            this.noFocus = true;
+            this.updateTable();
+            this.noFocus = false;
+        } else if(but) {
+            addClass(but, "date-picker-dateval");
+        };
+
+        if(this.fullCreate) {
+            if(el.type && el.type != "hidden" && !noFocus) {
+                try{
+                    el.focus();
+                } catch(err) {};
+            };
+        };
+
+        if(!noFocus) {
+            this.callback("datereturned", this.createCbArgObj());
+        };
+    };
+    datePicker.prototype.disableDatePicker = function() {
+        if(this.disabled) {
+            return;
+        };
+
+        if(this.staticPos) {
+            this.removeOnFocusEvents();
+            this.removeOldFocus();
+            this.noFocus = true;
+            addClass(this.div, "date-picker-disabled");
+            this.table.onmouseover = this.table.onclick = this.table.onmouseout = this.table.onmousedown = null;
+            removeEvent(document, "mousedown", this.onmousedown);
+            removeEvent(document, "mouseup",   this.clearTimer);
+        } else {
+            if(this.visible) {
+                this.hide();
+            };
+            var but = document.getElementById("fd-but-" + this.id);
+            if(but) {
+                addClass(but, "date-picker-control-disabled");
+                // Set a "disabled" ARIA state
+                setARIAProperty(but, "disabled", true);
+                but.onkeydown = but.onclick = function() {
+                    return false;
+                };
+                setTabIndex(but, -1);
+                but.title = "";
+            }
+        };
+
+        clearTimeout(this.timer);
+        this.disabled = true;
+    };
+    datePicker.prototype.enableDatePicker = function() {
+        if(!this.disabled) {
+            return;
+        };
+
+        if(this.staticPos) {
+            this.removeOldFocus();
+
+            if(this.dateSet != null) {
+                this.date = this.dateSet;
+            };
+            this.noFocus = true;
+            this.updateTable();
+            removeClass(this.div, "date-picker-disabled");
+            this.disabled = false;
+            this.table.onmouseover = this.onmouseover;
+            this.table.onmouseout  = this.onmouseout;
+            this.table.onclick     = this.onclick;
+            this.table.onmousedown = this.onmousedown;
+        } else {
+            var but = document.getElementById("fd-but-" + this.id);
+            if(but) {
+                removeClass(but, "date-picker-control-disabled");
+                // Reset the "disabled" ARIA state
+                setARIAProperty(but, "disabled", false);
+                this.addButtonEvents(but);
+                but.title = getTitleTranslation(5);
+            };
+        };
+
+        this.disabled = false;
+    };
+    datePicker.prototype.disableTodayButton = function() {
+        var today = new Date();
+        removeClass(this.butToday, "fd-disabled");
+        if(this.outOfRange(today)
+           ||
+           (this.date.getDate() == today.getDate()
+            &&
+            this.date.getMonth() == today.getMonth()
+            &&
+            this.date.getFullYear() == today.getFullYear())
+            ) {
+            addClass(this.butToday, "fd-disabled");
+        };
+    };
+    datePicker.prototype.updateTableHeaders = function() {
+        var colspanTotal = this.showWeeks ? 8 : 7,
+            colOffset    = this.showWeeks ? 1 : 0,
+            d, but;
+
+        for(var col = colOffset; col < colspanTotal; col++ ) {
+            d = (this.firstDayOfWeek + (col - colOffset)) % 7;
+            this.ths[col].title = getDayTranslation(d, false);
+
+            if(col > colOffset) {
+                but = this.ths[col].getElementsByTagName("span")[0];
+                removeChildNodes(but);
+
+                but.appendChild(document.createTextNode(getDayTranslation(d, true)));
+                but.title = this.ths[col].title;
+                but = null;
+            } else {
+                removeChildNodes(this.ths[col]);
+                this.ths[col].appendChild(document.createTextNode(getDayTranslation(d, true)));
+            };
+
+            removeClass(this.ths[col], "date-picker-highlight");
+            if(this.highlightDays[d]) {
+                addClass(this.ths[col], "date-picker-highlight");
+            };
+        };
+
+        if(this.created) {
+            this.updateTable();
+        };
+    };
+    datePicker.prototype.callback = function(type, args) {
+        if(!type || !(type in this.callbacks)) {
+            return false;
+        };
+
+        var ret = false,
+            func;
+
+        for(func = 0; func < this.callbacks[type].length; func++) {
+            ret = this.callbacks[type][func](args || this.id);
+        };
+
+        return ret;
+    };
+    datePicker.prototype.showHideButtons = function(tmpDate) {
+        if(!this.butPrevYear) {
+            return;
+        };
+
+        var tdm = tmpDate.getMonth(),
+            tdy = tmpDate.getFullYear();
+
+        if(this.outOfRange(new Date((tdy - 1), tdm, daysInMonth(+tdm, tdy-1), 5, 0, 0))) {
+            addClass(this.butPrevYear, "fd-disabled");
+            if(this.yearInc == -1) {
+                this.stopTimer();
+            };
+        } else {
+            removeClass(this.butPrevYear, "fd-disabled");
+        };
+
+        if(this.outOfRange(new Date(tdy, (+tdm - 1), daysInMonth(+tdm-1, tdy), 5, 0, 0))) {
+            addClass(this.butPrevMonth, "fd-disabled");
+            if(this.monthInc == -1) {
+                this.stopTimer();
+            };
+        } else {
+            removeClass(this.butPrevMonth, "fd-disabled");
+        };
+
+        if(this.outOfRange(new Date((tdy + 1), +tdm, 1, 5, 0, 0))) {
+            addClass(this.butNextYear, "fd-disabled");
+            if(this.yearInc == 1) {
+                this.stopTimer();
+            };
+        } else {
+            removeClass(this.butNextYear, "fd-disabled");
+        };
+
+        if(this.outOfRange(new Date(tdy, +tdm + 1, 1, 5, 0, 0))) {
+            addClass(this.butNextMonth, "fd-disabled");
+            if(this.monthInc == 1) {
+                this.stopTimer();
+            };
+        } else {
+            removeClass(this.butNextMonth, "fd-disabled");
+        };
+    };
+    var localeDefaults = {
+        fullMonths:["January","February","March","April","May","June","July","August","September","October","November","December"],
+        monthAbbrs:["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
+        fullDays:  ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
+        dayAbbrs:  ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
+        titles:    ["Previous month","Next month","Previous year","Next year", "Today", "Show Calendar", "wk", "Week [[%0%]] of [[%1%]]", "Week", "Select a date", "Click \u0026 Drag to move", "Display \u201C[[%0%]]\u201D first", "Go to Today\u2019s date", "Disabled date :"],
+        rtl:       false,
+        firstDayOfWeek:0,
+        imported:  false
+    };
+    var joinNodeLists = function() {
+        if(!arguments.length) {
+            return [];
+        };
+        var nodeList = [];
+        for (var i = 0; i < arguments.length; i++) {
+            for (var j = 0, item; item = arguments[i][j]; j++) {
+                nodeList[nodeList.length] = item;
+            };
+        };
+        return nodeList;
+    };
+    var cleanUp = function() {
+        var dp, fe;
+        for(dp in datePickers) {
+            for(fe in datePickers[dp].formElements) {
+                if(!document.getElementById(fe)) {
+                    datePickers[dp].destroy();
+                    datePickers[dp] = null;
+                    delete datePickers[dp];
+                    break;
+                };
+            };
+        };
+    };
+    var hideAll = function(exception) {
+        var dp;
+        for(dp in datePickers) {
+            if(!datePickers[dp].created || (exception && exception == datePickers[dp].id)) {
+                continue;
+            };
+            datePickers[dp].hide();
+        };
+    };
+    var hideDatePicker = function(inpID) {
+        if(inpID in datePickers) {
+            if(!datePickers[inpID].created || datePickers[inpID].staticPos) {
+                return;
+            };
+            datePickers[inpID].hide();
+        };
+    };
+    var showDatePicker = function(inpID, autoFocus) {
+        if(!(inpID in datePickers)) {
+            return false;
+        };
+
+        datePickers[inpID].clickActivated = !!!autoFocus;
+        datePickers[inpID].show(autoFocus);
+        return true;
+    };
+    var destroy = function(e) {
+        e = e || window.event;
+
+        // Don't remove datepickers if it's a pagehide/pagecache event (webkit et al)
+        if(e.persisted) {
+            return;
+        };
+
+        var dp;
+        for(dp in datePickers) {
+            datePickers[dp].destroy();
+            datePickers[dp] = null;
+            delete datePickers[dp];
+        };
+        datePickers = null;
+
+        removeEvent(window, 'unload', datePickerController.destroy);
+    };
+    var destroySingleDatePicker = function(id) {
+        if(id && (id in datePickers)) {
+            datePickers[id].destroy();
+            datePickers[id] = null;
+            delete datePickers[id];
+        };
+    };
+    var getTitleTranslation = function(num, replacements) {
+        replacements = replacements || [];
+        if(localeImport.titles.length > num) {
+             var txt = localeImport.titles[num];
+             if(replacements && replacements.length) {
+                for(var i = 0; i < replacements.length; i++) {
+                    txt = txt.replace("[[%" + i + "%]]", replacements[i]);
+                };
+             };
+             return txt.replace(/[[%(\d)%]]/g,"");
+        };
+        return "";
+    };
+    var getDayTranslation = function(day, abbreviation) {
+        var titles = localeImport[abbreviation ? "dayAbbrs" : "fullDays"];
+        return titles.length && titles.length > day ? titles[day] : "";
+    };
+    var getMonthTranslation = function(month, abbreviation) {
+        var titles = localeImport[abbreviation ? "monthAbbrs" : "fullMonths"];
+        return titles.length && titles.length > month ? titles[month] : "";
+    };
+    var daysInMonth = function(nMonth, nYear) {
+        nMonth = (nMonth + 12) % 12;
+        return (((0 == (nYear%4)) && ((0 != (nYear%100)) || (0 == (nYear%400)))) && nMonth == 1) ? 29: [31,28,31,30,31,30,31,31,30,31,30,31][nMonth];
+    };
+    var getWeeksInYear = function(Y) {
+        if(Y in weeksInYearCache) {
+            return weeksInYearCache[Y];
+        };
+
+        var X1 = new Date(Y, 0, 4),
+            X2 = new Date(Y, 11, 28);
+
+        X1.setDate(X1.getDate() - (6 + X1.getDay()) % 7);
+        X2.setDate(X2.getDate() + (7 - X2.getDay()) % 7);
+
+        weeksInYearCache[Y] = Math.round((X2 - X1) / 604800000);
+
+        return weeksInYearCache[Y];
+    };
+
+    var getWeekNumber = function(y,m,d) {
+        var d   = new Date(y, m, d, 0, 0, 0),
+            DoW = d.getDay(),
+            ms;
+
+        d.setDate(d.getDate() - (DoW + 6) % 7 + 3);
+        ms = d.valueOf();
+        d.setMonth(0);
+        d.setDate(4);
+        return Math.round((ms - d.valueOf()) / (7 * 864e5)) + 1;
+    };
+
+    var printFormattedDate = function(date, fmt, useImportedLocale) {
+        if(!date || isNaN(date)) {
+            return fmt;
+        };
+
+        var d           = date.getDate(),
+            D           = date.getDay(),
+            m           = date.getMonth(),
+            y           = date.getFullYear(),
+            locale      = useImportedLocale ? localeImport : localeDefaults,
+            fmtParts    = String(fmt).split(formatSplitRegExp),
+            fmtParts    = cbSplit(fmt, formatSplitRegExp),
+            fmtNewParts = [],
+            flags       = {
+                        "d":pad(d),
+                        "D":locale.dayAbbrs[D == 0 ? 6 : D - 1],
+                        "l":locale.fullDays[D == 0 ? 6 : D - 1],
+                        "j":d,
+                        "N":D == 0 ? 7 : D,
+                        "w":D,
+                        "W":getWeekNumber(y,m,d),
+                        "M":locale.monthAbbrs[m],
+                        "F":locale.fullMonths[m],
+                        "m":pad(m + 1),
+                        "n":m + 1,
+                        "t":daysInMonth(m, y),
+                        "y":String(y).substr(2,2),
+                        "Y":y,
+                        "S":["th", "st", "nd", "rd"][d % 10 > 3 ? 0 : (d % 100 - d % 10 != 10) * d % 10]
+                        },
+            len         = fmtParts.length,
+            currFlag, f;
+
+        for(f = 0; f < len; f++) {
+            currFlag = fmtParts[f];
+            fmtNewParts.push(currFlag in flags ? flags[currFlag] : currFlag);
+        };
+
+        return fmtNewParts.join("");
+    };
+    var parseDateString = function(str, fmt) {
+        var d     = false,
+            m     = false,
+            y     = false,
+            dp    = fmt.search(dPartsRegExp) != -1 ? 1 : 0,
+            mp    = fmt.search(mPartsRegExp) != -1 ? 1 : 0,
+            yp    = fmt.search(yPartsRegExp) != -1 ? 1 : 0,
+            now   = new Date(),
+            parts = cbSplit(fmt, formatSplitRegExp),
+            str   = "" + str,
+            len   = parts.length,
+            pt, part, l;
+
+        loopLabel:
+        for(pt = 0; pt < len; pt++) {
+            part = parts[pt];
+
+            if(part === "") {
+                continue loopLabel;
+            };
+
+            if(str.length == 0) {
+                break;
+            };
+
+            switch(part) {
+                // Dividers - be easy on them all i.e. accept them all when parsing...
+                case "/":
+                case ".":
+                case " ":
+                case "-":
+                case ",":
+                case ":":
+                    str = str.substr(1);
+                    break;
+                // DAY
+                case "d":
+                    // Day of the month, 2 digits with leading zeros (01 - 31)
+                    if(str.search(/^(3[01]|[12][0-9]|0[1-9])/) != -1) {
+                        d = str.substr(0,2);
+                        str = str.substr(2);
+                        break;
+                    } else {
+                        return false;
+                    };
+                case "j": // Day of the month without leading zeros (1 - 31)
+                    if(str.search(/^(3[01]|[12][0-9]|[1-9])/) != -1) {
+                        d = +str.match(/^(3[01]|[12][0-9]|[1-9])/)[0];
+                        str = str.substr(str.match(/^(3[01]|[12][0-9]|[1-9])/)[0].length);
+                        break;
+                    } else {
+                        return false;
+                    };
+                case "D": // A textual representation of a day, three letters (Mon - Sun)
+                case "l": // A full textual representation of the day of the week (Monday - Sunday)
+                          // Accept English & imported locales and both modifiers
+                    l = localeDefaults.fullDays.concat(localeDefaults.dayAbbrs);
+                    if(localeImport.imported) {
+                        l = l.concat(localeImport.fullDays).concat(localeImport.dayAbbrs);
+                    };
+
+                    for(var i = 0; i < l.length; i++) {
+                        if(new RegExp("^" + l[i], "i").test(str)) {
+                            str = str.substr(l[i].length);
+                            continue loopLabel;
+                        };
+                    };
+
+                    break;
+                case "N": // ISO-8601 numeric representation of the day of the week (added in PHP 5.1.0) 1 (for Monday) through 7 (for Sunday)
+                case "w": // Numeric representation of the day of the week 0 (for Sunday) through 6 (for Saturday)
+                    if(str.search(part == "N" ? /^([1-7])/ : /^([0-6])/) != -1) {
+                        str = str.substr(1);
+                    };
+                    break;
+                case "S": // English ordinal suffix for the day of the month, 2 characters: st, nd, rd or th
+                    if(str.search(/^(st|nd|rd|th)/i) != -1) {
+                        str = str.substr(2);
+                    };
+                    break;
+                // WEEK
+                case "W": // ISO-8601 week number of year, weeks starting on Monday (added in PHP 4.1.0): 1 - 53
+                    if(str.search(/^([1-9]|[1234[0-9]|5[0-3])/) != -1) {
+                        str = str.substr(str.match(/^([1-9]|[1234[0-9]|5[0-3])/)[0].length);
+                    };
+                    break;
+                // MONTH
+                case "M": // A short textual representation of a month, three letters
+                case "F": // A full textual representation of a month, such as January or March
+                          // Accept English & imported locales and both modifiers
+                    l = localeDefaults.fullMonths.concat(localeDefaults.monthAbbrs);
+                    if(localeImport.imported) {
+                        l = l.concat(localeImport.fullMonths).concat(localeImport.monthAbbrs);
+                    };
+                    for(var i = 0; i < l.length; i++) {
+                        if(str.search(new RegExp("^" + l[i],"i")) != -1) {
+                            str = str.substr(l[i].length);
+                            m = ((i + 12) % 12) + 1;
+                            continue loopLabel;
+                        };
+                    };
+                    return false;
+                case "m": // Numeric representation of a month, with leading zeros
+                    l = /^(1[012]|0[1-9])/;
+                    if(str.search(l) != -1) {
+                        m = +str.substr(0, 2);
+                        str = str.substr(2);
+                        break;
+                    } else {
+                        return false;
+                    };
+                case "n": // Numeric representation of a month, without leading zeros
+                          // Accept either when parsing
+                    l = /^(1[012]|[1-9])/;
+                    if(str.search(l) != -1) {
+                        m = +str.match(l)[0];
+                        str = str.substr(str.match(l)[0].length);
+                        break;
+                    } else {
+                        return false;
+                    };
+                case "t": // Number of days in the given month: 28 through 31
+                    if(str.search(/2[89]|3[01]/) != -1) {
+                        str = str.substr(2);
+                        break;
+                    } else {
+                        return false;
+                    };
+                // YEAR
+
+                case "Y": // A full numeric representation of a year, 4 digits
+                    if(str.search(/^(\d{4})/) != -1) {
+                        y = str.substr(0,4);
+                        str = str.substr(4);
+                        break;
+                    } else {
+                        return false;
+                    };
+                case "y": // A two digit representation of a year
+                    if(str.search(/^(0[0-9]|[1-9][0-9])/) != -1) {
+                        y = str.substr(0,2);
+                        y = +y < 50 ? '20' + String(y) : '19' + String(y);
+                        str = str.substr(2);
+                        break;
+                    } else {
+                        return false;
+                    };
+                default:
+                   str = str.substr(part.length);
+            };
+        };
+
+        if((dp && d === false) || (mp && m === false) || (yp && y === false)) {
+            return false;
+        };
+
+        if(dp && mp && yp && +d > daysInMonth(+m - 1, +y)) {
+            return false;
+        };
+
+        return {
+            "d":dp ? +d : false,
+            "m":mp ? +m : false,
+            "y":yp ? +y : false
+            };
+    };
+
+    var findLabelForElement = function(element) {
+        var label;
+        if(element.parentNode && element.parentNode.tagName.toLowerCase() == "label") {
+            label = element.parentNode;
+        } else {
+            var labelList = document.getElementsByTagName('label');
+            // loop through label array attempting to match each 'for' attribute to the id of the current element
+            for(var lbl = 0; lbl < labelList.length; lbl++) {
+                // Internet Explorer requires the htmlFor test
+                if((labelList[lbl]['htmlFor'] && labelList[lbl]['htmlFor'] == element.id) || (labelList[lbl].getAttribute('for') == element.id)) {
+                    label = labelList[lbl];
+                    break;
+                };
+            };
+        };
+
+        if(label && !label.id && element.id) {
+            label.id = element.id + "_label";
+        };
+
+        return label;
+    };
+    var updateLanguage = function() {
+        if(typeof(window.fdLocale) == "object" ) {
+            localeImport = {
+                titles          : fdLocale.titles,
+                fullMonths      : fdLocale.fullMonths,
+                monthAbbrs      : fdLocale.monthAbbrs,
+                fullDays        : fdLocale.fullDays,
+                dayAbbrs        : fdLocale.dayAbbrs,
+                firstDayOfWeek  : ("firstDayOfWeek" in fdLocale) ? fdLocale.firstDayOfWeek : 0,
+                rtl             : ("rtl" in fdLocale) ? !!(fdLocale.rtl) : false,
+                imported        : true
+            };
+        } else if(!localeImport) {
+            localeImport = localeDefaults;
+        };
+    };
+    var loadLanguage = function() {
+        updateLanguage();
+        var dp;
+        for(dp in datePickers) {
+            if(!datePickers[dp].created) {
+                continue;
+            };
+            datePickers[dp].updateTable();
+        };
+    };
+    var checkElem = function(elem) {
+        return !(!elem || !elem.tagName || !((elem.tagName.toLowerCase() == "input" && (elem.type == "text" || elem.type == "hidden")) || elem.tagName.toLowerCase() == "select"));
+    };
+    var addDatePicker = function(options) {
+        updateLanguage();
+
+        if(cssAnimations === null) {
+            cssAnimations = testCSSAnimationSupport();
+        };
+
+        if(!options.formElements) {
+            if(debug) {
+                throw "No form elements stipulated within initialisation parameters";
+            };
+            return;
+        };
+
+        options.id            = (options.id && (options.id in options.formElements)) ? options.id : "";
+        options.enabledDates  = false;
+        options.disabledDates = false;
+
+        var partsFound  = {d:0,m:0,y:0},
+            defaultVals = {},
+            cursorDate  = false,
+            myMin       = 0,
+            myMax       = 0,
+            fmt, opts, dtPartStr, elemID, elem, dt, i;
+
+        for(elemID in options.formElements) {
+            elem = document.getElementById(elemID);
+
+            if(!checkElem(elem)) {
+                if(debug) {
+                    throw "Element '" + elemID + "' is of the wrong type or does not exist within the DOM";
+                };
+                return false;
+            };
+
+            if(!(options.formElements[elemID].match(formatTestRegExp))) {
+                if(debug) {
+                    throw "Element '" + elemID + "' has a date format that does not contain either a day (d|j), month (m|F|n) or year (y|Y) part: " + options.formElements[elemID];
+                };
+                return false;
+            };
+
+            if(!options.id) {
+                options.id = elemID;
+            };
+
+            defaultVals[elemID] = elem.tagName == "select" ? elem.selectedIndex || 0 : elem.defaultValue;
+
+            fmt             = {
+                "value":options.formElements[elemID]
+            };
+
+            fmt.d = fmt.value.search(dPartsRegExp) != -1;
+            fmt.m = fmt.value.search(mPartsRegExp) != -1;
+            fmt.y = fmt.value.search(yPartsRegExp) != -1;
+
+            if(fmt.d) {
+                partsFound.d++;
+            };
+            if(fmt.m) {
+                partsFound.m++;
+            };
+            if(fmt.y) {
+                partsFound.y++;
+            };
+
+            if(elem.tagName.toLowerCase() == "select") {
+                // If we have a selectList, then try to parse the higher and lower limits
+                var selOptions = elem.options;
+
+                // Check the yyyymmdd
+                if(fmt.d && fmt.m && fmt.y) {
+                    cursorDate = false;
+
+                    // Dynamically calculate the available "enabled" dates
+                    options.enabledDates = {};
+                    options.disabledDates = {};
+
+                    for(i = 0; i < selOptions.length; i++) {
+                        dt = parseDateString(selOptions[i].value, fmt.value);
+
+                        if(dt && dt.y && !(dt.m === false) && dt.d) {
+
+                            dtPartStr = dt.y + "" + pad(dt.m) + pad(dt.d);
+                            if(!cursorDate) {
+                                cursorDate = dtPartStr;
+                            };
+
+                            options.enabledDates[dtPartStr] = 1;
+
+                            if(!myMin || +dtPartStr < +myMin) {
+                                myMin = dtPartStr;
+                            };
+
+                            if(!myMax || +dtPartStr > +myMax) {
+                                myMax = dtPartStr;
+                            };
+                        };
+                    };
+
+                    // Automatically set cursor to first available date (if no bespoke cursorDate was set);
+                    if(!options.cursorDate && cursorDate) {
+                        options.cursorDate = cursorDate;
+                    };
+
+                    options.disabledDates[myMin] = myMax;
+
+                } else if(fmt.m && fmt.y) {
+
+                    for(i = 0; i < selOptions.length; i++) {
+                        dt = parseDateString(selOptions[i].value, fmt.value);
+                        if(dt.y && !(dt.m === false)) {
+                            dtPartStr = dt.y + "" + pad(dt.m);
+
+                            if(!myMin || +dtPartStr < +myMin) {
+                                myMin = dtPartStr;
+                            };
+
+                            if(!myMax || +dtPartStr > +myMax) {
+                                myMax = dtPartStr;
+                            };
+                        };
+                    };
+
+                    // Round the min & max values to be used as rangeLow & rangeHigh
+                    myMin += "" + "01";
+                    myMax += "" + daysInMonth(+myMax.substr(4,2) - 1, +myMax.substr(0,4));
+
+                } else if(fmt.y) {
+                    for(i = 0; i < selOptions.length; i++) {
+                        dt = parseDateString(selOptions[i].value, fmt.value);
+                        if(dt.y) {
+                            if(!myMin || +dt.y < +myMin) {
+                                myMin = dt.y;
+                            };
+
+                            if(!myMax || +dt.y > +myMax) {
+                                myMax = dt.y;
+                            };
+                        };
+                    };
+
+                    // Round the min & max values to be used as rangeLow & rangeHigh
+                    myMin += "" + "0101";
+                    myMax += "" + "1231";
+                };
+            };
+        };
+
+        if(!(partsFound.d == 1 && partsFound.m == 1 && partsFound.y == 1)) {
+            if(debug) {
+                throw "Could not find all of the required date parts within the date format for element: " + elem.id;
+            };
+            return false;
+        };
+
+        options.rangeLow = dateToYYYYMMDD(options.rangeLow || false);
+        options.rangeHigh = dateToYYYYMMDD(options.rangeHigh || false);
+        options.cursorDate = dateToYYYYMMDD(options.cursorDate || false);
+        if(myMin && (!options.rangeLow  || (+options.rangeLow < +myMin))) {
+            options.rangeLow = myMin;
+        };
+        if(myMax && (!options.rangeHigh || (+options.rangeHigh > +myMax))) {
+            options.rangeHigh = myMax;
+        };
+
+        opts = {
+            formElements:options.formElements,
+            // default values
+            defaultVals:defaultVals,
+            // Form element id
+            id:options.id,
+            // Non popup datepicker required
+            staticPos:!!(options.staticPos || options.nopopup),
+            // Position static datepicker or popup datepicker's button
+            positioned:options.positioned && document.getElementById(options.positioned) ? options.positioned : "",
+            // Ranges stipulated in YYYYMMDD format
+            rangeLow:options.rangeLow && String(options.rangeLow).search(rangeRegExp) != -1 ? options.rangeLow : "",
+            rangeHigh:options.rangeHigh && String(options.rangeHigh).search(rangeRegExp) != -1 ? options.rangeHigh : "",
+            // Status bar format
+            statusFormat:options.statusFormat || statusFormat,
+            // No fade in/out effect
+            noFadeEffect:!!(options.staticPos) ? true : !!(options.noFadeEffect),
+            // No drag functionality
+            dragDisabled:nodrag || !!(options.staticPos) ? true : !!(options.dragDisabled),
+            // Bespoke tabindex for this datePicker (or its activation button)
+            bespokeTabIndex:options.bespokeTabindex && typeof options.bespokeTabindex == 'number' ? parseInt(options.bespokeTabindex, 10) : 0,
+            // Bespoke titles
+            bespokeTitles:options.bespokeTitles || (bespokeTitles || {}),
+            // Final opacity
+            finalOpacity:options.finalOpacity && typeof options.finalOpacity == 'number' && (options.finalOpacity > 20 && options.finalOpacity <= 100) ? parseInt(+options.finalOpacity, 10) : (!!(options.staticPos) ? 100 : finalOpacity),
+            // Do we hide the form elements on datepicker creation
+            hideInput:!!(options.hideInput),
+            // Do we hide the "today" button
+            noToday:!!(options.noTodayButton),
+            // Do we show week numbers
+            showWeeks:!!(options.showWeeks),
+            // Do we fill the entire grid with dates
+            fillGrid:!!(options.fillGrid),
+            // Do we constrain selection of dates outside the current month
+            constrainSelection:"constrainSelection" in options ? !!(options.constrainSelection) : true,
+            // The date to set the initial cursor to
+            cursorDate:options.cursorDate && String(options.cursorDate).search(rangeRegExp) != -1 ? options.cursorDate : "",
+            // Locate label to set the ARIA labelled-by property
+            labelledBy:findLabelForElement(elem),
+            // Have we been passed a describedBy to set the ARIA decribed-by property...
+            describedBy:(options.describedBy && document.getElementById(options.describedBy)) ? options.describedBy : describedBy && document.getElementById(describedBy) ? describedBy : "",
+            // Callback functions
+            callbacks:options.callbackFunctions ? options.callbackFunctions : {},
+            // Days of the week to highlight (normally the weekend)
+            highlightDays:options.highlightDays && options.highlightDays.length && options.highlightDays.length == 7 ? options.highlightDays : [0,0,0,0,0,1,1],
+            // Days of the week to disable
+            disabledDays:options.disabledDays && options.disabledDays.length && options.disabledDays.length == 7 ? options.disabledDays : [0,0,0,0,0,0,0],
+            // A bespoke class to give the datepicker
+            bespokeClass:options.bespokeClass ? " " + options.bespokeClass : ""
+        };
+
+        datePickers[options.id] = new datePicker(opts);
+
+        if("disabledDates" in options && !(options.disabledDates === false)) {
+            datePickers[options.id].setDisabledDates(options.disabledDates)
+        };
+
+        if("enabledDates" in options && !(options.enabledDates === false)) {
+            datePickers[options.id].setEnabledDates(options.enabledDates)
+        };
+
+        datePickers[options.id].callback("create", datePickers[options.id].createCbArgObj());
+    };
+
+    // Used by the button to dictate whether to open or close the datePicker
+    var isVisible = function(id) {
+        return (!id || !(id in datePickers)) ? false : datePickers[id].visible;
+    };
+
+    var updateStatic = function() {
+        var dp;
+        for(dp in datePickers) {
+            if(datePickers.hasOwnProperty(dp)) {
+                datePickers[dp].changeHandler();
+            };
+        };
+    };
+
+    var testCSSAnimationSupport = function() {
+        var domPrefixes     = ["Webkit","Moz", "ms", "O"],
+            elm             = document.createElement('div'),
+            transitions     = ["WebkitTransition", "transition", "OTransition", "MozTransition", "msTransition"],
+            t;
+
+        for(t = 0; t < transitions.length; t++) {
+            if(transitions[t] in elm.style) {
+                transitionEnd = transitions[t] == "webkitTransition" || transitions[t] == "OTransition" ? transitions[t] + "End" : "transitionend"
+                break;
+            }
+        }
+
+        if(!transitionEnd) {
+            return false;
+        };
+
+        if(elm.style.animationName) { return true; }
+
+        for( var i = 0; i < domPrefixes.length; i++ ) {
+            if(elm.style[domPrefixes[i] + "AnimationName"] !== undefined) {
+                return true;
+            };
+        };
+
+        return false;
+    };
+
+    addEvent(window, 'unload', destroy);
+    addEvent(window, "load", function() { setTimeout(updateStatic, 0); });
+
+    // Add oldie class if needed for IE < 9
+    if(oldIE) {
+        addClass(document.documentElement, "oldie");
+    };
+
+    return {
+        // General event functions...
+        addEvent:               function(obj, type, fn) { return addEvent(obj, type, fn); },
+        removeEvent:            function(obj, type, fn) { return removeEvent(obj, type, fn); },
+        stopEvent:              function(e) { return stopEvent(e); },
+        // Show a single popup datepicker
+        show:                   function(inpID) { return showDatePicker(inpID, false); },
+        // Hide a popup datepicker
+        hide:                   function(inpID) { return hideDatePicker(inpID); },
+        // Create a new datepicker
+        createDatePicker:       function(options) { addDatePicker(options); },
+        // Destroy a datepicker (remove events and DOM nodes)
+        destroyDatePicker:      function(inpID) { destroySingleDatePicker(inpID); },
+        // Check datePicker form elements exist, if not, destroy the datepicker
+        cleanUp:                function() { cleanUp(); },
+        // Pretty print a date object according to the format passed in
+        printFormattedDate:     function(dt, fmt, useImportedLocale) { return printFormattedDate(dt, fmt, useImportedLocale); },
+        // Update the internal date using the form element value
+        setDateFromInput:       function(inpID) { if(!inpID || !(inpID in datePickers)) return false; datePickers[inpID].setDateFromInput(); },
+        // Set low and high date ranges
+        setRangeLow:            function(inpID, yyyymmdd) { if(!inpID || !(inpID in datePickers)) { return false; }; datePickers[inpID].setRangeLow(dateToYYYYMMDD(yyyymmdd)); },
+        setRangeHigh:           function(inpID, yyyymmdd) { if(!inpID || !(inpID in datePickers)) { return false; }; datePickers[inpID].setRangeHigh(dateToYYYYMMDD(yyyymmdd)); },
+        // Set bespoke titles for a datepicker instance
+        setBespokeTitles:       function(inpID, titles) {if(!inpID || !(inpID in datePickers)) { return false; }; datePickers[inpID].setBespokeTitles(titles); },
+        // Add bespoke titles for a datepicker instance
+        addBespokeTitles:       function(inpID, titles) {if(!inpID || !(inpID in datePickers)) { return false; }; datePickers[inpID].addBespokeTitles(titles); },
+        // Attempt to parse a valid date from a date string using the passed in format
+        parseDateString:        function(str, format) { return parseDateString(str, format); },
+        // Change global configuration parameters
+        setGlobalOptions:       function(json) { affectJSON(json); },
+        // Forces the datepickers "selected" date
+        setSelectedDate:        function(inpID, yyyymmdd) { if(!inpID || !(inpID in datePickers)) { return false; }; datePickers[inpID].setSelectedDate(dateToYYYYMMDD(yyyymmdd)); },
+        // Is the date valid for selection i.e. not outside ranges etc
+        dateValidForSelection:  function(inpID, dt) { if(!inpID || !(inpID in datePickers)) return false; return datePickers[inpID].canDateBeSelected(dt); },
+        // Add disabled and enabled dates
+        addDisabledDates:       function(inpID, dts) { if(!inpID || !(inpID in datePickers)) return false; datePickers[inpID].addDisabledDates(dts); },
+        setDisabledDates:       function(inpID, dts) { if(!inpID || !(inpID in datePickers)) return false; datePickers[inpID].setDisabledDates(dts); },
+        addEnabledDates:        function(inpID, dts) { if(!inpID || !(inpID in datePickers)) return false; datePickers[inpID].addEnabledDates(dts); },
+        setEnabledDates:        function(inpID, dts) { if(!inpID || !(inpID in datePickers)) return false; datePickers[inpID].setEnabledDates(dts); },
+        // Disable and enable the datepicker
+        disable:                function(inpID) { if(!inpID || !(inpID in datePickers)) return false; datePickers[inpID].disableDatePicker(); },
+        enable:                 function(inpID) { if(!inpID || !(inpID in datePickers)) return false; datePickers[inpID].enableDatePicker(); },
+        // Set the cursor date
+        setCursorDate:          function(inpID, yyyymmdd) { if(!inpID || !(inpID in datePickers)) return false; datePickers[inpID].setCursorDate(dateToYYYYMMDD(yyyymmdd)); },
+        // Whats the currently selected date
+        getSelectedDate:        function(inpID) { return (!inpID || !(inpID in datePickers)) ? false : datePickers[inpID].returnSelectedDate(); },
+        // Attempt to update the language (causes a redraw of all datepickers on the page)
+        loadLanguage:           function() { loadLanguage(); },
+        // Set the debug level i.e. throw errors or fail silently
+        setDebug:               function(dbg) { debug = !!(dbg); },
+        // Converts Date Object to a YYYYMMDD formatted String
+        dateToYYYYMMDDStr:      function(dt) { return dateToYYYYMMDD(dt); }
+    };
+})();
+
+/*! http://mths.be/he v0.4.1 by @mathias | MIT license */
 ;(function(root) {
 
 	// Detect free variables `exports`.
@@ -53075,7 +59837,7 @@ var Dn=bn.prototype;Dn[qe]=Dn.remove,Dn[Oe]=Xe[Oe],Dn.merge=Xe.merge,Dn.mergeWit
 
 }(this));
 
-;/*!
+/*!
 * https://github.com/Starcounter-Jack/Fast-JSON-Patch
 * json-patch-duplex.js 0.5.0
 * (c) 2013 Joachim Wester
@@ -55413,7 +62175,93 @@ function merge_text_nodes( jsonml ) {
   }
 } )() );
 
-;!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.io=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(_dereq_,module,exports){
+/**
+ * A mixin for handling (effectively) onClickOutside for React components.
+ * Note that we're not intercepting any events in this approach, and we're
+ * not using double events for capturing and discarding in layers or wrappers.
+ *
+ * The idea is that components define function
+ *
+ *   handleClickOutside: function() { ... }
+ *
+ * If no such function is defined, an error will be thrown, as this means
+ * either it still needs to be written, or the component should not be using
+ * this mixing since it will not exhibit onClickOutside behaviour.
+ *
+ */
+(function (root, factory) {
+  if (typeof define === 'function' && define.amd) {
+    // AMD. Register as an anonymous module.
+    define([], factory);
+  } else if (typeof exports === 'object') {
+    // Node. Note that this does not work with strict
+    // CommonJS, but only CommonJS-like environments
+    // that support module.exports
+    module.exports = factory();
+  } else {
+    // Browser globals (root is window)
+    root.OnClickOutside = factory();
+  }
+}(this, function () {
+  "use strict";
+
+  // Use a parallel array because we can't use
+  // objects as keys, they get toString-coerced
+  var registeredComponents = [];
+  var handlers = [];
+
+  var IGNORE_CLASS = 'ignore-react-onclickoutside';
+
+  return {
+    componentDidMount: function() {
+      if(!this.handleClickOutside)
+        throw new Error("Component lacks a handleClickOutside(event) function for processing outside click events.");
+
+      var fn = (function(localNode, eventHandler) {
+        return function(evt) {
+          var source = evt.target;
+          var found = false;
+          // If source=local then this event came from "somewhere"
+          // inside and should be ignored. We could handle this with
+          // a layered approach, too, but that requires going back to
+          // thinking in terms of Dom node nesting, running counter
+          // to React's "you shouldn't care about the DOM" philosophy.
+          while(source.parentNode) {
+            found = (source === localNode || source.classList.contains(IGNORE_CLASS));
+            if(found) return;
+            source = source.parentNode;
+          }
+          eventHandler(evt);
+        }
+      }(this.getDOMNode(), this.handleClickOutside));
+
+      document.addEventListener("mousedown", fn);
+      document.addEventListener("touchstart", fn);
+
+      var pos = registeredComponents.length;
+      registeredComponents.push(this);
+      handlers[pos] = fn;
+    },
+
+    componentWillUnmount: function() {
+      var pos = registeredComponents.indexOf(this);
+      if( pos>-1) {
+        var fn = handlers[pos];
+
+        if (fn) {
+          // clean up so we don't leak memory
+          handlers.splice(pos, 1);
+          registeredComponents.splice(pos, 1);
+          document.removeEventListener("mousedown", fn);
+          document.removeEventListener("touchstart", fn);
+        }
+      }
+    }
+  };
+
+}));
+
+!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.io=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(_dereq_,module,exports){
 
 module.exports = _dereq_('./lib/');
 
@@ -61607,6 +68455,396 @@ function toArray(list, index) {
 (1)
 });
 
+/*!
+ * © 2014 Second Street, MIT License <http://opensource.org/licenses/MIT>
+ * Talker.js 1.0.1 <http://github.com/secondstreet/talker.js>
+ */
+//region Constants
+var TALKER_TYPE = 'application/x-talkerjs-v1+json';
+var TALKER_ERR_TIMEOUT = 'timeout';
+//endregion Constants
+
+//region Third-Party Libraries
+/*
+ * PinkySwear.js 2.1 - Minimalistic implementation of the Promises/A+ spec
+ * Modified slightly for embedding in Talker.js
+ *
+ * Public Domain. Use, modify and distribute it any way you like. No attribution required.
+ *
+ * NO WARRANTY EXPRESSED OR IMPLIED. USE AT YOUR OWN RISK.
+ *
+ * PinkySwear is a very small implementation of the Promises/A+ specification. After compilation with the
+ * Google Closure Compiler and gzipping it weighs less than 500 bytes. It is based on the implementation for
+ * Minified.js and should be perfect for embedding.
+ *
+ * https://github.com/timjansen/PinkySwear.js
+ */
+var pinkySwearPromise = (function() {
+  var undef;
+
+  function isFunction(f) {
+    return typeof f == 'function';
+  }
+  function isObject(f) {
+    return typeof f == 'object';
+  }
+  function defer(callback) {
+    if (typeof setImmediate != 'undefined')
+  setImmediate(callback);
+    else if (typeof process != 'undefined' && process['nextTick'])
+  process['nextTick'](callback);
+    else
+  setTimeout(callback, 0);
+  }
+
+  return function pinkySwear() {
+    var state;           // undefined/null = pending, true = fulfilled, false = rejected
+    var values = [];     // an array of values as arguments for the then() handlers
+    var deferred = [];   // functions to call when set() is invoked
+
+    var set = function(newState, newValues) {
+      if (state == null && newState != null) {
+        state = newState;
+        values = newValues;
+        if (deferred.length)
+          defer(function() {
+            for (var i = 0; i < deferred.length; i++)
+            deferred[i]();
+          });
+      }
+      return state;
+    };
+
+    set['then'] = function (onFulfilled, onRejected) {
+      var promise2 = pinkySwear();
+      var callCallbacks = function() {
+        try {
+          var f = (state ? onFulfilled : onRejected);
+          if (isFunction(f)) {
+            function resolve(x) {
+              var then, cbCalled = 0;
+              try {
+                if (x && (isObject(x) || isFunction(x)) && isFunction(then = x['then'])) {
+                  if (x === promise2)
+                    throw new TypeError();
+                  then['call'](x,
+                      function() { if (!cbCalled++) resolve.apply(undef,arguments); } ,
+                      function(value){ if (!cbCalled++) promise2(false,[value]);});
+                }
+                else
+                  promise2(true, arguments);
+              }
+              catch(e) {
+                if (!cbCalled++)
+                  promise2(false, [e]);
+              }
+            }
+            resolve(f.apply(undef, values || []));
+          }
+          else
+            promise2(state, values);
+        }
+        catch (e) {
+          promise2(false, [e]);
+        }
+      };
+      if (state != null)
+        defer(callCallbacks);
+      else
+        deferred.push(callCallbacks);
+      return promise2;
+    };
+    return set;
+  };
+})();
+/**
+ * Object Create
+ */
+var objectCreate = function(proto) {
+    function ctor () { }
+    ctor.prototype = proto;
+    return new ctor();
+};
+//endregion
+
+//region Public Methods
+/**
+ * Talker
+ * Used to open a communication line between this window and a remote window via postMessage.
+ * @param remoteWindow - The remote `window` object to post/receive messages to/from.
+ * @property {Window} remoteWindow - The remote window object this Talker is communicating with
+ * @property {string} remoteOrigin - The protocol, host, and port you expect the remote to be
+ * @property {number} timeout - The number of milliseconds to wait before assuming no response will be received.
+ * @property {boolean} handshaken - Whether we've received a handshake from the remote window
+ * @property {function(Talker.Message)} onMessage - Will be called with every non-handshake, non-response message from the remote window
+ * @property {Promise} handshake - Will be resolved when a handshake is newly established with the remote window.
+ * @returns {Talker}
+ * @constructor
+ */
+var Talker = function(remoteWindow, remoteOrigin) {
+    this.remoteWindow = remoteWindow;
+    this.remoteOrigin = remoteOrigin;
+    this.timeout = 3000;
+
+    this.handshaken = false;
+    this.handshake = pinkySwearPromise();
+    this._id = 0;
+    this._queue = [];
+    this._sent = {};
+
+    var _this = this;
+    window.addEventListener('message', function(messageEvent) { _this._receiveMessage(messageEvent) }, false);
+    this._sendHandshake();
+
+    return this;
+};
+
+/**
+ * Send
+ * Sends a message and returns a promise
+ * @param namespace - The namespace the message is in
+ * @param data - The data to send, must be a JSON.stringify-able object
+ * @param [responseToId=null] - If this is a response to a previous message, its ID.
+ * @public
+ * @returns {Promise} - May resolve with a {@link Talker.IncomingMessage}, or rejects with an Error
+ */
+Talker.prototype.send = function(namespace, data, responseToId) {
+    var message = new Talker.OutgoingMessage(this, namespace, data, responseToId);
+
+    var promise = pinkySwearPromise();
+    this._sent[message.id] = promise;
+
+    this._queue.push(message);
+    this._flushQueue();
+
+    setTimeout(function() {
+        promise(false, [new Error(TALKER_ERR_TIMEOUT)]); // Reject the promise
+    }, this.timeout);
+
+    return promise;
+};
+//endregion Public Methods
+
+//region Private Methods
+/**
+ * Handles receipt of a message via postMessage
+ * @param {MessageEvent} messageEvent
+ * @private
+ */
+Talker.prototype._receiveMessage = function(messageEvent) {
+    var object, isHandshake;
+
+    try {
+        object = JSON.parse(messageEvent.data);
+    }
+    catch (e) {
+        object = {};
+    }
+    if (!this._isSafeMessage(messageEvent.source, messageEvent.origin, object.type)) { return false; }
+
+    isHandshake = object.handshake || object.handshakeConfirmation;
+    return isHandshake ? this._handleHandshake(object) : this._handleMessage(object);
+};
+
+/**
+ * Determines whether it is safe and appropriate to parse a postMessage messageEvent
+ * @param {Window} source - Source window object
+ * @param {string} origin - Protocol, host, and port
+ * @param {string} type - Internet Media Type
+ * @returns {boolean}
+ * @private
+ */
+Talker.prototype._isSafeMessage = function(source, origin, type) {
+    var safeSource, safeOrigin, safeType;
+
+    safeSource = source === this.remoteWindow;
+    safeOrigin = (this.remoteOrigin === '*') || (origin === this.remoteOrigin);
+    safeType = type === TALKER_TYPE;
+
+    return safeSource && safeOrigin && safeType;
+};
+
+/**
+ * Handle a handshake message
+ * @param {Object} object - The postMessage content, parsed into an Object
+ * @private
+ */
+Talker.prototype._handleHandshake = function(object) {
+    if (object.handshake) { this._sendHandshake(this.handshaken); } // One last handshake in case the remote window (which we now know is ready) hasn't seen ours yet
+    this.handshaken = true;
+    this.handshake(true, [this.handshaken]);
+    this._flushQueue();
+};
+
+/**
+ * Handle a non-handshake message
+ * @param {Object} rawObject - The postMessage content, parsed into an Object
+ * @private
+ */
+Talker.prototype._handleMessage = function(rawObject) {
+    var message = new Talker.IncomingMessage(this, rawObject.namespace, rawObject.data, rawObject.id);
+    var responseId = rawObject.responseToId;
+    return responseId ? this._respondToMessage(responseId, message) : this._broadcastMessage(message);
+};
+
+/**
+ * Send a response message back to an awaiting promise
+ * @param {number} id - Message ID of the waiting promise
+ * @param {Talker.Message} message - Message that is responding to that ID
+ * @private
+ */
+Talker.prototype._respondToMessage = function(id, message) {
+    if (this._sent[id]) {
+        this._sent[id](true, [message]); // Resolve the promise
+        delete this._sent[id];
+    }
+};
+
+/**
+ * Send a non-response message to awaiting hooks/callbacks
+ * @param {Talker.Message} message - Message that arrived
+ * @private
+ */
+Talker.prototype._broadcastMessage = function(message) {
+    if (this.onMessage) { this.onMessage.call(this, message); }
+};
+
+/**
+ * Send a handshake message to the remote window
+ * @param {boolean} [confirmation] - Is this a confirmation handshake?
+ * @private
+ */
+Talker.prototype._sendHandshake = function(confirmation) {
+    var message = { type: TALKER_TYPE };
+    var handshakeType = confirmation ? 'handshakeConfirmation' : 'handshake';
+    message[handshakeType] = true;
+    this._postMessage(message);
+};
+
+/**
+ * Increment the internal ID and return a new one.
+ * @returns {number}
+ * @private
+ */
+Talker.prototype._nextId = function() {
+    return this._id += 1;
+};
+
+/**
+ * Wrapper around window.postMessage to only send if we have the necessary objects
+ * @param {Object} data - A JSON.stringify'able object
+ * @private
+ */
+Talker.prototype._postMessage = function(data) {
+    if (this.remoteWindow && this.remoteOrigin) {
+        this.remoteWindow.postMessage(JSON.stringify(data), this.remoteOrigin);
+    }
+};
+
+/**
+ * Flushes the internal queue of outgoing messages, sending each one.
+ * @returns {Array} - Returns the queue for recursion
+ * @private
+ */
+Talker.prototype._flushQueue = function() {
+    if (this.handshaken) {
+        var message = this._queue.shift();
+        if (!message) { return this._queue; }
+        this._postMessage(message);
+        if (this._queue.length > 0) { return this._flushQueue(); }
+    }
+    return this._queue;
+};
+//endregion Private Methods
+
+//region Talker Message
+/**
+ * Talker Message
+ * Used to wrap a message for Talker with some extra metadata and methods
+ * @param {Talker} talker - A {@link Talker} instance that will be used to send responses
+ * @param {string} namespace - A namespace to with which to categorize messages
+ * @param {Object} data - A JSON.stringify-able object
+ * @property {number} id
+ * @property {number} responseToId
+ * @property {string} namespace
+ * @property {Object} data
+ * @property {string} type
+ * @property {Talker} talker
+ * @returns {Talker.Message}
+ * @constructor
+ */
+Talker.Message = function(talker, namespace, data) {
+    this.talker = talker;
+    this.namespace = namespace;
+    this.data = data;
+    this.type = TALKER_TYPE;
+
+    return this;
+};
+//endregion Talker Message
+
+//region Talker Outgoing Message
+/**
+ * Talker Outgoing Message
+ * @extends Talker.Message
+ * @param {Talker} talker - A {@link Talker} instance that will be used to send responses
+ * @param {string} namespace - A namespace to with which to categorize messages
+ * @param {Object} data - A JSON.stringify-able object
+ * @param [responseToId=null] - If this is a response to a previous message, its ID.
+ * @constructor
+ */
+Talker.OutgoingMessage = function(talker, namespace, data, responseToId) {
+    Talker.Message.call(this, talker, namespace, data);
+    this.responseToId = responseToId || null;
+    this.id = this.talker._nextId();
+};
+Talker.OutgoingMessage.prototype = objectCreate(Talker.Message.prototype);
+Talker.OutgoingMessage.prototype.constructor = Talker.Message;
+
+/**
+ * @returns {Object}
+ * @public
+ */
+Talker.OutgoingMessage.prototype.toJSON = function() {
+    return {
+        id: this.id,
+        responseToId: this.responseToId,
+        namespace: this.namespace,
+        data: this.data,
+        type: this.type
+    };
+};
+//endregion Talker Outgoing Message
+
+//region Talker Incoming Message
+/**
+ * Talker Incoming Message
+ * @extends Talker.Message
+ * @param {Talker} talker - A {@link Talker} instance that will be used to send responses
+ * @param {string} namespace - A namespace to with which to categorize messages
+ * @param {Object} data - A JSON.stringify-able object
+ * @param {number} id - The ID received from the other side
+ * @constructor
+ */
+Talker.IncomingMessage = function(talker, namespace, data, id) {
+    Talker.Message.call(this, talker, namespace, data);
+    this.id = id;
+};
+Talker.IncomingMessage.prototype = objectCreate(Talker.Message.prototype);
+Talker.IncomingMessage.prototype.constructor = Talker.Message;
+
+/**
+ * Respond
+ * Responds to a message
+ * @param {Object} data - A JSON.stringify-able object
+ * @public
+ * @returns {Promise} - Resolves with a {@link Talker.IncomingMessage}, or rejects with an Error
+ */
+Talker.IncomingMessage.prototype.respond = function(data) {
+    return this.talker.send(null, data, this.id);
+};
+//endregion Talker Incoming Message
+
 ;/*
  * to-markdown - an HTML to Markdown converter
  *
@@ -61754,7 +68992,7 @@ var toMarkdown = function(string) {
             innerHTML = innerHTML.replace(/^\s+/, '');
             innerHTML = innerHTML.replace(/\n\n/g, '\n\n    ');
             // indent nested lists
-            innerHTML = innerHTML.replace(/\n([ ]*)+(\*|\d+\.) /g, '\n$1    $2 ');
+            innerHTML = innerHTML.replace(/\n([ ]*)(\*|\d+\.) /g, '\n$1    $2 ');
             return prefix + innerHTML;
           });
         }

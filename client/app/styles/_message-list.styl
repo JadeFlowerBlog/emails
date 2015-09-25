@@ -4,273 +4,376 @@
   -- Message list bar internal layout and styles
 */
 
-.message-list
-    padding 0
+// Temporary limit preview due to box model / flexbox issues
+.messages-list .preview
+    max-width 30vw
 
-    &.disable
-        display none
+.full .messages-list .preview
+    max-width 85vw
 
-    .pagination-box
-        text-align center
+.list-loading
+    padding    1.5rem
+    color      #999
+    text-align center
 
-    .pagination
-        margin .5em 0 1em 0
+.messages-list
+    display          flex
+    flex-direction   column
+    background-color white
 
-    .pagination > li > a, .pagination > li > span
-        border-width 0
+    // defaults
+    button
+        background transparent
+        border     none
 
-    .pagination > li.current
-        font-weight bold
+    .drawer-toggle
+        float left
 
-    .message
-        cursor pointer
-        font-size 0.8em
-        border 0
-        height 2.4rem
+    // TOOLBAR (filters / search / actions)
+    //--------------------------------------------------------------------------
+    // Layouts
+    [role=toolbar]
+        position    relative    // set root positionning for dropdowns
+        display     flex
+        flex-shrink 0
 
-        > a
-        > span
-          padding 0 .25em
-          display block
-          outline none
+        & > [role=menuitem]
+            padding 0 .75em
+            margin-left -.0625em
 
-          // We use a flexbox display so the message preview takes all the width left
-          display flex
-          justify-content flex-start
-          align-items center
+        [role=group]:last-child
+            flex 1
 
-          text-decoration none
+        .dropdown
+            display flex
 
-        input[type="checkbox"]
-            height auto
-            width auto
-            margin 0 0.3em 0 0.5em
-            cursor pointer
+    [role=group]
+        display flex
 
-        .participants
-        .preview
-            margin 0.25em 2em 0 1em
-        .participants
-            flex-grow 2
-        .preview
-            flex-grow 4
-            width 100%
-        .hour
-          flex-grow 1
+    .filters
+        margin-right .5em
+        border-right 1px solid #e5e5e5
+        flex         none
 
-        .preview
-            margin 0.25em .75em 0 auto
-            overflow hidden
-            white-space nowrap
-            text-overflow ellipsis
-            color mediumcolor // for ellipsis + p
+        i
+            padding-left .5em
 
-            .conversation-length
-                margin-right 5px
-
-            .title
-                color darkcolor
-            p
-                margin 0
-                display inline
-
-        .participants
-            width 12em
-            min-width 12em
-            max-width 12em
-            color darkcolor
-            white-space pre
-            overflow hidden
-            text-overflow ellipsis
-
-        .title
-            margin-top: 0.25em
-            min-width 200px
-            &:after
-                content ' - '
-
-        .hour
-            margin-left auto
-            color darkcolor
-            text-align right
-            width 6em
-
-        // placeholder until we have images
-        .fa-user
-        .avatar
-        .select
-            margin 0
-            color #aaa
-            font-size 2em
-            width 1.5em
-            height 1.5em
-            padding-top 0.25em
-            text-align center
-
-        img.avatar
-            padding-top 0
-
-        .select
+        .btn-label
             display none
 
-      .fav
-        color yellow
-        display none
+        @media(min-width: 50em)
+            .full & [role=menuitem]
+                i
+                    padding-left 0
 
-      .attach
-        display none
+                .btn-label
+                    display inline
 
-    .message:nth-child(2n+1)
-       background-color lightcolor
-       //background linear-gradient(to bottom, #fff 0%, lightcolor 15%, lightcolor 85%, #fff 100%)
+        // Toggling mode for filter under < 600px
+        & > [role=presentation]
+            display none
 
-    .message.active
-       background lightblue
+        @media(max-width: 37.5em)
+            & > [role=presentation]
+                display block
+                cursor  pointer
 
-    .message.unseen
-      font-weight bold
+            [role=menuitem]
+                display none
 
-    .message .flags
-        width 3em
+            &[aria-expanded=true] [role=menuitem]
+                display block
 
-    .message.has-attachments .attach
-      display inline
-      padding 0 .5em
+            &[aria-expanded=false]
+                margin-right 1px
 
-    .message.is-fav .fav
-      display inline
-      padding 0 .5em
 
-    .message:hover
-       background lightorange
+    [role=search]
+        flex     1
+        display  flex
+        position relative
 
-    .message.edited
-       span.wrapper
-           margin 0
-           padding 0em .25em 0em .25em
+        input
+            flex    1
+            display flex
 
-        .participants
-             margin-left 1em
+        .btn-group
+            position absolute
+            top      0
+            right    0
 
-    .message.edited
-    .avatar-wrapper:hover
-        .select
-             display inherit
-             margin 0.49em
+        .btn:hover
+            color actioncolor
 
-        .fa-user
-        .avatar
-             display none
 
-    .avatar-wrapper:hover
-        .participants
-             margin-left 1.4em
 
-    .message-list-actions
-      display flex
-      justify-content flex-start
-      align-items left
-      /* Fixed toolbar, see https://github.com/cozy/cozy-emails/issues/191
-      position fixed
-      background-color white
-      top 0
-      padding .5em 0
-      z-index 1000
-      */
+    // Styles and colors
+    [role=toolbar]
+        height           2.2rem
+        padding-top      0.2em
+        padding-right    0.2em
+        background-color #f5f5f5
 
-    .message-list-actions + *
-        clear both
-        margin-top 2.5em
+        button
+            font-size 0.875em
 
-/* Fixed toolbar, see https://github.com/cozy/cozy-emails/issues/191
-#panels.three .message-list-actions
-  width 34%
-#panels.three.full .message-list-actions
-  width 72%
-#panels.vertical .message-list-actions
-  width 43%
-#panels.horizontal .message-list-actions,
-#panels.vertical.full .message-list-actions
-  width 89%
-*/
+        i
+            color #999
 
-.message-list.compact
+    [role=group]
+            color #999
+
+            i
+                vertical-align baseline
+                padding-right  .5em
+
+        i[role=presentation]
+            padding          .65em
+            background-color basecolor
+            color            white
+
+            &:hover
+                background-color darken(basecolor, 20%)
+
+
+    .filters
+        [role=menuitem]
+            &:not(.dropdown)[aria-selected=false]:hover
+            &[aria-selected=true]:hover
+                i
+                .btn-label
+                    color basecolor
+
+            &[aria-selected=true]
+                i
+                .btn-label
+                    color basecolor
+
+    .search input
+        padding          0 .5em
+        border           1px solid #d5d5d5
+        background-color #f5f5f5
+        border-radius    2px
+
+        &:focus
+            outline          none
+            background-color #fff
+
+    .progress
+        border-radius 0
+        margin 0px
+        height 0.2em
+        min-height 0.2em
+        background-image none
+        background-color #f5f5f5
+        box-shadow 0 0
+        border-bottom 1px solid #c5c5c5
+
+
+    // LIST ITEMS
+    //--------------------------------------------------------------------------
+    .main-content
+        flex             1
+        overflow-y       auto
+        padding          0 0 .5em 0
+        background-color #fff
+
+        // `end of the road`
+        & > p
+            text-align center
+            font-size .875em
+
     .message
-        height 1.75em
-    .message a.wrapper
-    .message span.wrapper
-        padding 1px 0
-    .fa-user
-    .avatar
-    .select
-        font-size 1.5em
-        width 1.2em
-        height 1.2em
-        margin -.1em 0
-        padding-top 0.1em
-    input[type="checkbox"]
-    .message.edited .select
-    .avatar-wrapper:hover .select
-        height auto
-        width auto
-        margin 0 0.2em 0 0.3em
-        cursor pointer
+        // defaults
+        border-bottom 1px solid #e5e5e5
+        background-color #fff
 
-.message-list-option
+        // Layouts
+        .wrapper
+            display         flex
+            padding         .8em 0.5em
 
-    .btn.btn-default
-        font-size: 1.1em
-        transition: color 0.2s ease
-        background: none
-        box-shadow: none
-        border: 0
-        color: basecolor
+            & > div
+                margin auto .5em
 
-        &:active
-            color actioncolor - 10%
+        .markers-wrapper
+            display         flex
+            flex-direction  column
+            justify-content space-around
+            align-items     center
+            margin          0 !important
+            min-width       1em
 
-    .btn.btn-default.shown
-    .btn.btn-default:hover
-        color: actioncolor
+            i
+                font-size .85em
+                color     darkcolor +30%
 
-        &:active
-            color actioncolor - 10%
+                &.fa-circle
+                    color basecolor
 
-.message-list-actions
+        .avatar-wrapper
+            width         3em
+            height        3em
+            position      relative
 
-    .toggle-menu-button
-        display none
+            input
+            .avatar
+                position absolute
 
-    .btn.btn-default.dropdown-toggle.move
-    .btn.btn-default.dropdown-toggle.more
-        font-size: 1em
-        transition: color 0.2s ease
-        background: none
-        box-shadow: none
-        border: 0
-        color: basecolor
+            .avatar
+                top           0
+                left          0
+                display       block
+                width         100%
+                height        100%
+                border-radius 50%
 
-    .btn.btn-default.dropdown-toggle.move:hover
-    .btn.btn-default.dropdown-toggle.more:hover
-        color: actioncolor
+            input
+                top       0
+                left      50%
+                transform translateX(-50%)
+
+        .metas-wrapper
+            flex            1
+            display         flex
+            flex-wrap       wrap
+            justify-content space-between
+            line-height     1.4em
+
+            .ellipsable
+                // This is the most tricky and weird way I have found to bypass
+                // flexbox calculation for internal sizes and permit an overflow
+                // rendering. It's based on the padded-top responsive images
+                // trick.
+                height       1em
+                white-space  nowrap
+                position     relative
+                max-width    0
+                padding-left 85%
+                font-size    0.9em
+
+                p
+                    position      absolute
+                    left          0
+                    width         100%
+                    margin        0
+                    overflow      hidden
+                    text-overflow ellipsis
+
+            .participants
+                order       1
+                font-weight bold
 
 
-.message
-    .fa-paperclip
-        display none
+            .date
+                flex        1
+                order       2
+                color       #999
+                text-align  right
 
-    .fa-star
-        display none
+            .subject
+                order     3
+                height    1.6em
+                font-size 0.9em
 
-.message:hover
-    background lightorange
+            .extras
+                order 4
 
-.message.active
+                i
+                    margin-left .75em
 
-    .select
-        height auto
-        margin 0
-        padding 0
+            .participants
+            .subject
+                flex 1 0 70%
 
-.more-messages
-    cursor pointer
+            .preview
+                order        5
+                flex         1 0 100%
+                // This is the most tricky and weird way I have found to bypass
+                // flexbox calculation for internal sizes and permit an overflow
+                // rendering. It's based on the padded-top responsive images
+                // trick.
+                height       1.4em
+                white-space  nowrap
+                position     relative
+                max-width    0
+                padding-left 100%
+
+                p
+                    position      absolute
+                    left          0
+                    width         100%
+                    margin        0
+                    overflow      hidden
+                    text-overflow ellipsis
+
+
+        // Styles
+        .wrapper
+            color           darkcolor
+            text-decoration none
+
+        .avatar
+            line-height    2em
+            text-align     center
+            font-size      1.5em
+            font-style     normal
+            font-weight    bold
+            text-transform uppercase
+            color          white
+
+        i.avatar
+            opacity .7
+
+        .preview
+            color #999
+
+        .fa-star
+            color lightorange !important
+
+        .preview
+            font-weight normal
+            font-size   .875em
+
+        .conversation-length
+            padding          0 0.5em
+            margin-left      0.2em
+            background-color #aaa
+            border-radius    100em
+            color            #fff
+
+        .date
+        .extras
+            font-size .875em
+
+
+        // hover
+        &:hover,
+        &:not(.unseen):hover
+            background-color #ededed
+
+
+        // Unread styles
+        &:not(.unseen)
+            background-color #f5f5f5
+
+
+        // Currently selected message
+        main:not(.full) &.active
+            background-color #e5e5e5
+
+
+        // Edited mode
+        .markers-wrapper
+            .select
+                cursor  pointer
+                display none
+
+        &:hover
+        &.edited
+            .markers-wrapper
+                .select
+                    display block
+
+                i
+                    display none

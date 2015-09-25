@@ -28,14 +28,16 @@ module.exports =
                 console.log "Error in fetchMessage", emailID, res.body?.error
                 callback t('app error')
 
-    fetchConversation: (emailID, callback) ->
-        request.get "conversation/#{emailID}"
+    fetchConversation: (conversationID, callback) ->
+        request.get "messages/batchFetch?conversationID=#{conversationID}"
         .set 'Accept', 'application/json'
         .end (res) ->
             if res.ok
+                res.body.conversationLengths = {}
+                res.body.conversationLengths[conversationID] = res.body.length
                 callback null, res.body
             else
-                console.log "Error in fetchConversation", emailID,
+                console.log "Error in fetchConversation", conversationID,
                     res.body?.error
                 callback t('app error')
 
@@ -118,37 +120,66 @@ module.exports =
                 console.log "Error in messageSend", message, res.body?.error
                 callback res.body?.error?.message
 
-    messagePatch: (messageID, patch, callback) ->
-        request.patch "message/#{messageID}", patch
-        .set 'Accept', 'application/json'
-        .end (res) ->
-            if res.ok
-                callback null, res.body
-            else
-                console.log "Error in messagePatch", messageID, res.body?.error
-                callback t('app error')
 
-    conversationDelete: (conversationID, callback) ->
-        request.del "conversation/#{conversationID}"
-        .set 'Accept', 'application/json'
+    batchFetch: (target, callback) ->
+        body = _.extend {}, target
+        request.put "messages/batchFetch"
+        .send target
         .end (res) ->
             if res.ok
                 callback null, res.body
             else
-                console.log "Error in conversationDelete", conversationID,
-                    res.body?.error
-                callback t('app error')
+                err = res.body?.error.message
+                err ?= new Error 'Network batchFetch'
+                callback err
 
-    conversationPatch: (conversationID, patch, callback) ->
-        request.patch "conversation/#{conversationID}", patch
-        .set 'Accept', 'application/json'
+    batchAddFlag: (target, flag, callback) ->
+        body = _.extend {flag}, target
+        request.put "messages/batchAddFlag"
+        .send body
         .end (res) ->
             if res.ok
                 callback null, res.body
             else
-                console.log "Error in conversationPatch", conversationID,
-                    res.body?.error
-                callback t('app error')
+                err = res.body?.error.message
+                err ?= new Error 'Network batchAddFlag'
+                callback err
+
+    batchRemoveFlag: (target, flag, callback) ->
+        body = _.extend {flag}, target
+        request.put "messages/batchRemoveFlag"
+        .send body
+        .end (res) ->
+            if res.ok
+                callback null, res.body
+            else
+                err = res.body?.error.message
+                err ?= new Error 'Network batchRemoveFlag'
+                callback err
+
+    batchDelete: (target, callback) ->
+        body = _.extend {}, target
+        request.put "messages/batchTrash"
+        .send target
+        .end (res) ->
+            if res.ok
+                callback null, res.body
+            else
+                err = res.body?.error.message
+                err ?= new Error 'Network batchDelete'
+                callback err
+
+    batchMove: (target, from, to, callback) ->
+        body = _.extend {from, to}, target
+        request.put "messages/batchMove"
+        .send body
+        .end (res) ->
+            if res.ok
+                callback null, res.body
+            else
+                err = res.body?.error.message
+                err ?= new Error 'Network batchMove'
+                callback err
 
     createAccount: (account, callback) ->
 
@@ -181,10 +212,8 @@ module.exports =
 
     checkAccount: (account, callback) ->
 
-        rawAccount = account.toJS()
-
-        request.put "account/#{rawAccount.id}/check"
-        .send rawAccount
+        request.put "accountUtil/check"
+        .send account
         .set 'Accept', 'application/json'
         .end (res) ->
             if res.ok
@@ -231,6 +260,15 @@ module.exports =
             else
                 callback res.body
 
+    refreshMailbox: (mailboxID, callback) ->
+        request.get "refresh/#{mailboxID}"
+        .end (res) ->
+            if res.ok
+                callback null, res.text
+            else
+                callback res.text
+
+
     activityCreate: (options, callback) ->
         request.post "activity"
         .send options
@@ -241,3 +279,4 @@ module.exports =
             else
                 console.log "Error in activityCreate", options, res.body?.error
                 callback res.body, null
+

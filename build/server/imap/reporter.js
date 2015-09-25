@@ -118,13 +118,20 @@ module.exports = ImapReporter = (function() {
 
   ImapReporter.prototype.onError = function(err) {
     this.errors.push(Logger.getLasts() + "\n" + err.stack);
-    log.error(err.stack);
+    log.error("reporter err", err.stack);
     return this.sendtoclient();
   };
 
   return ImapReporter;
 
 })();
+
+ImapReporter.batchMoveToTrash = function(idsLength) {
+  return new ImapReporter({
+    code: 'batch-trash',
+    total: idsLength
+  });
+};
 
 ImapReporter.accountFetch = function(account, boxesLength, firstImport) {
   return new ImapReporter({

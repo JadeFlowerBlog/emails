@@ -1,9 +1,9 @@
 {div, label, textarea, span, ul, li, a, img, i} = React.DOM
 
 MessageUtils    = require '../utils/message_utils'
-Modal           = require './modal'
 ContactStore    = require '../stores/contact_store'
 ContactActionCreator = require '../actions/contact_action_creator'
+LayoutActionCreator = require '../actions/layout_action_creator'
 
 classer = React.addons.classSet
 
@@ -34,18 +34,15 @@ module.exports = MailsInput = React.createClass
     # because we store other things into the state
     componentDidMount: ->
         ContactStore.on 'change', @_setStateFromStores
-        @fixHeight()
 
     componentWillUnmount: ->
         ContactStore.removeListener 'change', @_setStateFromStores
 
     _setStateFromStores: -> @setState @getStateFromStores()
 
-    componentDidUpdate: ->
-        @fixHeight()
-
     shouldComponentUpdate: (nextProps, nextState) ->
-        return not(_.isEqual(nextState, @state)) or not (_.isEqual(nextProps, @props))
+        return not(_.isEqual(nextState, @state)) or
+            not (_.isEqual(nextProps, @props))
 
     render: ->
 
@@ -54,12 +51,31 @@ module.exports = MailsInput = React.createClass
                 known = @state.known.filter (a) ->
                     return a.address isnt address.address
                 @props.valueLink.requestChange known
+
+            onDragStart = (event) =>
+                event.stopPropagation()
+                if address?
+                    data =
+                        name: address.name
+                        address: address.address
+                    event.dataTransfer.setData 'address', JSON.stringify(data)
+                    event.dataTransfer.effectAllowed = 'all'
+                    # needed to prevent droping over drag source
+                    event.dataTransfer.setData @props.id, true
+
+            onDragEnd = (event) ->
+                if event.dataTransfer.dropEffect is 'move'
+                    remove()
+
             if address.name? and address.name.trim() isnt ''
                 display = address.name
             else
                 display = address.address
             span
                 className: 'address-tag'
+                draggable: true
+                onDragStart: onDragStart
+                onDragEnd: onDragEnd
                 key: "#{@props.id}-#{address.address}-#{idx}"
                 title: address.address
                 display
@@ -70,48 +86,90 @@ module.exports = MailsInput = React.createClass
 
         knownContacts = @state.known.map renderTag
 
+        # set focus to input area when clicking into component
+        onClick = =>
+            @refs.contactInput.getDOMNode().focus()
+
         onChange = (event) =>
             value = event.target.value.split ','
             if value.length is 2
-                @state.known.push(MessageUtils.parseAddress value[0])
-                @props.valueLink.requestChange @state.known
+                known = _.clone @state.known
+                known.push(MessageUtils.parseAddress value[0])
+                @props.valueLink.requestChange known
                 @setState unknown: value[1].trim()
             else
                 @setState unknown: event.target.value
 
-        className  = (@props.className or '') + " form-group #{@props.id}"
+        onInput = (event) =>
+            input = @refs.contactInput.getDOMNode()
+            input.cols = input.value.length + 2
+            input.style.height = input.scrollHeight + 'px'
+
+        className  = """
+           #{@props.className or ''} form-group mail-input #{@props.id}
+        """
         classLabel = 'compose-label control-label'
         listClass  = classer
             'contact-form': true
             open: @state.open and @state.contacts?.length > 0
         current    = 0
 
-        div className: className,
-            label htmlFor: @props.id, className: classLabel,
-                @props.label
-            knownContacts
-            div className: 'contact-group dropdown ' + listClass,
-                textarea
-                    id: @props.id
-                    name: @props.id
-                    className: 'form-control compose-input'
-                    onKeyDown: @onKeyDown
-                    onBlur: @onBlur
-                    ref: 'contactInput'
-                    rows: 1
-                    value: @state.unknown
-                    onChange: onChange
-                    placeholder: @props.placeholder
-                    'autoComplete': 'off'
-                    'spellCheck': 'off'
+        # in Chrome, we need to cancel some events for drop to work
+        cancelDragEvent = (event) =>
+            event.preventDefault()
+            # To prevent removing the contact when dropped where it has been dragged,
+            # we must set dropEffect to 'none'
+            # if Chrome, we can only access types of data, not data themselves
+            # In Chrome, types are an array; in Firefox, a DOMStringList
+            types = Array.prototype.slice.call(event.dataTransfer.types)
+            if types.indexOf(@props.id) is -1
+                event.dataTransfer.dropEffect = 'move'
+            else
+                event.dataTransfer.dropEffect = 'none'
 
-                if @state.contacts?
-                    ul className: "dropdown-menu contact-list",
-                        @state.contacts.map (contact, key) =>
-                            selected = current is @state.selected
-                            current++
-                            @renderContact contact, selected
-                        .toJS()
+        # don't display placeholder if there are dests
+        if knownContacts.length > 0
+            placeholder = ''
+        else
+            placeholder = @props.placeholder
+
+        div
+            className: className,
+            onClick: onClick
+            onDrop: @onDrop,
+            onDragEnter: cancelDragEvent,
+            onDragLeave: cancelDragEvent,
+            onDragOver: cancelDragEvent,
+                label htmlFor: @props.id, className: classLabel,
+                    @props.label
+                knownContacts
+                div className: 'contact-group dropdown ' + listClass,
+                    textarea
+                        id: @props.id
+                        name: @props.id
+                        className: 'form-control compose-input'
+                        onKeyDown: @onKeyDown
+                        onBlur: @onBlur
+                        onDrop: @onDrop
+                        onDragEnter: cancelDragEvent
+                        onDragLeave: cancelDragEvent
+                        onDragOver: cancelDragEvent
+                        ref: 'contactInput'
+                        rows: 1
+                        value: @state.unknown
+                        onChange: onChange
+                        onInput: onInput
+                        placeholder: placeholder
+                        'autoComplete': 'off'
+                        'spellCheck': 'off'
+
+                    if @state.contacts?
+                        ul className: "dropdown-menu contact-list",
+                            @state.contacts.map (contact, key) =>
+                                selected = current is @state.selected
+                                current++
+                                @renderContact contact, selected
+                            .toJS()
 
     renderContact: (contact, selected) ->
         selectContact = =>
@@ -120,7 +178,6 @@ module.exports = MailsInput = React.createClass
 
         classes = classer
             selected: selected
-
         li className: classes, onClick: selectContact,
             a null,
                 if avatar?
@@ -153,6 +210,10 @@ module.exports = MailsInput = React.createClass
         selected = @state.selected
         switch evt.key
             when "Enter"
+                # Typing enter key leads to the same behavior as blurring:
+                # adding a contact to the current list
+                @addContactFromInput() if 13 in [evt.keyCode, evt.which]
+
                 if @state.contacts?.count() > 0
                     contact = @state.contacts.slice(selected).first()
                     @onContact contact
@@ -176,31 +237,60 @@ module.exports = MailsInput = React.createClass
                     @onQuery(String.fromCharCode(evt.which))
                     return true
 
+
     onBlur: ->
         # We must use a timeout, otherwise, when user click inside contact list,
         # blur is triggered first and the click event lost. Dirty hack
         setTimeout =>
-            # if user cancel compose, component may be unmounted when the timeout is fired
-            if @isMounted()
-                state = {}
-                # close suggestion list
-                state.open = false
-                # Add current value to list of addresses
-                value = @refs.contactInput.getDOMNode().value
-                if value.trim() isnt ''
-                    @state.known.push(MessageUtils.parseAddress value)
+            @addContactFromInput true
+        , 100
+
+
+    # Grab text from the input and ensure it's a valid email address.
+    # If the address is valid, adds it to the recipient list.
+    addContactFromInput: (isBlur=false) ->
+        @state.selected = 0
+        # if user cancel compose, component may be unmounted when the timeout
+        # is fired
+        if @isMounted()
+            state = {}
+            # close suggestion list
+            state.open = false
+            # Add current value to list of addresses
+            value = @refs.contactInput.getDOMNode().value
+
+            if value.trim() isnt ''
+                address = MessageUtils.parseAddress value
+
+                if address.isValid
+                    @state.known.push address
                     state.known   = @state.known
                     state.unknown = ''
                     @props.valueLink.requestChange state.known
+                    @setState state
+
+                else
+                    # Trick to make sure that the alert error is not pop up
+                    # twiced due to multiple blur and key down.
+                    # Do not display anything when the field is blurred.
+                    isContacts = @state.contacts?.length is 0
+                    if not isBlur and isContacts
+
+                        msg = t 'compose wrong email format',
+                            address: address.address
+                        LayoutActionCreator.alertError msg
+
+            else
                 @setState state
-        , 100
+
 
     onContact: (contact) ->
         address =
             name    : contact.get 'fn'
             address : contact.get 'address'
-        @state.known.push address
-        @props.valueLink.requestChange @state.known
+        known = _.clone @state.known
+        known.push address
+        @props.valueLink.requestChange known
         @setState unknown: '', contacts: null, open: false
 
         # try to put back the focus at the end of the field
@@ -208,7 +298,20 @@ module.exports = MailsInput = React.createClass
             query = @refs.contactInput.getDOMNode().focus()
         , 200
 
-    fixHeight: ->
-        input = @refs.contactInput.getDOMNode()
-        if input.scrollHeight > input.clientHeight
-            input.style.height = input.scrollHeight + "px"
+    onDrop: (event) ->
+        event.preventDefault()
+        event.stopPropagation()
+        {name, address} = JSON.parse(event.dataTransfer.getData 'address')
+        exists = @state.known.some (item) ->
+            return item.name is name and item.address is address
+        if address? and not exists
+            address =
+                name    : name
+                address : address
+            known = _.clone @state.known
+            known.push address
+            @props.valueLink.requestChange known
+            @setState unknown: '', contacts: null, open: false
+            event.dataTransfer.dropEffect = 'move'
+        else
+            event.dataTransfer.dropEffect = 'none'

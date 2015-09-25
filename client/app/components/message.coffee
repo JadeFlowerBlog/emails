@@ -1,59 +1,67 @@
-{div, ul, li, span, i, p, a, button, pre, iframe, img, h4} = React.DOM
-Compose        = require './compose'
-FilePicker     = require './file_picker'
-ToolboxActions = require './toolbox_actions'
-ToolboxMove    = require './toolbox_move'
-MessageUtils = require '../utils/message_utils'
-{ComposeActions, MessageFlags, FlagsConstants} = require '../constants/app_constants'
+{
+    div, article, header, footer, ul, li, span, i, p, a, button, pre,
+    iframe
+} = React.DOM
+
+MessageHeader  = require "./message_header"
+MessageFooter  = require "./message_footer"
+ToolbarMessage = require './toolbar_message'
+
+{MessageFlags} = require '../constants/app_constants'
+
 LayoutActionCreator       = require '../actions/layout_action_creator'
-ConversationActionCreator = require '../actions/conversation_action_creator'
 MessageActionCreator      = require '../actions/message_action_creator'
 ContactActionCreator      = require '../actions/contact_action_creator'
+
 RouterMixin = require '../mixins/router_mixin'
-Participants  = require './participant'
+TooltipRefresherMixin = require '../mixins/tooltip_refresher_mixin'
 
 classer = React.addons.classSet
 alertError   = LayoutActionCreator.alertError
 alertSuccess = LayoutActionCreator.notify
+
 
 module.exports = React.createClass
     displayName: 'Message'
 
     mixins: [
         RouterMixin
+        TooltipRefresherMixin
     ]
 
-    getInitialState: ->
-        return {
-            active: @props.active,
-            composing: false
-            composeAction: ''
-            headers: false
-            messageDisplayHTML:   @props.settings.get 'messageDisplayHTML'
-            messageDisplayImages: @props.settings.get 'messageDisplayImages'
-            currentMessageID: null
-            prepared: {}
-        }
 
     propTypes:
         accounts               : React.PropTypes.object.isRequired
         active                 : React.PropTypes.bool
         inConversation         : React.PropTypes.bool
+        displayConversations   : React.PropTypes.bool
         key                    : React.PropTypes.string.isRequired
         mailboxes              : React.PropTypes.object.isRequired
         message                : React.PropTypes.object.isRequired
-        nextMessageID          : React.PropTypes.string
-        nextConversationID     : React.PropTypes.string
-        prevMessageID          : React.PropTypes.string
-        prevConversationID     : React.PropTypes.string
         selectedAccountID      : React.PropTypes.string.isRequired
         selectedAccountLogin   : React.PropTypes.string.isRequired
         selectedMailboxID      : React.PropTypes.string.isRequired
         settings               : React.PropTypes.object.isRequired
+        useIntents             : React.PropTypes.bool.isRequired
+        toggleActive           : React.PropTypes.func.isRequired
+
+
+    getInitialState: ->
+        return {
+            composeAction: ''
+            headers: false
+            messageDisplayHTML: @props.settings.get 'messageDisplayHTML'
+            messageDisplayImages: @props.settings.get 'messageDisplayImages'
+            currentMessageID: null
+            prepared: {}
+        }
+
 
     shouldComponentUpdate: (nextProps, nextState) ->
-        should = not(_.isEqual(nextState, @state)) or not (_.isEqual(nextProps, @props))
+        should = not(_.isEqual(nextState, @state)) or
+                 not (_.isEqual(nextProps, @props))
         return should
+
 
     _prepareMessage: (message) ->
         # display full headers
@@ -68,22 +76,28 @@ module.exports = React.createClass
         html = message.get 'html'
         alternatives = message.get 'alternatives'
         urls = /((([A-Za-z]{3,9}:(?:\/\/)?)(?:[-;:&=\+\$,\w]+@)?[A-Za-z0-9.-]+|(?:www.|[-;:&=\+\$,\w]+@)[A-Za-z0-9.-]+)((?:\/[\+~%\/.\w-_]*)?\??(?:[-\+=&;%@.\w_]*)#?(?:[\w]*))?)/gim
-        # Some calendar invite may contain neither text nor HTML part
-        if not text? and not html? and alternatives?.length > 0
-            text = t 'calendar unknown format'
+        if not text? and not html?
+            # Some calendar invite may contain neither text nor HTML part
+            if alternatives?.length > 0
+                text = t 'calendar unknown format'
+            else
+                text = ''
 
-        #
-        # @TODO Do we want to convert text only messages to HTML ?
+        # TODO: Do we want to convert text only messages to HTML ?
         # /!\ if messageDisplayHTML is set, this method should always return
         # a value fo html, otherwise the content of the email flashes
         if text? and not html? and @state.messageDisplayHTML
             try
                 html = markdown.toHTML text.replace(/(^>.*$)([^>]+)/gm, "$1\n$2")
+                html = "<div class='textOnly'>#{html}</div>"
             catch e
-                html = "<div class='text'>#{text}</div>" #markdown.toHTML text
+                html = "<div class='textOnly'>#{text}</div>"
 
         if html? and not text? and not @state.messageDisplayHTML
             text = toMarkdown html
+
+        mailboxes = message.get 'mailboxIDs'
+        trash = @props.accounts[@props.selectedAccountID]?.trashMailbox
 
         if text?
             rich = text.replace urls, '<a href="$1" target="_blank">$1</a>'
@@ -93,46 +107,53 @@ module.exports = React.createClass
             rich = rich.replace /^>>[^>]?.*$/gim, '<span class="quote2">$&</span>'
             rich = rich.replace /^>[^>]?.*$/gim, '<span class="quote1">$&</span>'
 
+        flags = @props.message.get('flags').slice()
         return {
             attachments: message.get 'attachments'
             fullHeaders: fullHeaders
             text       : text
             rich       : rich
             html       : html
+            isDraft    : (flags.indexOf(MessageFlags.DRAFT) > -1)
+            isDeleted  : mailboxes[trash]?
         }
 
+
     componentWillMount: ->
-        @_markRead @props.message
+        @_markRead(@props.message, @props.active)
+
 
     componentWillReceiveProps: (props) ->
-        state =
-            active: props.active
+        state = {}
         if props.message.get('id') isnt @props.message.get('id')
-            @_markRead props.message
+            @_markRead(props.message, props.active)
             state.messageDisplayHTML   = props.settings.get 'messageDisplayHTML'
             state.messageDisplayImages = props.settings.get 'messageDisplayImages'
-            state.composing            = false
         @setState state
 
-    _markRead: (message) ->
+
+    _markRead: (message, active) ->
         # Hack to prevent infinite loop if server side mark as read fails
         messageID = message.get 'id'
         if @state.currentMessageID isnt messageID
             state =
                 currentMessageID: messageID
                 prepared: @_prepareMessage message
-            # Mark message as seen if needed
-            flags = message.get('flags').slice()
-            if flags.indexOf(MessageFlags.SEEN) is -1
-                flags.push MessageFlags.SEEN
-                MessageActionCreator.updateFlag message, flags
             @setState state
+
+            # Only mark as read current active message if unseen
+            flags = message.get('flags').slice()
+            if active and flags.indexOf(MessageFlags.SEEN) is -1
+                setTimeout ->
+                    MessageActionCreator.mark {messageID}, MessageFlags.SEEN
+                , 1
+
 
     prepareHTML: (html) ->
         messageDisplayHTML = true
         parser = new DOMParser()
         html   = """<html><head>
-                <link rel="stylesheet" href="/fonts/fonts.css" />
+                <link rel="stylesheet" href="./fonts/fonts.css" />
                 <link rel="stylesheet" href="./mail_stylesheet.css" />
                 <style>body { visibility: hidden; }</style>
             </head><body>#{html}</body></html>"""
@@ -166,12 +187,10 @@ module.exports = React.createClass
         else
             @_htmlContent = html
 
-            #htmluri = "data:text/html;charset=utf-8;base64,
-            #      #{btoa(unescape(encodeURIComponent(doc.body.innerHTML)))}"
         return {messageDisplayHTML, images}
 
-    render: ->
 
+    render: ->
         message  = @props.message
         prepared = @state.prepared
 
@@ -183,450 +202,197 @@ module.exports = React.createClass
             messageDisplayHTML = false
             imagesWarning      = false
 
+        isUnread = message.get('flags').slice().indexOf(MessageFlags.SEEN) is -1
+
+        setActive = =>
+            if isUnread and not @props.active
+                messageID = message.get('id')
+                MessageActionCreator.mark {messageID}, MessageFlags.SEEN
+            @props.toggleActive()
+
         classes = classer
             message: true
-            active: @state.active
+            active: @props.active
+            isDraft: prepared.isDraft
+            isDeleted: prepared.isDeleted
+            isUnread: isUnread
 
-        if @state.active
-            li
-                className: classes,
-                key: @props.key,
-                'data-id': message.get('id'),
-                    @renderHeaders message
-                    div className: 'full-headers',
-                        pre null, prepared?.fullHeaders?.join "\n"
-                    @renderToolbox message
-                    @renderCompose()
-                    MessageContent
-                        ref: 'messageContent'
-                        messageID: message.get 'id'
-                        messageDisplayHTML: messageDisplayHTML
-                        html: @_htmlContent
-                        text: prepared.text
-                        rich: prepared.rich
-                        imagesWarning: imagesWarning
-                        composing: @state.composing
-                        displayImages: @displayImages
-                        displayHTML: @displayHTML
-                    @renderAttachments message.get('attachments').toJS()
-                    div className: 'clearfix'
-        else
-            li
-                className: classes,
-                key: @props.key,
-                'data-id': message.get('id'),
-                    @renderHeaders message
-
-    getParticipants: (message) ->
-        from = message.get 'from'
-        to   = message.get('to').concat(message.get('cc'))
-        span null,
-            Participants participants: from, onAdd: @addAddress, tooltip: true
-            span null, ', '
-            Participants participants: to, onAdd: @addAddress, tooltip: true
-
-    renderHeaders: (message) ->
-        attachments    = message.get('attachments')
-        hasAttachments = attachments.length
-        leftClass = if hasAttachments then 'col-md-8' else 'col-md-12'
-        flags     = message.get('flags') or []
-        avatar    = MessageUtils.getAvatar @props.message
-        date      = MessageUtils.formatDate message.get 'createdAt'
-        classes = classer
-            'header': true
-            'row': true
-            'full': @state.headers
-            'compact': not @state.headers
-            'has-attachments': hasAttachments
-            'is-fav': flags.indexOf(MessageFlags.FLAGGED) isnt -1
-
-        #toggleActive = a className: "toggle-active", onClick: @toggleActive,
-        #    if @state.active
-        #        i className: 'fa fa-compress'
-        #    else
-        #        i className: 'fa fa-expand'
-        if @state.headers
-            # detailed headers
-            div className: classes, onClick: @toggleActive,
-                div className: leftClass,
-                    if avatar
-                        img className: 'sender-avatar', src: avatar
-                    else
-                        i className: 'sender-avatar fa fa-user'
-                    div className: 'participants col-md-9',
-                        p className: 'sender',
-                            @renderAddress 'from'
-                            i
-                                className: 'toggle-headers fa fa-toggle-up clickable'
-                                onClick: @toggleHeaders
-                        p className: 'receivers',
-                            span null, t "mail receivers"
-                            @renderAddress 'to'
-                        if @props.message.get('cc')?.length > 0
-                            p className: 'receivers',
-                                span null, t "mail receivers cc"
-                                @renderAddress 'cc'
-                        if hasAttachments
-                            span className: 'hour', date
-                    if not hasAttachments
-                        span className: 'hour', date
-                if hasAttachments
-                    div className: 'col-md-4',
-                        FilePicker
-                            ref: 'filePicker'
-                            editable: false
-                            value: attachments
-                            messageID: @props.message.get 'id'
-                #if @props.inConversation
-                #    toggleActive
-        else
-            # compact headers
-            div className: classes, onClick: @toggleActive,
-                if avatar
-                    img className: 'sender-avatar', src: avatar
-                else
-                    i className: 'sender-avatar fa fa-user'
-                span className: 'participants', @getParticipants message
-                if @state.active
-                    i
-                        className: 'toggle-headers fa fa-toggle-down clickable'
-                        onClick: @toggleHeaders
-                #span className: 'subject', @props.message.get 'subject'
-                span className: 'hour', date
-                span className: "flags",
-                    i
-                        className: 'attach fa fa-paperclip clickable'
-                        onClick: @toggleHeaders
-                    i className: 'fav fa fa-star'
-                #if @props.inConversation
-                #    toggleActive
+        article
+            className: classes,
+            key: @props.key,
+            'data-id': message.get('id'),
+                header
+                    onClick: setActive,
+                    @renderHeaders()
+                    @renderToolbox() if @props.active
+                (div className: 'full-headers',
+                    pre null, prepared?.fullHeaders?.join "\n") if @props.active
+                (MessageContent
+                    ref: 'messageContent'
+                    messageID: message.get 'id'
+                    messageDisplayHTML: messageDisplayHTML
+                    html: @_htmlContent
+                    text: prepared.text
+                    rich: prepared.rich
+                    imagesWarning: imagesWarning
+                    displayImages: @displayImages
+                    displayHTML: @displayHTML) if @props.active
+                (footer null,
+                    @renderFooter()
+                    @renderToolbox(false)) if @props.active
 
 
-    renderAddress: (field) ->
-        addresses = @props.message.get(field)
-        if not addresses?
-            return
-
-        Participants participants: addresses, onAdd: @addAddress, tooltip: true
-
-    renderCompose: ->
-        if @state.composing
-            Compose
-                ref             : 'compose'
-                inReplyTo       : @props.message
-                accounts        : @props.accounts
-                settings        : @props.settings
-                selectedAccountID    : @props.selectedAccountID
-                selectedAccountLogin : @props.selectedAccountLogin
-                action          : @state.composeAction
-                layout          : 'second'
-                callback: (error) =>
-                    if not error?
-                        @setState composing: false
-                onCancel: =>
-                    @setState composing: false
-
-    renderToolbox: (message) ->
-
-        if @state.composing
-            return
-
-        flags     = message.get('flags') or []
-        isFlagged = flags.indexOf(FlagsConstants.FLAGGED) is -1
-        isSeen    = flags.indexOf(FlagsConstants.SEEN) is -1
+    renderHeaders: ->
+        MessageHeader
+            message: @props.message
+            isDraft: @state.prepared.isDraft
+            isDeleted: @state.prepared.isDeleted
+            active: @props.active
+            ref: 'header'
 
 
-        conversationID = @props.message.get 'conversationID'
+    renderToolbox: (full = true) ->
 
-        getParams = (messageID, conversationID) =>
-            if @props.settings.get('displayConversation')
-                return {
-                    action : 'conversation'
-                    parameters:
-                        messageID : messageID
-                        conversationID: conversationID
-                }
-            else
-                return {
-                    action : 'message'
-                    parameters:
-                        messageID : messageID
-                }
-        if @props.prevMessageID?
-            params = getParams @props.prevMessageID, @props.prevConversationID
-            prev =
-                direction: 'second'
-                action: params.action
-                parameters: params.parameters
-            prevUrl =  @buildUrl prev
-            displayPrev = =>
-                @redirect prev
-        if @props.nextMessageID?
-            params = getParams @props.nextMessageID, @props.nextConversationID
-            next =
-                direction: 'second'
-                action: params.action
-                parameters: params.parameters
-            nextUrl = @buildUrl next
-            displayNext = =>
-                @redirect next
+        ToolbarMessage
+            full                 : full
+            message              : @props.message
+            mailboxes            : @props.mailboxes
+            selectedMailboxID    : @props.selectedMailboxID
+            inConversation       : @props.inConversation
+            onDelete             : @onDelete
+            onHeaders            : @onHeaders
+            onMove               : @onMove
+            onMark               : @onMark
+            onConversationDelete : @onConversationDelete
+            onConversationMark   : @onConversationMark
+            onConversationMove   : @onConversationMove
+            ref                  : 'toolbarMessage'
 
-        div className: 'messageToolbox row',
-            div className: 'btn-toolbar', role: 'toolbar',
-                div className: 'btn-group btn-group-sm btn-group-justified',
-                    if prevUrl?
-                        div className: 'btn-group btn-group-sm',
-                            button
-                                className: 'btn btn-default prev',
-                                type: 'button',
-                                onClick: displayPrev,
-                                    a href: prevUrl,
-                                        span className: 'fa fa-long-arrow-left'
-                    div className: 'btn-group btn-group-sm',
-                        button
-                            className: 'btn btn-default reply',
-                            type: 'button',
-                            onClick: @onReply,
-                                span
-                                    className: 'fa fa-reply'
-                                span
-                                    className: 'tool-long',
-                                    t 'mail action reply'
-                    div className: 'btn-group btn-group-sm',
-                        button
-                            className: 'btn btn-default reply-all',
-                            type: 'button',
-                            onClick: @onReplyAll,
-                                span
-                                    className: 'fa fa-reply-all'
-                                span
-                                    className: 'tool-long',
-                                    t 'mail action reply all'
-                    div className: 'btn-group btn-group-sm',
-                        button
-                            className: 'btn btn-default forward',
-                            type: 'button',
-                            onClick: @onForward,
-                                span
-                                    className: 'fa fa-mail-forward'
-                                span
-                                    className: 'tool-long',
-                                    t 'mail action forward'
-                    div className: 'btn-group btn-group-sm',
-                        button
-                            className: 'btn btn-default trash',
-                            type: 'button',
-                            onClick: @onDelete,
-                                span
-                                    className: 'fa fa-trash-o'
-                                span
-                                    className: 'tool-long',
-                                    t 'mail action delete'
-                    ToolboxMove
-                        ref: 'toolboxMove'
-                        mailboxes: @props.mailboxes
-                        onMove: @onMove
-                        direction: 'right'
-                    ToolboxActions
-                        ref: 'toolboxActions'
-                        mailboxes: @props.mailboxes
-                        isSeen: isSeen
-                        isFlagged: isFlagged
-                        mailboxID: @props.selectedMailboxID
-                        messageID: message.get 'id'
-                        message: @props.message
-                        onMark: @onMark
-                        onMove: @onMove
-                        onConversation: @onConversation
-                        onHeaders: @onHeaders
-                        direction: 'right'
-                    if nextUrl?
-                        div className: 'btn-group btn-group-sm',
-                            button
-                                className: 'btn btn-default',
-                                type: 'button',
-                                onClick: displayNext,
-                                    a href: nextUrl,
-                                        span className: 'fa fa-long-arrow-right'
 
-    renderAttachments: (attachments) ->
-        files = attachments.filter (file) ->
-            return MessageUtils.getAttachmentType(file.contentType) is 'image'
-        if files.length is 0
-            return
+    renderFooter: ->
+        MessageFooter
+            message: @props.message
+            ref: 'footer'
 
-        div className: 'att-previews',
-            h4 null, t 'message preview title'
-            files.map (file) ->
-                AttachmentPreview
-                    ref: 'attachmentPreview'
-                    file: file,
-                    key: file.checksum
 
-    toggleHeaders: (e) ->
-        e.preventDefault()
-        e.stopPropagation()
+    toggleHeaders: (event) ->
+        event.preventDefault()
+        event.stopPropagation()
         state =
             headers: not @state.headers
-        if @props.inConversation and not @state.active
-            state.active = true
+        if @props.inConversation and not @props.active
+            @props.toggleActive()
         @setState state
 
-    toggleActive: (e) ->
+
+    toggleActive: (event) ->
         if @props.inConversation
-            e.preventDefault()
-            e.stopPropagation()
-            if @state.active
-                @setState { active: false, headers: false }
-            else
-                @setState { active: true, headers: false }
+            event.preventDefault()
+            event.stopPropagation()
+            @props.toggleActive()
+            @setState headers: false
 
-    displayNextMessage: ->
-        if @props.nextMessageID?
-            nextMessageID      = @props.nextMessageID
-            nextConversationID = @props.nextConversationID
+
+    onDelete: (event) ->
+        event.preventDefault()
+        event.stopPropagation()
+        needConfirmation = @props.settings.get('messageConfirmDelete')
+        messageID = @props.message.get('id')
+        confirmMessage = t 'mail confirm delete',
+            subject: @props.message.get('subject')
+
+        if not needConfirmation
+            MessageActionCreator.delete {messageID}
         else
-            nextMessageID      = @props.prevMessageID
-            nextConversationID = @props.prevConversationID
-        if nextMessageID
-            if @props.settings.get('displayConversation')
-                @redirect
-                    direction: 'second'
-                    action : 'conversation'
-                    parameters:
-                        messageID : nextMessageID
-                        conversationID: nextConversationID
-            else
-                @redirect
-                    direction: 'second'
-                    action : 'message'
-                    parameters:
-                        messageID : nextMessageID
-        else
-            @redirect
-                direction: 'first'
-                action: 'account.mailbox.messages'
-                parameters:
-                    accountID: @props.message.get 'accountID'
-                    mailboxID: @props.selectedMailboxID
-                fullWidth: true
+            modal =
+                title       : t 'app confirm delete'
+                subtitle    : confirmMessage
+                closeModal  : ->
+                    LayoutActionCreator.hideModal()
+                closeLabel  : t 'app cancel'
+                actionLabel : t 'app confirm'
+                action      : ->
+                    MessageActionCreator.delete {messageID}
+                    LayoutActionCreator.hideModal()
+            LayoutActionCreator.displayModal modal
 
-    onReply: (args) ->
-        @setState composing: true, composeAction: ComposeActions.REPLY
 
-    onReplyAll: (args) ->
-        @setState composing: true, composeAction: ComposeActions.REPLY_ALL
+    onConversationDelete: ->
+        conversationID = @props.message.get('conversationID')
+        MessageActionCreator.delete {conversationID}
 
-    onForward: (args) ->
-        @setState composing: true, composeAction: ComposeActions.FORWARD
 
-    onDelete: (args) ->
-        message      = @props.message
-        if (not @props.settings.get('messageConfirmDelete')) or
-        window.confirm(t 'mail confirm delete', {subject: message.get('subject')})
-            @displayNextMessage()
-            MessageActionCreator.delete message, (error) ->
-                if error?
-                    alertError "#{t("message action delete ko")} #{error}"
+    onMark: (flag) ->
+        messageID = @props.message.get('id')
+        MessageActionCreator.mark {messageID}, flag
+
+
+    onConversationMark: (flag) ->
+        conversationID = @props.message.get('conversationID')
+        MessageActionCreator.mark {conversationID}, flag
+
+
+    onMove: (to) ->
+        messageID = @props.message.get('id')
+        from = @props.selectedMailboxID
+        subject = @props.message.get 'subject'
+        MessageActionCreator.move {messageID}, from, to
+
+
+    onConversationMove: (to) ->
+        conversationID = @props.message.get('conversationID')
+        from = @props.selectedMailboxID
+        subject = @props.message.get 'subject'
+        MessageActionCreator.move {conversationID}, from, to
+
 
     onCopy: (args) ->
         LayoutActionCreator.alertWarning t "app unimplemented"
 
-    onMove: (args) ->
-        newbox = args.target.dataset.value
-        oldbox = @props.selectedMailboxID
-        if args.target.dataset.conversation?
-            ConversationActionCreator.move @props.message, oldbox, newbox, (error) =>
-                if error?
-                    alertError "#{t("conversation move ko")} #{error}"
-                else
-                    alertSuccess t "conversation move ok"
-                    @displayNextMessage()
-        else
-            MessageActionCreator.move @props.message, oldbox, newbox, (error) =>
-                if error?
-                    alertError "#{t("message action move ko")} #{error}"
-                else
-                    alertSuccess t "message action move ok"
-                    @displayNextMessage()
-
-    onMark: (args) ->
-        flags = @props.message.get('flags').slice()
-        flag = args.target.dataset.value
-        switch flag
-            when FlagsConstants.SEEN
-                flags.push MessageFlags.SEEN
-            when FlagsConstants.UNSEEN
-                flags = flags.filter (e) -> return e isnt FlagsConstants.SEEN
-            when FlagsConstants.FLAGGED
-                flags.push MessageFlags.FLAGGED
-            when FlagsConstants.NOFLAG
-                flags = flags.filter (e) -> return e isnt FlagsConstants.FLAGGED
-        MessageActionCreator.updateFlag @props.message, flags, (error) ->
-            if error?
-                alertError "#{t("message action mark ko")} #{error}"
-            else
-                alertSuccess t "message action mark ok"
-
-    onConversation: (args) ->
-        id     = @props.message.get 'conversationID'
-        action = args.target.dataset.action
-        switch action
-            when 'delete'
-                ConversationActionCreator.delete id, (error) ->
-                    if error?
-                        alertError "#{t("conversation delete ko")} #{error}"
-                    else
-                        alertSuccess t "conversation delete ok"
-            when 'seen'
-                ConversationActionCreator.seen id, (error) ->
-                    if error?
-                        alertError "#{t("conversation seen ko")} #{error}"
-                    else
-                        alertSuccess t "conversation seen ok"
-            when 'unseen'
-                ConversationActionCreator.unseen id, (error) ->
-                    if error?
-                        alertError "#{t("conversation unseen ko")} #{error}"
-                    else
-                        alertSuccess t "conversation unseen ok"
 
     onHeaders: (event) ->
         event.preventDefault()
-        messageID = event.target.dataset.messageId
-        document.querySelector(".conversation [data-id='#{messageID}']")
+        id = @props.message.get 'id'
+        document.querySelector(".conversation [data-id='#{id}']")
             .classList.toggle('with-headers')
+
 
     addAddress: (address) ->
         ContactActionCreator.createContact address
 
+
     displayImages: (event) ->
         event.preventDefault()
         @setState messageDisplayImages: true
+
 
     displayHTML: (value) ->
         if not value?
             value = true
         @setState messageDisplayHTML: value
 
+
 MessageContent = React.createClass
     displayName: 'MessageContent'
 
+
     shouldComponentUpdate: (nextProps, nextState) ->
         return not(_.isEqual(nextState, @state)) or not (_.isEqual(nextProps, @props))
+
 
     render: ->
         displayHTML= =>
             @props.displayHTML true
         if @props.messageDisplayHTML and @props.html
-            div className: 'row',
+            div null,
                 if @props.imagesWarning
                     div
-                        className: "imagesWarning content-action",
+                        className: "imagesWarning alert alert-warning content-action",
                         ref: "imagesWarning",
-                            span null, t 'message images warning'
+                            i className: 'fa fa-shield'
+                            t 'message images warning'
                             button
-                                className: 'btn btn-default',
+                                className: 'btn btn-xs btn-warning',
                                 type: "button",
                                 ref: 'imagesDisplay',
                                 onClick: @props.displayImages,
@@ -637,19 +403,12 @@ MessageContent = React.createClass
                     className: 'content',
                     ref: 'content',
                     allowTransparency: true,
-                    sandbox: 'allow-same-origin allow-popups',
                     frameBorder: 0
         else
             div className: 'row',
-                #div className: "content-action",
-                #    button
-                #       className: 'btn btn-default',
-                #       type: "button",
-                #       onClick: @props.displayHTML,
-                #       t 'message html display'
                 div className: 'preview', ref: content,
                     p dangerouslySetInnerHTML: { __html: @props.rich }
-                    #p null, @props.text
+
 
     _initFrame: (type) ->
         panel = document.querySelector "#panels > .panel:nth-of-type(2)"
@@ -709,40 +468,11 @@ MessageContent = React.createClass
         else
             window.cozyMails.customEvent "MESSAGE_LOADED", @props.messageID
 
-        if @refs.content? and not @props.composing
-            @refs.content.getDOMNode().scrollIntoView()
-
 
     componentDidMount: ->
         @_initFrame('mount')
 
+
     componentDidUpdate: ->
         @_initFrame('update')
 
-AttachmentPreview = React.createClass
-    displayName: 'AttachmentPreview'
-
-    getInitialState: ->
-        return {
-            displayed: false
-        }
-
-    shouldComponentUpdate: (nextProps, nextState) ->
-        return not(_.isEqual(nextState, @state)) or not (_.isEqual(nextProps, @props))
-
-    render: ->
-        toggleDisplay = =>
-            @setState displayed: not @state.displayed
-
-        span
-            className: 'att-preview',
-            key: @props.key,
-            if @state.displayed
-                img
-                    onClick: toggleDisplay
-                    src: @props.file.url
-            else
-                button
-                    className: 'btn btn-default btn-lg'
-                    onClick: toggleDisplay
-                    @props.file.generatedFileName

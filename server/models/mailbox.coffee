@@ -1,206 +1,216 @@
 cozydb = require 'cozy-db-pouchdb'
+safeLoop = require '../utils/safeloop'
 
-module.exports = Mailbox = cozydb.getModel 'Mailbox',
-    accountID: String        # Parent account
-    label: String            # Human readable label
-    path: String             # IMAP path
-    lastSync: String         # Date.ISOString of last full box synchro
-    tree: [String]           # Normalized path as Array
-    delimiter: String        # delimiter between this box and its children
-    uidvalidity: Number      # Imap UIDValidity
-    attribs: [String]        # [String] Attributes of this folder
+# Public: the mailbox model
+class Mailbox extends cozydb.CozyModel
+    @docType: 'Mailbox'
+    @schema:
+        accountID: String        # Parent account
+        label: String            # Human readable label
+        path: String             # IMAP path
+        lastSync: String         # Date.ISOString of last full box synchro
+        tree: [String]           # Normalized path as Array
+        delimiter: String        # delimiter between this box and its children
+        uidvalidity: Number      # Imap UIDValidity
+        attribs: [String]        # [String] Attributes of this folder
+        lastHighestModSeq: String # Last highestmodseq successfully synced
+        lastTotal: Number         # Last imap total number of messages in box
 
-Message = require './message'
-log = require('../utils/logging')(prefix: 'models:mailbox')
-_ = require 'lodash'
-async = require 'async'
-mailutils = require '../utils/jwz_tools'
-ImapPool = require '../imap/pool'
-ImapReporter = require '../imap/reporter'
-{Break, NotFound} = require '../utils/errors'
-{FETCH_AT_ONCE} = require '../utils/constants'
-
-require('../utils/socket_handler').wrapModel Mailbox, 'mailbox'
-
-
-# map of account's attributes -> RFC6154 special use box attributes
-Mailbox.RFC6154 =
-    draftMailbox:   '\\Drafts'
-    sentMailbox:    '\\Sent'
-    trashMailbox:   '\\Trash'
-    allMailbox:     '\\All'
-    junkMailbox:    '\\Junk'
-    flaggedMailbox: '\\Flagged'
-
-Mailbox::isInbox = -> @path is 'INBOX'
-Mailbox::isSelectable = ->
-    '\\Noselect' not in (@attribs or [])
-
-Mailbox::RFC6154use = ->
-    for field, attribute of Mailbox.RFC6154
-        if attribute in @attribs
-            return field
-
-Mailbox::guessUse = ->
-    path = @path.toLowerCase()
-    if /sent/i.test path
-        return 'sentMailbox'
-    else if /draft/i.test path
-        return 'draftMailbox'
-    else if /flagged/i.test path
-        return 'flaggedMailbox'
-    else if /trash/i.test path
-        return 'trashMailbox'
-    # @TODO add more
+    # map of account's attributes -> RFC6154 special use box attributes
+    @RFC6154:
+        draftMailbox:   '\\Drafts'
+        sentMailbox:    '\\Sent'
+        trashMailbox:   '\\Trash'
+        allMailbox:     '\\All'
+        junkMailbox:    '\\Junk'
+        flaggedMailbox: '\\Flagged'
 
 
-Mailbox.imapcozy_create = (account, parent, label, callback) ->
-    if parent
-        path = parent.path + parent.delimiter + label
-        tree = parent.tree.concat label
-    else
-        path = label
-        tree = [label]
-
-    mailbox =
-        accountID: account.id
-        label: label
-        path: path
-        tree: tree
-        delimiter: parent?.delimiter or '/'
-        attribs: []
-
-    ImapPool.get(account.id).doASAP (imap, cbRelease) ->
-        imap.addBox path, cbRelease
-    , (err) ->
-        return callback err if err
-        Mailbox.create mailbox, callback
+    # Public: is this box selectable (ie. can contains mail)
+    #
+    # Returns {Boolean} if its selectable
+    isSelectable: ->
+        '\\Noselect' not in (@attribs or [])
 
 
-# Public: find selectable mailbox for an account ID
-# as an array
-#
-# accountID - id of the account
-#
-# Returns  [{Mailbox}]
-Mailbox.getBoxes = (accountID, callback) ->
-    Mailbox.rawRequest 'treeMap',
-        startkey: [accountID]
-        endkey: [accountID, {}]
-        include_docs: true
+    # Public: get this box usage by special attributes
+    #
+    # Returns {String} the account attribute to set or null
+    RFC6154use: ->
+        return 'inboxMailbox' if @path is 'INBOX'
 
-    , (err, rows) ->
-        return callback err if err
-        rows = rows.map (row) ->
-            new Mailbox row.doc
+        for field, attribute of Mailbox.RFC6154
+            if attribute in @attribs
+                return field
 
-        callback null, rows
-
-# Public: find selectable mailbox for an account ID
-# as an id indexed object with only path attributes
-# @TODO : optimize this with a map/reduce request
-#
-# accountID - id of the account
-#
-# Returns  [{Mailbox}]
-Mailbox.getBoxesIndexedByID = (accountID, callback) ->
-    Mailbox.getBoxes accountID, (err, boxes) =>
-        return callback err if err
-        boxIndex = {}
-        boxIndex[box.id] = path: box.path for box in boxes
-        callback null, boxIndex
+    # Public: try to guess this box usage by its name
+    #
+    # Returns {String} the account attribute to set or null
+    guessUse: ->
+        path = @path.toLowerCase()
+        if /sent/i.test path
+            return 'sentMailbox'
+        else if /draft/i.test path
+            return 'draftMailbox'
+        else if /flagged/i.test path
+            return 'flaggedMailbox'
+        else if /trash/i.test path
+            return 'trashMailbox'
+        # @TODO add more
 
 
+    # Public: set an account xxxMailbox attributes & favorites
+    # from a list of mailbox
+    #
+    # boxes - an array of {Mailbox} to scan
+    #
+    # Returns (callback) the updated account
+    @scanBoxesForSpecialUse: (boxes) ->
+        useRFC6154 = false
+        boxAttributes = Object.keys Mailbox.RFC6154
 
-# Public: get this mailbox's children mailboxes
-#
-# Returns  [{Mailbox}]
-Mailbox::getSelfAndChildren = (callback) ->
-    Mailbox.rawRequest 'treemap',
-        startkey: [@accountID].concat @tree
-        endkey: [@accountID].concat @tree, {}
-        include_docs: true
+        changes = {initialized: true}
 
-    , (err, rows) ->
-        return callback err if err
-        rows = rows.map (row) -> new Mailbox row.doc
-
-        callback null, rows
-
-
-# Public: destroy mailboxes by their account ID
-#
-# accountID - id of the account to destroy mailboxes from
-#
-# Returns  mailboxes destroyed completion
-Mailbox.destroyByAccount = (accountID, callback) ->
-    Mailbox.rawRequest 'treemap',
-            startkey: [accountID]
-            endkey: [accountID, {}]
-
-    , (err, rows) ->
-        return callback err if err
-        async.eachSeries rows, (row, cb) ->
-            new Mailbox(id: row.id).destroy (err) ->
-                log.error "Fail to delete box", err.stack or err if err
-                # ignore one faillure
-                cb null
-
-        , callback
+        removeGuesses = ->
+            unless useRFC6154
+                useRFC6154 = true
+                for attribute in boxAttributes
+                    unless attribute is 'inboxMailbox'
+                        changes[attribute] = undefined
 
 
-Mailbox::imapcozy_rename = (newLabel, newPath, callback) ->
-    log.debug "imapcozy_rename", newLabel, newPath
-    @imap_rename newLabel, newPath, (err) =>
-        log.debug "imapcozy_rename err", err
-        return callback err if err
-        @renameWithChildren newLabel, newPath, (err) ->
+        for box in boxes
+            type = box.RFC6154use()
+            if type
+                removeGuesses() unless type is 'inboxMailbox'
+                log.debug 'found', type
+                changes[type] = box.id
+
+            # do not attempt fuzzy match if the server uses RFC6154
+            else if not useRFC6154
+                type = box.guessUse()
+                if type
+                    log.debug 'found', type, 'guess'
+                    changes[type] = box.id
+
+        changes.favorites = Mailbox.pickFavorites boxes, changes
+
+        return changes
+
+    @pickFavorites: (boxes, changes) ->
+        favorites = []
+
+        # pick the default 4 favorites box
+        priorities = [
+            'inboxMailbox', 'allMailbox',
+            'sentMailbox', 'draftMailbox'
+        ]
+
+        # see if we have some of the priorities box
+        for type in priorities
+            id = changes[type]
+            if id
+                favorites.push id
+
+        # if we dont have our 4 favorites, pick at random
+        for box in boxes when favorites.length < 4
+            if box.id not in favorites and box.isSelectable()
+                favorites.push box.id
+
+        return favorites
+
+
+
+    # Public: wrap an async function (the operation) to get a connection from
+    # the pool before performing it and release the connection once it is done.
+    #
+    # operation - a Function({ImapConnection} conn, callback)
+    #
+    # Returns (callback) the result of operation
+    doASAP: (operation, callback) ->
+        ramStore.getImapPool(@).doASAP operation, callback
+
+    # Public: wrap an async function (the operation) to get a connection from
+    # the pool and open the mailbox without error before performing it and
+    # release the connection once it is done.
+    #
+    # operation - a Function({ImapConnection} conn, callback)
+    #
+    # Returns (callback) the result of operation
+    doASAPWithBox: (operation, callback) ->
+        ramStore.getImapPool(@).doASAPWithBox @, operation, callback
+
+    # Public: wrap an async function (the operation) to get a connection from
+    # the pool and open the mailbox without error before performing it and
+    # release the connection once it is done. The operation will be put at the
+    # bottom of the queue.
+    #
+    # operation - a Function({ImapConnection} conn, callback)
+    #
+    # Returns (callback) the result of operation
+    doLaterWithBox: (operation, callback) ->
+        ramStore.getImapPool(@).doLaterWithBox @, operation, callback
+
+    # Public: rename a box in IMAP and Cozy
+    #
+    # newLabel - {String} the box updated label
+    # newPath - {String} the box updated path
+    #
+    # Returns (callback) at completion
+    imapcozy_rename: (newLabel, newPath, callback) ->
+        log.debug "imapcozy_rename", newLabel, newPath
+        @doASAP (imap, cbRelease) =>
+            imap.renameBox2 @path, newPath, cbRelease
+        , (err) =>
+            log.debug "imapcozy_rename err", err
             return callback err if err
-            callback null
+            @renameWithChildren newLabel, newPath, (err) ->
+                return callback err if err
+                callback null
 
-Mailbox::imap_rename = (newLabel, newPath, callback) ->
-    @doASAP (imap, cbRelease) =>
-        imap.renameBox2 @path, newPath, cbRelease
-    , callback
+    # Public: delete a box in IMAP and Cozy
+    #
+    # Returns (callback) at completion
+    imapcozy_delete: (callback) ->
+        log.debug "imapcozy_delete"
+        account = ramStore.getAccount(@accountID)
+        async.series [
+            (cb) =>
+                log.debug "imap_delete"
+                @doASAP (imap, cbRelease) =>
+                    imap.delBox2 @path, cbRelease
+                , cb
+
+            (cb) =>
+                log.debug "account.forget"
+                account = ramStore.getAccount @accountID
+                account.forgetBox @id, cb
+
+            (cb) =>
+                boxes = ramStore.getSelfAndChildrenOf this
+                safeLoop boxes, (box, next) ->
+                    box.destroy next
+                , (errors) ->
+                    cb errors[0]
+
+        ], (err) ->
+            # this will leave some of this box messages
+            callback err
 
 
-Mailbox::imapcozy_delete = (account, callback) ->
-    log.debug "imapcozy_delete"
-    box = this
+    # Public: rename a box and its children in cozy
+    #
+    # newPath - {String} the new path
+    # newLabel - {String} the new label
+    #
+    # Returns (callback) {Array} of {Mailbox} updated boxes
+    renameWithChildren: (newLabel, newPath, callback) ->
+        log.debug "renameWithChildren", newLabel, newPath, @path
+        depth = @tree.length - 1
+        path = @path
 
-    async.series [
-        (cb) =>
-            @imap_delete cb
-        (cb) ->
-            log.debug "account.forget"
-            account.forgetBox box.id, cb
-        (cb) =>
-            log.debug "destroyAndRemoveAllMessages"
-            @destroyAndRemoveAllMessages cb
-    ], callback
-
-Mailbox::imap_delete = (callback) ->
-    log.debug "imap_delete"
-    @doASAP (imap, cbRelease) =>
-        imap.delBox2 @path, cbRelease
-    , callback
-
-
-
-# rename this mailbox and its children
-#
-# newPath - the new path
-# newLabel - the new label
-#
-# Returns  updated box
-Mailbox::renameWithChildren = (newLabel, newPath, callback) ->
-    log.debug "renameWithChildren", newLabel, newPath, @path
-    depth = @tree.length - 1
-    path = @path
-
-    @getSelfAndChildren (err, boxes) ->
-        log.debug "imapcozy_rename#boxes", boxes, depth
-        return callback err if err
+        boxes = ramStore.getSelfAndChildrenOf this
+        log.debug "imapcozy_rename#boxes", boxes.length, depth
 
         async.eachSeries boxes, (box, cb) ->
             log.debug "imapcozy_rename#box", box
@@ -213,293 +223,84 @@ Mailbox::renameWithChildren = (newLabel, newPath, callback) ->
             box.updateAttributes changes, cb
         , callback
 
-# Public: destroy a mailbox and sub-mailboxes
-# remove all message from it & its sub-mailboxes
-# returns fast after destroying mailbox & sub-mailboxes
-# in the background, proceeds to remove messages
-#
-# Returns  mailbox destroyed completion
-Mailbox::destroyAndRemoveAllMessages = (callback) ->
+    # Public: create a mail in IMAP if it doesnt exist yet
+    # use for sent mail
+    #
+    # account - {Account} the account
+    # message - {Message} the message
+    #
+    # Returns (callback) at task completion
+    imap_createMailNoDuplicate: (account, message, callback) ->
+        messageID = message.headers['message-id']
+        @doLaterWithBox (imap, imapbox, cb) ->
+            imap.search [['HEADER', 'MESSAGE-ID', messageID]], cb
+        , (err, uids) =>
+            return callback err if err
+            return callback null, uids?[0] if uids?[0]
+            account.imap_createMail @, message, callback
 
-    @getSelfAndChildren (err, boxes) ->
-        return callback err if err
-
-        async.eachSeries boxes, (box, cb) ->
-            box.destroy (err) ->
-                log.error "fail to destroy box #{box.id}", err if err
-                Message.safeRemoveAllFromBox box.id, (err) ->
-                    log.error "fail to remove msg of box #{box.id}", err if err
-                    # loop anyway
-                    cb()
+    # Public: remove a mail in the given box
+    # used for drafts
+    #
+    # uid - {Number} the message to remove
+    #
+    # Returns (callback) at completion
+    imap_removeMail: (uid, callback) ->
+        @doASAPWithBox (imap, imapbox, cbRelease) ->
+            async.series [
+                (cb) -> imap.addFlags uid, '\\Deleted', cb
+                (cb) -> imap.expunge uid, cb
+                (cb) -> imap.closeBox cb
+            ], cbRelease
         , callback
 
+    # Public: BEWARE expunge (permanent delete) all mails from this box
+    #
+    # Returns (callback) at completion
+    imap_expungeMails: (callback) ->
+        box = this
+        @doASAPWithBox (imap, imapbox, cbRelease) ->
+            imap.fetchBoxMessageUIDs (err, uids) ->
+                return cbRelease err if err
+                return cbRelease null if uids.length is 0
+                async.series [
+                    (cb) -> imap.addFlags uids, '\\Deleted', cb
+                    (cb) -> imap.expunge uids, cb
+                    (cb) -> imap.closeBox cb
+                ], cbRelease
+        , (err) =>
+            return callback err if err
+            removal = new MessagesRemovalByMailbox
+                mailboxID: @id
+            removal.run callback
 
-Mailbox::imap_fetchMails = (limitByBox, firstImport, callback) ->
-    log.debug "imap_fetchMails", limitByBox
-    @imap_refreshStep limitByBox, null, firstImport, (err) =>
-        log.debug "imap_fetchMailsEnd", limitByBox
-        return callback err if err
-        unless limitByBox
-            changes = lastSync: new Date().toISOString()
-            @updateAttributes changes, callback
-        else
-            callback null
-
-
-
-computeNextStep = (laststep, uidnext, limitByBox) ->
-    log.debug "computeNextStep", laststep, uidnext, limitByBox
-    laststep ?= min: uidnext + 1
-
-    if laststep.min is 1
-        return false
-
-
-    step =
-        max: Math.max 1, laststep.min - 1
-        min: Math.max 1, laststep.min - FETCH_AT_ONCE
-
-    if limitByBox
-        step.min = Math.max 1, laststep.min - limitByBox
-
-    return step
-
-Mailbox::getDiff = (laststep, limit, callback) ->
-    log.debug "diff", laststep, limit
-
-    step = null
-    box = this
-
-    @doLaterWithBox (imap, imapbox, cbRelease) ->
-
-        unless step = computeNextStep(laststep, imapbox.uidnext, limit)
-            return cbRelease null
-
-        log.info "IMAP REFRESH", box.label, "UID #{step.min}:#{step.max}"
-
-        async.series [
-            (cb) -> Message.UIDsInRange box.id, step.min, step.max, cb
-            (cb) -> imap.fetchMetadata step.min, step.max, cb
-        ], cbRelease
-
-    ,  (err, results) ->
-        log.debug "diff#results"
-        return callback err if err
-        return callback null, null unless results
-        [cozyIDs, imapUIDs] = results
+    # Public: whether this box messages should be ignored
+    # in the account's total (trash or junk)
+    #
+    # Returns {Boolean} true if this message should be ignored.
+    ignoreInCount: ->
+        return Mailbox.RFC6154.trashMailbox in @attribs or
+               Mailbox.RFC6154.junkMailbox  in @attribs or
+               @guessUse() in ['trashMailbox', 'junkMailbox']
 
 
-        toFetch = []
-        toRemove = []
-        flagsChange = []
+class TestMailbox extends Mailbox
+    imap_expungeMails: (callback) =>
+        removal = new MessagesRemovalByMailbox
+            mailboxID: @id
 
-        for uid, imapMessage of imapUIDs
-            cozyMessage = cozyIDs[uid]
-            if cozyMessage
-                # this message is already in cozy, compare flags
-                imapFlags = imapMessage[1]
-                cozyFlags = cozyMessage[1]
-                if _.xor(imapFlags, cozyFlags).length
-                    id = cozyMessage[0]
-                    flagsChange.push id: id, flags: imapFlags
+        removal.run callback
 
-            else # this message isnt in this box in cozy
-                # add it to be fetched
-                toFetch.push {uid: parseInt(uid), mid: imapMessage[0]}
-
-        for uid, cozyMessage of cozyIDs
-            unless imapUIDs[uid]
-                toRemove.push id = cozyMessage[0]
-
-        callback null, {toFetch, toRemove, flagsChange, step}
-
-Mailbox::applyToRemove = (toRemove, reporter, callback) ->
-    log.debug "applyRemove", toRemove.length
-    async.eachSeries toRemove, (id, cb) =>
-        Message.removeFromMailbox id, this, (err) ->
-            reporter.onError err if err
-            reporter.addProgress 1
-            cb null
-
-    , callback
+module.exports = Mailbox
+require('./model-events').wrapModel Mailbox
+ramStore = require './store_account_and_boxes'
+Message = require './message'
+log = require('../utils/logging')(prefix: 'models:mailbox')
+_ = require 'lodash'
+async = require 'async'
+mailutils = require '../utils/jwz_tools'
+MessagesRemovalByMailbox = require '../processes/message_remove_by_mailbox'
+{Break, NotFound} = require '../utils/errors'
+{FETCH_AT_ONCE} = require '../utils/constants'
 
 
-Mailbox::applyFlagsChanges = (flagsChange, reporter, callback) ->
-    log.debug "applyFlagsChange", flagsChange.length
-    async.eachSeries flagsChange, (change, cb) ->
-        Message.applyFlagsChanges change.id, change.flags, (err) ->
-            reporter.onError err if err
-            reporter.addProgress 1
-            cb null
-    , callback
-
-Mailbox::applyToFetch = (toFetch, reporter, callback) ->
-    log.debug "applyFetch", toFetch.length
-    box = this
-    toFetch.reverse()
-    async.eachSeries toFetch, (msg, cb) ->
-        Message.fetchOrUpdate box, msg.mid, msg.uid, (err) ->
-            reporter.onError err if err
-            reporter.addProgress 1
-            # dont stop
-            cb null
-    , callback
-
-Mailbox::imap_refreshStep = (limitByBox, laststep, firstImport, callback) ->
-    log.debug "imap_refreshStep", limitByBox, laststep
-    box = this
-    @getDiff laststep, limitByBox, (err, ops) =>
-        log.debug "imap_refreshStep#diff", err, ops
-
-        return callback err if err
-        return callback null unless ops
-
-        nbTasks = ops.toFetch.length + ops.toRemove.length +
-                                                        ops.flagsChange.length
-        reporter = ImapReporter.boxFetch @, nbTasks, firstImport if nbTasks > 0
-
-        async.series [
-            (cb) => @applyToRemove     ops.toRemove,    reporter, cb
-            (cb) => @applyFlagsChanges ops.flagsChange, reporter, cb
-            (cb) => @applyToFetch      ops.toFetch,     reporter, cb
-        ], (err) =>
-
-            reporter?.onDone()
-            if limitByBox
-                callback null
-            else
-                @imap_refreshStep null, ops.step, firstImport, callback
-
-
-Mailbox::imap_UIDByMessageID = (messageID, callback) ->
-    @doLaterWithBox (imap, imapbox, cb) ->
-        imap.search [['HEADER', 'MESSAGE-ID', messageID]], cb
-    , (err, uids) ->
-        callback err, uids?[0]
-
-# check if a mail exist in destination before
-# creating it
-Mailbox::imap_createMailNoDuplicate = (account, message, callback) ->
-    messageID = message.headers['message-id']
-    mailbox = this
-    @imap_UIDByMessageID messageID, (err, uid) ->
-        return callback err if err
-        return callback null, uid if uid
-        account.imap_createMail mailbox, message, callback
-
-Mailbox::imap_fetchOneMail = (uid, callback) ->
-    @doLaterWithBox (imap, imapbox, cb) ->
-        imap.fetchOneMail uid, cb
-
-    , (err, mail) =>
-        return callback err if err
-        Message.createFromImapMessage mail, this, uid, callback
-
-# Public: remove a mail in the given box
-# used for drafts
-#
-# uid - {Number} the message to remove
-#
-# Returns  the UID of the created mail
-Mailbox::imap_removeMail = (uid, callback) ->
-    @doASAPWithBox (imap, imapbox, cbRelease) ->
-        async.series [
-            (cb) -> imap.addFlags uid, '\\Deleted', cb
-            (cb) -> imap.expunge uid, cb
-            (cb) -> imap.closeBox cb
-        ], cbRelease
-    , callback
-
-Mailbox::recoverChangedUIDValidity = (imap, callback) ->
-    box = this
-
-    imap.openBox @path, (err) ->
-        return callback err if err
-        # @TODO : split it by 1000
-        imap.fetchBoxMessageIDs (err, messages) ->
-            # messages is a map uid -> message-id
-            uids = Object.keys(messages)
-            reporter = ImapReporter.recoverUIDValidty box, uids.length
-            async.eachSeries uids, (newUID, cb) ->
-                messageID = mailutils.normalizeMessageID messages[newUID]
-                Message.recoverChangedUID box, messageID, newUID, (err) ->
-                    reporter.onError err if err
-                    reporter.addProgress 1
-                    cb null
-            , (err) ->
-                reporter.onDone()
-                callback null
-
-Mailbox::imap_expungeMails = (callback) ->
-    box = this
-    @doASAPWithBox (imap, imapbox, cbRelease) ->
-        imap.fetchBoxMessageUIDs (err, uids) ->
-            return cbRelease err if err
-            return cbRelease null if uids.length is 0
-            async.series [
-                (cb) -> imap.addFlags uids, '\\Deleted', cb
-                (cb) -> imap.expunge uids, cb
-                (cb) -> imap.closeBox cb
-                (cb) -> Message.safeRemoveAllFromBox box.id, (err) ->
-                    log.error "fail to remove msg of box #{box.id}", err if err
-                    # loop anyway
-                    cb()
-            ], cbRelease
-    , callback
-
-Mailbox.removeOrphans = (existings, callback) ->
-    log.debug "removeOrphans"
-    Mailbox.rawRequest 'treemap', {}, (err, rows) ->
-        return callback err if err
-
-        boxes = []
-
-        async.eachSeries rows, (row, cb) ->
-            accountID = row.key[0]
-            if accountID in existings
-                boxes.push row.id
-                cb null
-            else
-                log.debug "removeOrphans - found orphan", row.id
-                new Mailbox(id: row.id).destroy (err) ->
-                    log.error 'failed to delete box', row.id
-                    cb null
-
-        , (err) ->
-            callback err, boxes
-
-Mailbox.getCounts = (mailboxID, callback) ->
-    options = if mailboxID
-        startkey: ['date', mailboxID]
-        endkey: ['date', mailboxID, {}]
-    else
-        startkey: ['date', ""]
-        endkey: ['date', {}]
-
-    options.reduce = true
-    options.group_level = 3
-
-    Message.rawRequest 'byMailboxRequest', options, (err, rows) ->
-        return callback err if err
-        result = {}
-        rows.forEach (row) ->
-            [DATEFLAG, boxID, flag] = row.key
-            result[boxID] ?= {unread: 0, total: 0, recent: 0}
-            if flag is "!\\Recent"
-                result[boxID].recent = row.recent
-            if flag is "!\\Seen"
-                result[boxID].unread = row.value
-            else if flag is null
-                result[boxID].total = row.value
-
-        callback null, result
-
-
-Mailbox::doASAP = (operation, callback) ->
-    ImapPool.get(@accountID).doASAP operation, callback
-
-Mailbox::doASAPWithBox = (operation, callback) ->
-    ImapPool.get(@accountID).doASAPWithBox @, operation, callback
-
-Mailbox::doLaterWithBox = (operation, callback) ->
-    ImapPool.get(@accountID).doLaterWithBox @, operation, callback

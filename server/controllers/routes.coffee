@@ -7,6 +7,7 @@ mailboxes = require './mailboxes'
 messages  = require './messages'
 providers = require './providers'
 settings  = require './settings'
+contacts  = require './contacts'
 test      = require './test'
 
 module.exports =
@@ -16,6 +17,9 @@ module.exports =
     'refreshes': get: index.refreshes
     'refresh': get: index.refresh
 
+    'refresh/:mailboxID':
+        get: [mailboxes.refresh]
+
     'settings':
         get: settings.get
         put: settings.change
@@ -24,68 +28,63 @@ module.exports =
         post: activity.create
 
     'account':
-        post: [accounts.create, accounts.format]
-        get: [accounts.list, accounts.formatList]
+        post: accounts.create
 
     'account/:accountID':
-        get: [accounts.fetch, accounts.format]
-        put: [accounts.fetch, accounts.edit, accounts.format]
-        delete: [accounts.fetch, accounts.remove]
+        put: accounts.edit
+        delete: accounts.remove
 
-    'account/:accountID/check':
+    # We want to allow to test parameters before saving the account
+    # so don't use accountID in this route
+    'accountUtil/check':
         put: [accounts.check]
 
-    'conversation/:conversationID':
-        get: [messages.fetchConversation, messages.conversationGet]
-        delete: [messages.fetchConversation, messages.conversationDelete]
-        patch: [messages.fetchConversation, messages.conversationPatch]
-
     'mailbox':
-        post: [accounts.fetch,
-            mailboxes.fetchParent,
-            mailboxes.create,
-            accounts.format]
+        post: [mailboxes.create]
 
     'mailbox/:mailboxID':
-        get: [messages.listByMailboxOptions,
-              messages.listByMailbox]
-
-        put: [mailboxes.fetch,
-              accounts.fetch,
-              mailboxes.update,
-              accounts.format]
-
-        delete: [mailboxes.fetch,
-            accounts.fetch,
-            mailboxes.delete,
-            accounts.format]
+        get: [messages.listByMailboxOptions, messages.listByMailbox]
+        put: [mailboxes.update]
+        delete: [mailboxes.delete]
 
     'mailbox/:mailboxID/expunge':
-        delete: [mailboxes.fetch,
-            accounts.fetch,
-            mailboxes.expunge,
-            accounts.format]
+        delete: [mailboxes.expunge]
 
     'message':
-        post: [messages.parseSendForm,
-               accounts.fetch,
-               messages.fetchMaybe,
-               messages.send]
+        post: [messages.parseSendForm, messages.fetchMaybe, messages.send]
+
+    'messages/batchFetch':
+        get: [messages.batchFetch, messages.batchSend]
+        put: [messages.batchFetch, messages.batchSend]
+
+    'messages/batchTrash':
+        put: [messages.batchFetch, messages.batchTrash]
+
+    'messages/batchMove':
+        put: [messages.batchFetch, messages.batchMove]
+
+    'messages/batchAddFlag':
+        put: [messages.batchFetch, messages.batchAddFlag]
+
+    'messages/batchRemoveFlag':
+        put: [messages.batchFetch, messages.batchRemoveFlag]
 
     'message/:messageID':
         get: [messages.fetch, messages.details]
-        patch: [messages.fetch, messages.patch]
 
     'message/:messageID/attachments/:attachment':
         get: [messages.fetch, messages.attachment]
 
+    'raw/:messageID':
+        get: [messages.fetch, messages.raw]
+
+    'contacts/list':
+        get: [contacts.list]
+
+    'contacts/:contactID/picture.jpg':
+        get: [contacts.picture]
+
     'provider/:domain':
         get: providers.get
 
-    'load-fixtures':
-        get: index.loadFixtures
-
     'test': get: test.main
-
-    'raw/:messageID':
-        get: [messages.fetch, messages.raw]

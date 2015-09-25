@@ -8,7 +8,6 @@ application = module.exports.start = (options, callback) ->
     options.host ?= process.env.HOST or '0.0.0.0'
     options.dbName = process.env.POUCHDB_NAME or 'db'
 
-
     callback ?= ->
 
     americano.start options, (err, app, server) ->

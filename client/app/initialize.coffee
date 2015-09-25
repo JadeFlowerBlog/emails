@@ -1,7 +1,57 @@
-# Waits for the DOM to be ready
+# expose an API for performance
+# performance is not defined in phantomJS
+initPerformances = ->
+    referencePoint = 0
+    window.start = ->
+        referencePoint = performance.now() if performance?.now?
+        React.addons.Perf.start()
+    window.stop = ->
+        console.log performance.now() - referencePoint if performance?.now?
+        React.addons.Perf.stop()
+    window.printWasted = ->
+        stop()
+        React.addons.Perf.printWasted()
+    window.printInclusive = ->
+        stop()
+        React.addons.Perf.printInclusive()
+    window.printExclusive = ->
+        stop()
+        React.addons.Perf.printExclusive()
+
+logPerformances = ->
+    timing = window.performance?.timing
+    now = Math.ceil window.performance?.now()
+    if timing?
+        message = """
+Response at #{timing.responseEnd - timing.navigationStart}ms
+Onload at #{timing.loadEventStart - timing.navigationStart}ms
+Page loaded in #{now}ms
+"""
+        window.cozyMails.logInfo message
+
+# Init Web Intents
+initIntent = ->
+    IntentManager = require "./utils/intent_manager"
+    window.intentManager = new IntentManager()
+    window.intentManager.send 'nameSpace',
+        type: 'ping'
+        from: 'mails'
+    .then (message) ->
+        LayoutActionCreator.intentAvailability true
+    , (error) ->
+        LayoutActionCreator.intentAvailability false
+
+# init plugins
+initPlugins = ->
+    PluginUtils = require "./utils/plugin_utils"
+    if not window.settings.plugins?
+        window.settings.plugins = {}
+    PluginUtils.merge window.settings.plugins
+    PluginUtils.init()
+
 # Send client side errors to server
 window.onerror = (msg, url, line, col, error) ->
-    console.error msg, url, line, col, error
+    console.error msg, url, line, col, error, error?.stack
     exception = error?.toString() or msg
     if exception isnt window.lastError
         data =
@@ -9,6 +59,7 @@ window.onerror = (msg, url, line, col, error) ->
                 type: 'error'
                 error:
                     msg: msg
+                    name: error?.name
                     full: exception
                     stack: error?.stack
                 url: url
@@ -21,29 +72,13 @@ window.onerror = (msg, url, line, col, error) ->
         xhr.send JSON.stringify(data)
         window.lastError = exception
 
+# Waits for the DOM to be ready
 window.onload = ->
 
     try
         window.__DEV__ = window.location.hostname is 'localhost'
 
-        # expose an APi for performance
-        # performance is not defined in phantomJS
-        referencePoint = 0
-        window.start = ->
-            referencePoint = performance.now() if performance?.now?
-            React.addons.Perf.start()
-        window.stop = ->
-            console.log performance.now() - referencePoint if performance?.now?
-            React.addons.Perf.stop()
-        window.printWasted = ->
-            stop()
-            React.addons.Perf.printWasted()
-        window.printInclusive = ->
-            stop()
-            React.addons.Perf.printInclusive()
-        window.printExclusive = ->
-            stop()
-            React.addons.Perf.printExclusive()
+        initPerformances()
 
         # expose an API
         window.cozyMails = require './utils/api_utils'
@@ -69,6 +104,9 @@ window.onload = ->
         PluginUtils.init()
 
         window.cozyMails.setSetting 'plugins', window.settings.plugins
+
+        # Init Web Intents
+        initIntent()
 
         # Flux initialization (must be called at the begining)
         AccountStore  = require './stores/account_store'
@@ -101,17 +139,30 @@ window.onload = ->
                 if Notification.permission isnt status
                     Notification.permission = status
 
+        logPerformances()
+
+        window.cozyMails.customEvent "APPLICATION_LOADED"
+
     catch e
-        console.error e
+        console.error e, e?.stack
         exception = e.toString()
         if exception isnt window.lastError
             # Send client side errors to server
             data =
                 data:
                     type: 'error'
-                    exception: exception
+                    error:
+                        msg: e.message
+                        name: e?.name
+                        full: exception
+                        stack: e?.stack
+                    file: e?.fileName
+                    line: e?.lineNumber
+                    col: e?.columnNumber
+                    href: window.location.href
             xhr = new XMLHttpRequest()
             xhr.open 'POST', 'activity', true
-            xhr.setRequestHeader "Content-Type", "application/json;charset=UTF-8"
+            xhr.setRequestHeader "Content-Type",
+                "application/json;charset=UTF-8"
             xhr.send JSON.stringify(data)
             window.lastError = exception

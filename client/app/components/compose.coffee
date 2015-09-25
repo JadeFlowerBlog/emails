@@ -1,54 +1,63 @@
-{div, h3, a, i, textarea, form, label, button, span, ul, li, input} = React.DOM
+{div, section, h3, a, i, textarea, form, label} = React.DOM
+{span, ul, li, input} = React.DOM
+
 classer = React.addons.classSet
 
-FilePicker = require './file_picker'
-MailsInput = require './mails_input'
+ComposeEditor  = require './compose_editor'
+ComposeToolbox = require './compose_toolbox'
+FilePicker     = require './file_picker'
+MailsInput     = require './mails_input'
 
 AccountPicker = require './account_picker'
+AccountStore = require '../stores/account_store'
+MessageStore = require '../stores/message_store'
 
-{ComposeActions} = require '../constants/app_constants'
+{ComposeActions, Tooltips} = require '../constants/app_constants'
 
 MessageUtils = require '../utils/message_utils'
+
 
 LayoutActionCreator  = require '../actions/layout_action_creator'
 MessageActionCreator = require '../actions/message_action_creator'
 
 RouterMixin = require '../mixins/router_mixin'
 
+
+# Component that allows the user to write emails.
 module.exports = Compose = React.createClass
     displayName: 'Compose'
+
 
     mixins: [
         RouterMixin,
         React.addons.LinkedStateMixin # two-way data binding
     ]
 
+
     propTypes:
         selectedAccountID:    React.PropTypes.string.isRequired
         selectedAccountLogin: React.PropTypes.string.isRequired
-        layout:               React.PropTypes.string.isRequired
+        layout:               React.PropTypes.string
         accounts:             React.PropTypes.object.isRequired
         message:              React.PropTypes.object
         action:               React.PropTypes.string
         callback:             React.PropTypes.func
         onCancel:             React.PropTypes.func
         settings:             React.PropTypes.object.isRequired
+        useIntents:           React.PropTypes.bool.isRequired
+
+
+    getDefaultProps: ->
+        layout: 'full'
+
 
     shouldComponentUpdate: (nextProps, nextState) ->
-        return not(_.isEqual(nextState, @state)) or not (_.isEqual(nextProps, @props))
+        return not(_.isEqual(nextState, @state)) or
+            not (_.isEqual(nextProps, @props))
+
 
     render: ->
-
         return unless @props.accounts
-
-        onCancel = =>
-            if @props.onCancel?
-                @props.onCancel()
-            else
-                @redirect @buildUrl
-                    direction: 'first'
-                    action: 'default'
-                    fullWidth: true
 
         toggleFullscreen = ->
             LayoutActionCreator.toggleFullscreen()
@@ -57,46 +66,43 @@ module.exports = Compose = React.createClass
 
         classLabel = 'compose-label'
         classInput = 'compose-input'
-        classCc    = if @state.cc.length is 0 then '' else ' shown'
-        classBcc   = if @state.bcc.length is 0 then '' else ' shown'
+        classCc    = if @state.ccShown  then ' shown ' else ''
+        classBcc   = if @state.bccShown then ' shown ' else ''
 
-        labelSend   = if @state.sending then t 'compose action sending' else t 'compose action send'
-        focusEditor = Array.isArray(@state.to) and @state.to.length > 0 and @state.subject isnt ''
+        focusEditor = Array.isArray(@state.to) and
+            @state.to.length > 0 and
+            @state.subject isnt ''
 
-        div id: 'email-compose',
-            if @props.layout isnt 'full'
-                a onClick: toggleFullscreen, className: 'expand pull-right clickable',
-                    i className: 'fa fa-arrows-h'
-            else
-                a onClick: toggleFullscreen, className: 'close-email pull-right clickable',
-                    i className:'fa fa-compress'
-            h3
-                'data-message-id': @props.message?.get('id') or ''
-                @state.subject or t 'compose'
-            form className: 'form-compose',
+        section
+            className: classer
+                compose: true
+                panel:   @props.layout is 'full'
+            'aria-expanded': true,
+
+            form className: 'form-compose', method: 'POST',
                 div className: 'form-group account',
                     label
                         htmlFor: 'compose-from',
                         className: classLabel,
                         t "compose from"
-                    div className: classInput,
-                        div
-                            className: 'btn-toolbar compose-toggle',
-                            role: 'toolbar',
-                                div null
-                                    a
-                                        className: 'compose-toggle-cc',
-                                        onClick: @onToggleCc,
-                                        t 'compose toggle cc'
-                                    a
-                                        className: 'compose-toggle-bcc',
-                                        onClick: @onToggleBcc,
-                                        t 'compose toggle bcc'
-
-                        AccountPicker
-                            accounts: @props.accounts
-                            valueLink: @linkState 'accountID'
+                    AccountPicker
+                        accounts: @props.accounts
+                        valueLink: @linkState 'accountID'
                 div className: 'clearfix', null
+
+                div className: classInput,
+                    div
+                        className: 'btn-toolbar compose-toggle',
+                        role: 'toolbar',
+                            div null
+                                a
+                                    className: 'compose-toggle-cc',
+                                    onClick: @onToggleCc,
+                                    t 'compose toggle cc'
+                                a
+                                    className: 'compose-toggle-bcc',
+                                    onClick: @onToggleBcc,
+                                    t 'compose toggle bcc'
 
                 MailsInput
                     id: 'compose-to'
@@ -110,6 +116,7 @@ module.exports = Compose = React.createClass
                     valueLink: @linkState 'cc'
                     label: t 'compose cc'
                     placeholder: t 'compose cc help'
+                    ref: 'cc'
 
                 MailsInput
                     id: 'compose-bcc'
@@ -117,34 +124,34 @@ module.exports = Compose = React.createClass
                     valueLink: @linkState 'bcc'
                     label: t 'compose bcc'
                     placeholder: t 'compose bcc help'
+                    ref: 'bcc'
 
                 div className: 'form-group',
-                    label
-                        htmlFor: 'compose-subject',
-                        className: classLabel,
-                        t "compose subject"
                     div className: classInput,
                         input
-                            id: 'compose-subject',
-                            name: 'compose-subject',
-                            ref: 'subject',
-                            valueLink: @linkState('subject'),
-                            type: 'text',
-                            className: 'form-control',
+                            id: 'compose-subject'
+                            name: 'compose-subject'
+                            ref: 'subject'
+                            valueLink: @linkState('subject')
+                            type: 'text'
+                            className: 'form-control compose-subject'
                             placeholder: t "compose subject help"
+
                 div className: '',
-                    label
-                        htmlFor: 'compose-subject',
-                        className: classLabel,
-                        t "compose content"
                     ComposeEditor
-                        messageID: @props.message?.get 'id'
-                        html: @linkState('html')
-                        text: @linkState('text')
-                        settings: @props.settings
-                        onSend: @onSend
-                        composeInHTML: @state.composeInHTML
-                        focus: focusEditor
+                        id                : 'compose-editor'
+                        messageID         : @props.message?.get 'id'
+                        html              : @linkState('html')
+                        text              : @linkState('text')
+                        accounts          : @props.accounts
+                        accountID         : @state.accountID
+                        settings          : @props.settings
+                        onSend            : @onSend
+                        composeInHTML     : @state.composeInHTML
+                        focus             : focusEditor
+                        ref               : 'editor'
+                        getPicker         : @getPicker
+                        useIntents        : @props.useIntents
 
                 div className: 'attachements',
                     FilePicker
@@ -153,46 +160,57 @@ module.exports = Compose = React.createClass
                         valueLink: @linkState 'attachments'
                         ref: 'attachments'
 
-                div className: 'composeToolbox',
-                    div className: 'btn-toolbar', role: 'toolbar',
-                        div className: '',
-                            button
-                                className: 'btn btn-cozy btn-send',
-                                type: 'button',
-                                disable: if @state.sending then true else null
-                                onClick: @onSend,
-                                    if @state.sending
-                                        span className: 'fa fa-refresh fa-spin'
-                                    else
-                                        span className: 'fa fa-send'
-                                    span null, labelSend
-                            button
-                                className: 'btn btn-cozy btn-save',
-                                disable: if @state.saving then true else null
-                                type: 'button', onClick: @onDraft,
-                                    if @state.saving
-                                        span className: 'fa fa-refresh fa-spin'
-                                    else
-                                        span className: 'fa fa-save'
-                                    span null, t 'compose action draft'
-                            if @props.message?
-                                button
-                                    className: 'btn btn-cozy-non-default btn-delete',
-                                    type: 'button',
-                                    onClick: @onDelete,
-                                        span className: 'fa fa-trash-o'
-                                        span null, t 'compose action delete'
-                            button
-                                onClick: onCancel
-                                className: 'btn btn-cozy-non-default btn-cancel',
-                                t 'app cancel'
+                ComposeToolbox
+                    saving    : @state.saving
+                    sending   : @state.sending
+                    onSend    : @onSend
+                    onDelete  : @onDelete
+                    onDraft   : @onDraft
+                    onCancel  : @onCancel
+                    canDelete : @props.message?
+
                 div className: 'clearfix', null
+
+
+    # If we are answering to a message, canceling should bring back to
+    # this message.
+    # The message URL requires many information: account ID, mailbox ID,
+    # conversation ID and message ID. These infor are collected via current
+    # selection and message information.
+    finalRedirect: ->
+        if @props.inReplyTo?
+            @redirect MessageStore.getMessageHash @props.inReplyTo
+
+        # Else it should bring to the default view
+        else
+            @redirect @buildUrl
+                direction: 'first'
+                action: 'default'
+                fullWidth: true
+
+
+    # Cancel brings back to default view. If it's while replying to a message,
+    # it brings back to this message.
+    onCancel: (event) ->
+        event.preventDefault()
+
+        # Action after cancelation: call @props.onCancel
+        # or navigate to message list.
+        if @props.onCancel?
+            @props.onCancel()
+        else
+            @finalRedirect()
+
 
     _initCompose: ->
 
         if @_saveInterval
             window.clearInterval @_saveInterval
+
         @_saveInterval = window.setInterval @_autosave, 30000
+
+        # First save of draft
+        @_autosave()
 
         # scroll compose window into view
         @getDOMNode().scrollIntoView()
@@ -200,32 +218,118 @@ module.exports = Compose = React.createClass
         # Focus
         if not Array.isArray(@state.to) or @state.to.length is 0
             setTimeout ->
-                document.getElementById('compose-to').focus()
-            , 0
+                document.getElementById('compose-to')?.focus()
+            , 10
+        else if @props.inReplyTo?
+            document.getElementById('compose-editor')?.focus()
+
 
     componentDidMount: ->
         @_initCompose()
 
-    #componentDidUpdate: ->
-    #    @_initCompose()
+
+    componentDidUpdate: ->
+        switch @state.focus
+            when 'cc'
+                setTimeout ->
+                    document.getElementById('compose-cc').focus()
+                , 0
+                @setState focus: ''
+
+            when 'bcc'
+                setTimeout ->
+                    document.getElementById('compose-bcc').focus()
+                , 0
+                @setState focus: ''
+
 
     componentWillUnmount: ->
         if @_saveInterval
             window.clearInterval @_saveInterval
-        #if @state.isDraft and @state.id?
-        #    if not window.confirm(t 'compose confirm keep draft')
-        #        MessageActionCreator.delete @state.id, (error) ->
-        #            if error?
-        #                LayoutActionCreator.alertError "#{t("message action delete ko")} #{error}"
-        #            else
-        #                LayoutActionCreator.notify t('compose draft deleted')
 
-    getInitialState: (forceDefault) ->
+        # delete draft
+        doDelete = =>
+            window.setTimeout =>
+                LayoutActionCreator.hideModal()
+                messageID = @state.id
+                MessageActionCreator.delete {messageID, silent, isDraft: true, inReplyTo: @props.inReplyTo}
+            , 5
+
+        # save draft one last time
+        doSave = =>
+            if @state.originalConversationID?
+                # save one last time the draft, adding the conversationID
+                message =
+                    id            : @state.id
+                    accountID     : @state.accountID
+                    mailboxIDs    : @state.mailboxIDs
+                    from          : @state.from
+                    to            : @state.to
+                    cc            : @state.cc
+                    bcc           : @state.bcc
+                    subject       : @state.subject
+                    isDraft       : true
+                    attachments   : @state.attachments
+                    inReplyTo     : @state.inReplyTo
+                    references    : @state.references
+                    text          : @state.text
+                    html          : @state.html
+                    conversationID: @state.originalConversationID
+                MessageActionCreator.send message, (error, message) ->
+                    if error? or not message?
+                        msg = "#{t "message action draft ko"} #{error}"
+                        LayoutActionCreator.alertError msg
+                    else
+                        msg = "#{t "message action draft ok"}"
+                        LayoutActionCreator.notify msg, autoclose: true
+                        if message.conversationID?
+                            # reload conversation to update its length
+                            cid = message.conversationID
+                            MessageActionCreator.fetchConversation cid
+            else
+
+
+        # If message has not been sent, ask if we should keep it or not
+        #  - if yes, and the draft belongs to a conversation, add the
+        #    conversationID and save the draft
+        #  - if no, delete the draft
+        if not @state.isDeleted and @state.isDraft and @state.id?
+
+            if @state.composeInHTML
+                newContent = MessageUtils.cleanReplyText(@state.html).replace /\s/gim, ''
+                oldContent = MessageUtils.cleanReplyText(@state.initHtml).replace /\s/gim, ''
+                updated = newContent isnt oldContent
+            else
+                updated = @state.text isnt @state.initText
+
+            # if draft has not been updated, delete without asking confirmation
+            silent = @state.isNew and not updated
+            if silent
+                doDelete()
+            else
+                # we need a timeout because of React's components life cycle
+                setTimeout ->
+                    # display a modal asking if we should keep or delete the draft
+                    modal =
+                        title       : t 'app confirm delete'
+                        subtitle    : t 'compose confirm keep draft'
+                        closeModal  : ->
+                            doSave()
+                            LayoutActionCreator.hideModal()
+                        closeLabel  : t 'compose confirm draft keep'
+                        actionLabel : t 'compose confirm draft delete'
+                        action      : doDelete
+                    LayoutActionCreator.displayModal modal
+                , 0
+
+
+    getInitialState: ->
 
         # edition of an existing draft
         if message = @props.message
             state =
                 composeInHTML: @props.settings.get 'composeInHTML'
+                isNew: false
             if (not message.get('html')?) and message.get('text')
                 state.conposeInHTML = false
 
@@ -236,24 +340,48 @@ module.exports = Compose = React.createClass
 
         # new draft
         else
-            state = MessageUtils.makeReplyMessage @props.selectedAccountLogin,
-                @props.inReplyTo, @props.action, @props.settings.get('composeInHTML')
+            account = @props.accounts[@props.selectedAccountID]
+            state = MessageUtils.makeReplyMessage(
+                account.login,
+                @props.inReplyTo,
+                @props.action,
+                @props.settings.get('composeInHTML'),
+                account.signature
+            )
+            state.isNew = true
             state.accountID ?= @props.selectedAccountID
+            # use another field to prevent the empty conversationID of draft
+            # to override the original conversationID
+            state.originalConversationID = state.conversationID
 
-        state.sending = false
-        state.saving  = false
+        state.isDraft  = true
+        state.sending  = false
+        state.saving   = false
+        state.ccShown  = Array.isArray(state.cc) and state.cc.length > 0
+        state.bccShown = Array.isArray(state.bcc) and state.bcc.length > 0
+        # save initial message content, to don't ask confirmation if
+        # it has not been updated
+        state.initHtml = state.html
+        state.initText = state.text
+
         return state
+
 
     componentWillReceiveProps: (nextProps) ->
         if nextProps.message isnt @props.message
             @props.message = nextProps.message
             @setState @getInitialState()
 
-    onDraft: (args) ->
+
+    onDraft: (event) ->
+        event.preventDefault()
         @_doSend true
 
-    onSend: (args) ->
+
+    onSend: (event) ->
+        event.preventDefault() if event?
         @_doSend false
+
 
     _doSend: (isDraft) ->
 
@@ -264,20 +392,30 @@ module.exports = Compose = React.createClass
             address: account.login
 
         message =
-            id          : @state.id
-            accountID   : @state.accountID
-            mailboxIDs  : @state.mailboxIDs
-            from        : [from]
-            to          : @state.to
-            cc          : @state.cc
-            bcc         : @state.bcc
-            subject     : @state.subject
-            isDraft     : isDraft
-            attachments : @state.attachments
+            id            : @state.id
+            accountID     : @state.accountID
+            mailboxIDs    : @state.mailboxIDs
+            from          : [from]
+            to            : @state.to
+            cc            : @state.cc
+            bcc           : @state.bcc
+            subject       : @state.subject
+            isDraft       : isDraft
+            attachments   : @state.attachments
+            inReplyTo     : @state.inReplyTo
+            references    : @state.references
+
+        if not isDraft
+            # Add conversationID when sending message
+            # we don't add conversationID to draft, otherwise the full
+            # conversation would be updated, closing the compose panel
+            message.conversationID = @state.originalConversationID
 
         valid = true
         if not isDraft
-            if @state.to.length is 0 and @state.cc.length is 0 and @state.bcc.length is 0
+            if @state.to.length is 0 and
+               @state.cc.length is 0 and
+               @state.bcc.length is 0
                 valid = false
                 LayoutActionCreator.alertError t "compose error no dest"
                 setTimeout ->
@@ -292,16 +430,9 @@ module.exports = Compose = React.createClass
 
         if valid
             if @state.composeInHTML
-                message.html = @state.html
-                try
-                    message.text = toMarkdown(message.html)
-                catch
-                    message.text = message.html?replace /<[^>]*>/gi, ''
-
-                # convert HTML entities
-                tmp = document.createElement 'div'
-                tmp.innerHTML = message.text
-                message.text = tmp.textContent
+                message.html = @_cleanHTML @state.html
+                message.text = MessageUtils.cleanReplyText message.html
+                message.html = MessageUtils.wrapReplyHtml message.html
             else
                 message.text = @state.text.trim()
 
@@ -311,282 +442,139 @@ module.exports = Compose = React.createClass
             if isDraft
                 @setState saving: true
             else
-                @setState sending: true
+                @setState sending: true, isDraft: false
 
             MessageActionCreator.send message, (error, message) =>
+                if (not error?) and (not @state.id?) and (message?)
+                    MessageActionCreator.setCurrent message.id
+
+                state = _.clone @state
                 if isDraft
-                    @setState saving: false
+                    state.saving = false
                 else
-                    @setState sending: false
+                    state.isDraft = false
+                    state.sending = false
+                # Don't override local attachments nor message content
+                # (server override cid: URLs with relative URLs)
+                state[key] = value for key, value of message when key isnt 'attachments' and
+                    key isnt 'html' and key isnt 'text'
+
+                state[key] = @state[key] for key in Object.keys(@state) when key isnt "saving"
+
+                # Sometime, when user cancel composing, the component has been
+                # unmounted before we come back from autosave, and setState fails
+                if @isMounted()
+                    @setState state
+
                 if isDraft
                     msgKo = t "message action draft ko"
-                    msgOk = t "message action draft ok"
                 else
                     msgKo = t "message action sent ko"
                     msgOk = t "message action sent ok"
-                if error?
+                if error? or not message?
                     LayoutActionCreator.alertError "#{msgKo} #{error}"
                 else
-                    LayoutActionCreator.notify msgOk, autoclose: true
+                    # don't display confirmation message when draft has been saved
+                    if not isDraft
+                        LayoutActionCreator.notify msgOk, autoclose: true
 
                     if not @state.id?
                         MessageActionCreator.setCurrent message.id
 
-                    @setState message
-
                     if not isDraft
-                        if @props.callback?
-                            @props.callback error
-                        else
-                            @redirect @buildClosePanelUrl @props.layout
+                        if message.conversationID?
+                            # reload conversation to update its length
+                            cid = message.conversationID
+                            MessageActionCreator.fetchConversation cid
+                        @finalRedirect()
+
 
     _autosave: ->
-        @_doSend true
+        if @props.settings.get 'autosaveDraft'
+            @_doSend true
 
-    onDelete: (args) ->
+
+    # set source of attached images
+    _cleanHTML: (html) ->
+        parser = new DOMParser()
+        doc    = parser.parseFromString html, "text/html"
+
+        if not doc
+            doc = document.implementation.createHTMLDocument("")
+            doc.documentElement.innerHTML = html
+
+        if doc
+            # the contentID of attached images will be in the data-src attribute
+            # override image source with this attribute
+            imageSrc = (image) ->
+                image.setAttribute 'src', "cid:#{image.dataset.src}"
+            images = doc.querySelectorAll 'IMG[data-src]'
+            imageSrc image for image in images
+
+            return doc.documentElement.innerHTML
+        else
+            console.error "Unable to parse HTML content of message"
+            return html
+
+
+    onDelete: (e) ->
+        e.preventDefault()
         subject = @props.message.get 'subject'
+
         if subject? and subject isnt ''
-            confirmMessage = t 'mail confirm delete', {subject: @props.message.get('subject')}
+            params = subject: @props.message.get 'subject'
+            confirmMessage = t 'mail confirm delete', params
+
         else
             confirmMessage = t 'mail confirm delete nosubject'
-        if window.confirm confirmMessage
-            MessageActionCreator.delete @props.message, (error) =>
-                if error?
-                    LayoutActionCreator.alertError "#{t("message action delete ko")} #{error}"
-                else
-                    if @props.callback
-                        @props.callback()
-                    else
-                        @redirect
-                            direction: 'first'
-                            action: 'account.mailbox.messages'
-                            parameters: [@props.selectedAccountID, @props.selectedMailboxID]
-                            fullWidth: true
+
+        doDelete = =>
+            LayoutActionCreator.hideModal()
+            messageID = @props.message.get('id')
+            # this will prevent asking a second time when unmounting component
+            @setState isDeleted: true, =>
+                MessageActionCreator.delete {messageID}, (error) =>
+                    unless error?
+                        if @props.callback
+                            @props.callback()
+                        else
+                            parameters = [
+                                @props.selectedAccountID
+                                @props.selectedMailboxID
+                            ]
+
+                            @redirect
+                                direction: 'first'
+                                action: 'account.mailbox.messages'
+                                parameters: parameters
+                                fullWidth: true
+
+        modal =
+            title       : t 'mail confirm delete title'
+            subtitle    : confirmMessage
+            closeModal  : ->
+                LayoutActionCreator.hideModal()
+            closeLabel  : t 'mail confirm delete cancel'
+            actionLabel : t 'mail confirm delete delete'
+            action      : doDelete
+        LayoutActionCreator.displayModal modal
+
 
     onToggleCc: (e) ->
         toggle = (e) -> e.classList.toggle 'shown'
         toggle e for e in @getDOMNode().querySelectorAll '.compose-cc'
+        focus = if not @state.ccShown then 'cc' else ''
+        @setState ccShown: not @state.ccShown, focus: focus
+
 
     onToggleBcc: (e) ->
         toggle = (e) -> e.classList.toggle 'shown'
         toggle e for e in @getDOMNode().querySelectorAll '.compose-bcc'
+        focus = if not @state.bccShown then 'bcc' else ''
+        @setState bccShown: not @state.bccShown, focus: focus
 
 
-ComposeEditor = React.createClass
-    displayName: 'ComposeEditor'
+    # Get the file picker component (method used to pass it to the editor)
+    getPicker: ->
+        return @refs.attachments
 
-    mixins: [
-        React.addons.LinkedStateMixin # two-way data binding
-    ]
-
-    getInitialState: ->
-        return {
-            html: @props.html
-            text: @props.text
-        }
-
-    componentWillReceiveProps: (nextProps) ->
-        if nextProps.messageID isnt @props.messageID
-            @setState html: nextProps.html, text: nextProps.text
-
-    shouldComponentUpdate: (nextProps, nextState) ->
-        return not(_.isEqual(nextState, @state)) or not (_.isEqual(nextProps, @props))
-
-    render: ->
-        onHTMLChange = (event) =>
-            @props.html.requestChange @refs.html.getDOMNode().innerHTML
-        onTextChange = (event) =>
-            @props.text.requestChange @refs.content.getDOMNode().value
-        if @props.settings.get 'composeOnTop'
-            folded = 'folded'
-        else
-            folded = ''
-        if @props.composeInHTML
-            div
-                className: "rt-editor form-control #{folded}",
-                ref: 'html',
-                contentEditable: true,
-                onKeyDown: @onKeyDown,
-                onInput: onHTMLChange,
-                dangerouslySetInnerHTML: {
-                    __html: @state.html.value
-                }
-        else
-            textarea
-                className: 'editor',
-                ref: 'content',
-                onKeyDown: @onKeyDown,
-                onChange: onTextChange,
-                defaultValue: @state.text.value
-
-    _initCompose: ->
-
-        if @props.composeInHTML
-            if @props.focus
-                node = @refs.html?.getDOMNode()
-                if not node?
-                    return
-                document.querySelector(".rt-editor").focus()
-                if not @props.settings.get 'composeOnTop'
-                    node.innerHTML += "<p><br /></p>"
-                    node = node.lastChild
-                    if node?
-                        # move cursor to the bottom
-                        node.scrollIntoView(false)
-                        node.innerHTML = "<br \>"
-                        s = window.getSelection()
-                        r = document.createRange()
-                        r.selectNodeContents(node)
-                        s.removeAllRanges()
-                        s.addRange(r)
-                        document.execCommand('delete', false, null)
-                        node.focus()
-
-            # Some DOM manipulation when replying inside the message.
-            # When inserting a new line, we must close all blockquotes,
-            # insert a blank line and then open again blockquotes
-            jQuery('.rt-editor').on('keypress', (e) ->
-                if e.keyCode is 13
-                    # timeout to let the editor perform its own stuff
-                    setTimeout ->
-                        matchesSelector = document.documentElement.matches or
-                              document.documentElement.matchesSelector or
-                              document.documentElement.webkitMatchesSelector or
-                              document.documentElement.mozMatchesSelector or
-                              document.documentElement.oMatchesSelector or
-                              document.documentElement.msMatchesSelector
-
-                        target = document.getSelection().anchorNode
-                        targetElement = target
-                        while not (targetElement instanceof Element)
-                            targetElement = targetElement.parentNode
-                        if not target?
-                            return
-                        if matchesSelector? and not matchesSelector.call(targetElement, '.rt-editor blockquote *')
-                            # we are not inside a blockquote, nothing to do
-                            return
-
-                        if target.lastChild?
-                            target = target.lastChild
-                            if target.previousElementSibling?
-                                target = target.previousElementSibling
-                        parent = target
-
-                        # alternative 1
-                        # we create 2 ranges, one from the begining of message
-                        # to the caret position, the second from caret to the
-                        # end. We then create fragments from the ranges and
-                        # override message with first fragment, a blank line
-                        # and second fragment
-                        process = ->
-                            current = parent
-                            parent = parent?.parentNode
-                        process()
-                        process() while (parent? and
-                            not parent.classList.contains 'rt-editor')
-                        rangeBefore = document.createRange()
-                        rangeBefore.setEnd target, 0
-                        rangeBefore.setStartBefore parent.firstChild
-                        rangeAfter = document.createRange()
-                        if target.nextSibling?
-                            # remove the BR the <enter> key probably inserted
-                            rangeAfter.setStart target.nextSibling, 0
-                        else
-                            rangeAfter.setStart target, 0
-                        rangeAfter.setEndAfter parent.lastChild
-                        before = rangeBefore.cloneContents()
-                        after = rangeAfter.cloneContents()
-                        inserted = document.createElement 'p'
-                        inserted.innerHTML = "<br />"
-                        parent.innerHTML = ""
-                        parent.appendChild before
-                        parent.appendChild inserted
-                        parent.appendChild after
-
-                        ###
-                        # alternative 2
-                        # We move every node from the caret to the end of the
-                        # message to a new DOM tree, then insert a blank line
-                        # and the new tree
-                        parent = target
-                        p2 = null
-                        p3 = null
-                        process = ->
-                            p3 = p2
-                            current = parent
-                            parent = parent.parentNode
-                            p2 = parent.cloneNode false
-                            if p3?
-                                p2.appendChild p3
-                            s = current.nextSibling
-                            while s?
-                                p2.appendChild(s.cloneNode(true))
-                                s2 = s.nextSibling
-                                parent.removeChild s
-                                s = s2
-                        process()
-                        process() while (parent.parentNode? and
-                            not parent.parentNode.classList.contains 'rt-editor')
-                        after = p2
-                        inserted = document.createElement 'p'
-                        inserted.innerHTML = "<br />"
-                        if parent.nextSibling
-                            parent.parentNode.insertBefore inserted, parent.nextSibling
-                            parent.parentNode.insertBefore after, parent.nextSibling
-                        else
-                            parent.parentNode.appendChild inserted
-                            parent.parentNode.appendChild after
-                        ###
-
-                        setTimeout ->
-                            inserted.focus()
-                        , 0
-                        sel = window.getSelection()
-                        sel.collapse inserted, 0
-
-                    , 0
-            )
-            # Allow to hide original message
-            if document.querySelector('.rt-editor blockquote') and not document.querySelector('.rt-editor .originalToggle')
-                try
-                    header = jQuery('.rt-editor blockquote').eq(0).prev()
-                    header.text(header.text().replace('…', ''))
-                    header.append('<span class="originalToggle">…</>')
-                    header.on 'click', ->
-                        jQuery('.rt-editor').toggleClass('folded')
-                catch e
-                    console.error e
-            else
-                jQuery('.rt-editor .originalToggle').on 'click', ->
-                    jQuery('.rt-editor').toggleClass('folded')
-
-        else
-            # Text message
-            if @props.focus
-                node = @refs.content.getDOMNode()
-                if not @props.settings.get 'composeOnTop'
-                    rect = node.getBoundingClientRect()
-                    node.scrollTop = node.scrollHeight - rect.height
-                    if (typeof node.selectionStart is "number")
-                        node.selectionStart = node.selectionEnd = node.value.length
-                    else if (typeof node.createTextRange isnt "undefined")
-                        setTimeout ->
-                            node.focus()
-                        , 0
-                        range = node.createTextRange()
-                        range.collapse(false)
-                        range.select()
-                setTimeout ->
-                    node.focus()
-                , 0
-
-    componentDidMount: ->
-        @_initCompose()
-
-    componentDidUpdate: (nextProps, nextState) ->
-        if nextProps.messageID isnt @props.messageID
-            @_initCompose()
-
-    onKeyDown: (evt) ->
-        if evt.ctrlKey and evt.key is 'Enter'
-            @props.onSend()

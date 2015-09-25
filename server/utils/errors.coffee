@@ -4,11 +4,12 @@ americano = require 'americano'
 # Something is wrong with the account's config
 # field give more information about what's wrong
 utils.AccountConfigError = class AccountConfigError extends Error
-    constructor: (field) ->
+    constructor: (field, originalErr) ->
         @name = 'AccountConfigError'
         @field = field
         @message = "on field '#{field}'"
         @stack = ''
+        @original = originalErr
         # WE DONT NEED STACK FOR THIS ERROR
         # Error.captureStackTrace this, arguments.callee
         return this
@@ -90,7 +91,25 @@ utils.RefreshError = class RefreshError extends Error
         Error.captureStackTrace this, arguments.callee
         return this
 
+utils.PasswordEncryptedError = class PasswordEncryptedError extends Error
+    constructor: (account) ->
+        @name = 'PasswordEncryptedError'
+        @status = 500
+        @message = """
+            Password is still encrypted in DS for account #{account.label}"""
+        @account = account
+        Error.captureStackTrace this, arguments.callee
+        return this
 
+# Error predicates
+utils.isFolderForbidden = (err) ->
+    /Folder name (.*) is not allowed./.test err.message
+
+utils.isFolderDuplicate = (err) ->
+    /Duplicate folder name/.test err.message
+
+utils.isFolderUndeletable = (err) ->
+    /Internal folder cannot be deleted/.test err.message
 
 
 log = require('../utils/logging')(prefix: 'errorhandler')
@@ -100,7 +119,7 @@ utils.errorHandler = (err, req, res, next) ->
 
     if err instanceof utils.AccountConfigError or
        err.textCode is 'AUTHENTICATIONFAILED'
-        res.send 400,
+        res.status(400).send
             name: err.name
             field: err.field
             stack: err.stack
@@ -112,7 +131,7 @@ utils.errorHandler = (err, req, res, next) ->
 
 
     else if err instanceof utils.RefreshError
-        res.send err.status,
+        res.status(err.status).send
             name: err.name
             message: err.message
             payload: err.payload
@@ -120,5 +139,5 @@ utils.errorHandler = (err, req, res, next) ->
 
     # pass it down the line to errorhandler module
     else
-        log.error err
+        log.error "error handler called with", err.stack
         baseHandler err, req, res

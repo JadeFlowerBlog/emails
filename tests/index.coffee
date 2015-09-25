@@ -64,13 +64,14 @@ describe "Server tests", ->
             label: "DoveCot"
             login: "testuser"
             password: "applesauce"
+            smtpMethod: "NONE"
             smtpServer: "127.0.0.1"
             smtpPort: SMTP_PORT
             smtpSSL: false
             smtpTLS: true
             imapServer: DovecotTesting.serverIP()
             imapPort: 993
-            imapSecure: true
+            imapSSL: true
 
     # stop the app
     after helpers.stopApp

@@ -11,6 +11,7 @@ module.exports = Contact = cozydb.getModel 'Contact',
     datapoints    : cozydb.NoSchema
     note          : String
     tags          : [String]
+    revision      : String
     _attachments  : Object
 
 Contact::includePicture = (callback) ->
@@ -55,6 +56,9 @@ Contact.requestWithPictures = (name, options, callback) ->
                 callback err, out
         else
             callback null, []
+
+Contact.list = (callback) ->
+    Contact.request 'all', callback
 
 Contact.createNoDuplicate = (data, callback) ->
     log.info "createNoDuplicate"

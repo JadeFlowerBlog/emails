@@ -58,25 +58,29 @@ for i in [1..numberOfEmails] by 1
             "address": "#{name}@#{provider}",
             "name": name
 
-    account = getRandomElmt(accounts)._id
-    mailbox = getRandomElmt(mailboxes[account])._id
+    account   = getRandomElmt(accounts)._id
+    mailbox   = getRandomElmt(mailboxes[account])
+    mailboxID = mailbox._id
 
-    mailboxUID[mailbox] = 0 unless mailboxUID[mailbox]?
-    mailboxUID[mailbox] = mailboxUID[mailbox] + 1
+    mailboxUID[mailboxID] = 0 unless mailboxUID[mailboxID]?
+    mailboxUID[mailboxID] = mailboxUID[mailboxID] + 1
 
     mailboxObject = {}
-    mailboxObject[mailbox] = mailboxUID[mailbox]
+    mailboxObject[mailboxID] = mailboxUID[mailboxID]
 
     subject = loremIpsum count: getRandom(5), units: 'words', random: randomWithSeed
     content = loremIpsum count: getRandom(10), units: 'paragraphs', random: randomWithSeed
 
     # simulate email thread
-    if getRandom(10) > 3 and i > 2
+    if mailbox.label isnt 'noconv' and getRandom(10) > 3 and i > 2
         inReplyTo  = ["generated_id_#{i - 1}"]
         references = ["generated_id_#{i - 2}", "generated_id_#{i - 1}"]
+        conversationID = messages[messages.length - 2].conversationID
+        messages[messages.length - 1].conversationID = conversationID
     else
         inReplyTo  = null
         references = null
+        conversationID = "conversation_id_#{i}"
 
     priority  = getRandomElmt priorities
 
@@ -107,19 +111,64 @@ for i in [1..numberOfEmails] by 1
         "inReplyTo": inReplyTo,
         "references": references
         "replyTo": replyTo,
-        "text": content,
+        "text": loremIpsum count: getRandom(10), units: 'paragraphs', random: randomWithSeed
         "html": "<html><body><div>#{htmlContent}</div></body></html>",
         "priority": priority,
-        "reads": false,
         "mailboxIDs": mailboxObject,
         "accountID": account,
         "attachments": []
         "flags": flags
-        "conversationID": "conversation_id_#{i}"
+        "messageID": "generated_id_#{i}"
+        "conversationID": conversationID
 
+# Conversations tests
+mailbox = 'f5cbd722-c3f9-4f6e-73d0-c75ddf65a2f1'
+mailboxUID[mailbox] = 0 unless mailboxUID[mailbox]?
+date = new Date()
+# Ensure messages are sent in the past
+date.setSeconds(date.getSeconds() - 3600)
+for i in [1..10] by 1
+    mailboxUID[mailbox] = mailboxUID[mailbox] + 1
+    mailboxObject = {}
+    mailboxObject["#{mailbox}"] = mailboxUID[mailbox]
+    date.setSeconds(date.getSeconds() + 10 * i)
+    message =
+        "_id": "conversation_id_#{i}"
+        "docType": "Message",
+        "date": date.toISOString(),
+        "from": [
+          {
+            "address": "sender#{i}@cozytest.cc",
+            "name": "Sender#{i}"
+          }
+        ],
+        "to": [
+          {
+            "address": "alice@cozytest.cc",
+            "name": "alice"
+          }
+        ],
+        "text": content,
+        "html": "<html><body><div>#{htmlContent}</div></body></html>",
+        "mailboxIDs": mailboxObject,
+        "accountID": 'dovecot-ID',
+        "attachments": []
+        "flags": [],
+        "conversationID": "conversation_test"
+
+    message.htmlContent = message.text.split('\r\n').join('</div>\r\n<div>')
+
+    if i is 1
+        message.subject = "Conversation"
+    else
+        message.subject = "Re: Conversation"
+        inReplyTo       = "conversation_id_1"
+    message.normSubject = message.subject
+
+    messages.push message
 
 targetFile = path.resolve __dirname, 'messages_generated.json'
 json = JSON.stringify messages, null, '  '
 fs.writeFile targetFile, json, flag: 'w+', (err) ->
     console.log err if err?
-console.log "Done generating #{numberOfEmails} messages"
+console.log "Done generating #{messages.length} messages"

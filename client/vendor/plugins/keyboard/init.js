@@ -4,22 +4,23 @@ if (typeof window.plugins !== "object") {
   window.plugins = {};
 }
 (function (root) {
-  function bindingNew() {
+  "use strict";
+  function bindingNew(e) {
+    if (e && e instanceof Event) { e.preventDefault(); }
     window.cozyMails.messageNew();
   }
   function bindingHelp() {
-    var self, container, help;
+    var container, help;
     container = document.getElementById('mailkeysHelp');
     if (container) {
       document.body.removeChild(container);
       return;
     }
-    self      = this;
     container = document.createElement('div');
     help      = document.createElement('dl');
     container.id = 'mailkeysHelp';
-    Object.keys(this._binding).forEach(function (key) {
-      var binding = self._binding[key],
+    Object.keys(root.mailkeys._binding).forEach(function (key) {
+      var binding = root.mailkeys._binding[key],
           name = [key];
       if (Array.isArray(binding.alias)) {
         name = name.concat(binding.alias);
@@ -37,65 +38,31 @@ if (typeof window.plugins !== "object") {
     container.addEventListener('click', closeHelp);
     Mousetrap.bind("esc", closeHelp);
   }
-  function layoutWidth(direction) {
-    if (direction !== 1 && direction !== -1) {
-      direction = 1;
+  function layoutRatio(direction) {
+    var layoutAction = require('actions/layout_action_creator');
+    if (direction > 0) {
+      layoutAction.increasePreviewPanel(direction);
+    } else if (direction < 0) {
+      layoutAction.decreasePreviewPanel(direction);
+    } else {
+      layoutAction.resetPreviewPanel();
     }
-    var layoutStore  = require('stores/layout_store'),
-        layoutAction = require('actions/layout_action_creator'),
-        disposition  = layoutStore.getDisposition();
-    layoutAction.setDisposition('vertical', disposition.width - direction);
-    /*
-    var panels, w1;
-    panels = document.querySelectorAll('#panels > .panel');
-    function updateClass(panel, nb) {
-      var cl, res;
-      cl = Array.prototype.slice.call(panel.classList).filter(function (c) {
-        return c.substr(0, 6) === 'col-md';
-      })[0];
-      panel.classList.remove(cl);
-      res = (parseInt(cl.split('-')[2], 10) + nb);
-      panel.classList.add('col-md-' + res);
-      return res;
-    }
-    w1 = updateClass(panels[0], -1 * direction);
-    updateClass(panels[1], 1 * direction);
-    panels[1].style.left = (100 / 12 * w1) + '%';
-    */
   }
-  function layoutHeight(direction) {
-    if (direction !== 1 && direction !== -1) {
-      direction = 1;
-    }
-    var layoutStore  = require('stores/layout_store'),
-        layoutAction = require('actions/layout_action_creator'),
-        disposition  = layoutStore.getDisposition();
-    layoutAction.setDisposition('horizontal', disposition.height - direction);
-    /*
-    var panels;
-    panels = document.querySelectorAll('#panels > .panel');
-    function updateClass(panel, nb) {
-      var cl, res;
-      cl = Array.prototype.slice.call(panel.classList).filter(function (c) {
-        return c.substr(0, 4) === 'row-';
-      })[0];
-      panel.classList.remove(cl);
-      res = (parseInt(cl.split('-')[1], 10) + nb);
-      panel.classList.add('row-' + res);
-      cl = Array.prototype.slice.call(panel.classList).filter(function (c) {
-        return c.substr(0, 11) === 'row-offset-';
-      })[0];
-      if (cl) {
-        panel.classList.remove(cl);
-        res = (parseInt(cl.split('-')[2], 10) - nb);
-        panel.classList.add('row-offset-' + res);
+  function mailAction(action) {
+    var current, btn;
+    Array.prototype.forEach.call(document.querySelectorAll('article.message .content, article.message .preview'), function (e) {
+      var rect = e.getBoundingClientRect(),
+          visible = rect.bottom >= 0 && rect.top <= (window.innerHeight || document.documentElement.clientHeight);
+      if (visible) {
+        current = e;
       }
-      return res;
+    });
+    if (typeof current !== 'undefined') {
+      btn = document.querySelector("section.conversation article.message[data-id='" + current.dataset.messageId + "'] button.btn.mail-" + action);
+      if (btn !== null) {
+        btn.dispatchEvent(new MouseEvent('click', { 'view': window, 'bubbles': true, 'cancelable': true }));
+      }
     }
-    var height = updateClass(panels[0], -1 * direction);
-    updateClass(panels[1], 1 * direction);
-    require('actions/layout_action_creator').setDisposition('vertical', height);
-    */
   }
   function menuNavigate() {
     var links, prev, next;
@@ -116,10 +83,15 @@ if (typeof window.plugins !== "object") {
       'enter': {
         name: "Display current message",
         action: function (e) {
-          if (window.cozyMails.getCurrentActions().indexOf('account.mailbox.messages') === 0 &&
-             ['INPUT', 'BUTTON'].indexOf(document.activeElement.tagName) === -1) {
-            e.preventDefault();
-            window.cozyMails.messageDisplay();
+          var btnConfirm = document.querySelector('.modal .modal-footer .modal-action');
+          if (btnConfirm !== null) {
+            btnConfirm.dispatchEvent(new MouseEvent('click', { 'view': window, 'bubbles': true, 'cancelable': true }));
+          } else {
+            if (window.cozyMails.getCurrentActions().indexOf('account.mailbox.messages') === 0 &&
+               ['INPUT', 'BUTTON'].indexOf(document.activeElement.tagName) === -1) {
+              if (e && e instanceof Event) { e.preventDefault(); }
+              window.cozyMails.messageDisplay();
+            }
           }
         }
       },
@@ -127,14 +99,19 @@ if (typeof window.plugins !== "object") {
         name: "Close current message",
         alias: ['x'],
         action: function (e) {
-          e.preventDefault();
-          window.cozyMails.messageClose();
+          var btnClose = document.querySelector('.modal .modal-header button.close');
+          if (btnClose !== null) {
+            btnClose.dispatchEvent(new MouseEvent('click', { 'view': window, 'bubbles': true, 'cancelable': true }));
+          } else {
+            if (e && e instanceof Event) { e.preventDefault(); }
+            window.cozyMails.messageClose();
+          }
         }
       },
       'h': {
         name: "Previous mailbox",
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           var prev = menuNavigate()[0];
           if (prev) {
             window.location = prev.href;
@@ -149,7 +126,7 @@ if (typeof window.plugins !== "object") {
       'l': {
         name: "Next mailbox",
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           var next = menuNavigate()[1];
           if (next) {
             window.location = next.href;
@@ -165,14 +142,14 @@ if (typeof window.plugins !== "object") {
         name: "Next Message",
         alias: ['down'],
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           window.cozyMails.messageNavigate('next');
         }
       },
       'right': {
         name: "Next Message in conversation",
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           window.cozyMails.messageNavigate('next', true);
         }
       },
@@ -180,79 +157,86 @@ if (typeof window.plugins !== "object") {
         name: "Previous Message",
         alias: ['up'],
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           window.cozyMails.messageNavigate('prev');
         }
       },
       'left': {
         name: "Previous Message in conversation",
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           window.cozyMails.messageNavigate('prev', true);
         }
       },
       'ctrl+down': {
         name: 'Scroll message down',
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           var panel = document.querySelector("#panels > .panel:nth-of-type(2)");
           if (panel) {
             panel.scrollTop += panel.clientHeight * 0.8;
           }
         }
       },
-      'alt+left': {
-        name: 'Increase message layout width',
+      '(': {
+        name: 'Increase message layout size',
         action: function (e) {
-          e.preventDefault();
-          layoutWidth(1);
+          if (e && e instanceof Event) { e.preventDefault(); }
+          layoutRatio(1);
         }
       },
-      'alt+right': {
-        name: 'Decrease message layout width',
+      'alt+(': {
+        name: 'Increase by 10 message layout size',
         action: function (e) {
-          e.preventDefault();
-          layoutWidth(-1);
+          if (e && e instanceof Event) { e.preventDefault(); }
+          layoutRatio(10);
         }
       },
-      'alt+up': {
-        name: 'Increase message layout height',
+      ')': {
+        name: 'Decrease message layout size',
         action: function (e) {
-          e.preventDefault();
-          layoutHeight(1);
+          if (e && e instanceof Event) { e.preventDefault(); }
+          layoutRatio(-1);
         }
       },
-      'alt+down': {
-        name: 'Decrease message layout height',
+      'alt+)': {
+        name: 'Decrease by 10 message layout size',
         action: function (e) {
-          e.preventDefault();
-          layoutHeight(-1);
+          if (e && e instanceof Event) { e.preventDefault(); }
+          layoutRatio(-10);
         }
       },
-      'f': {
+      '=': {
+        name: 'Reset message layout size',
+        action: function (e) {
+          if (e && e instanceof Event) { e.preventDefault(); }
+          layoutRatio();
+        }
+      },
+      'F': {
         name: "Toggle fullscreen",
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           require('actions/layout_action_creator').toggleFullscreen();
         }
       },
       'w': {
         name: "Toggle layout",
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           var layoutStore  = require('stores/layout_store'),
               layoutAction = require('actions/layout_action_creator'),
-              disposition  = layoutStore.getDisposition();
+              dispositions = require('constants/app_constants').Dispositions;
 
-          switch (disposition.type) {
-          case 'horizontal':
-            layoutAction.setDisposition('three');
+          switch (layoutStore.getDisposition()) {
+          case dispositions.RROW:
+            layoutAction.setDisposition(dispositions.COL);
             break;
-          case 'vertical':
-            layoutAction.setDisposition('horizontal');
+          case dispositions.COL:
+            layoutAction.setDisposition(dispositions.ROW);
             break;
-          case 'three':
-            layoutAction.setDisposition('vertical');
+          case dispositions.ROW:
+            layoutAction.setDisposition(dispositions.RROW);
             break;
           }
 
@@ -261,7 +245,7 @@ if (typeof window.plugins !== "object") {
       'ctrl+up': {
         name: 'Scroll message up',
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           var panel = document.querySelector("#panels > .panel:nth-of-type(2)");
           if (panel) {
             panel.scrollTop -= panel.clientHeight * 0.8;
@@ -269,6 +253,7 @@ if (typeof window.plugins !== "object") {
         }
       },
       'n': {
+        alias: ['ctrl+n'],
         name: "New message",
         action: bindingNew
       },
@@ -276,7 +261,7 @@ if (typeof window.plugins !== "object") {
         name: "Delete message",
         alias: ['backspace', 'del'],
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           window.cozyMails.messageDeleteCurrent();
         }
       },
@@ -284,28 +269,30 @@ if (typeof window.plugins !== "object") {
         name: 'Undelete message',
         alias: ['u'],
         action: function (e) {
-          e.preventDefault();
+          if (e && e instanceof Event) { e.preventDefault(); }
           var MessageActionCreator = window.require('actions/message_action_creator');
           MessageActionCreator.undelete();
         }
       },
       'r': {
         name: 'Reply',
-        action: function () {
-          var current, btn;
-          Array.prototype.forEach.call(document.querySelectorAll('.row > .content, .row > .preview'), function (e) {
-            var rect = e.getBoundingClientRect(),
-                visible = rect.bottom >= 0 && rect.top <= (window.innerHeight || document.documentElement.clientHeight)
-            if (visible) {
-              current = e;
-            }
-          });
-          if (typeof current !== 'undefined') {
-            btn = document.querySelector(".thread li.message[data-id='" + current.dataset.messageId + "'] button.btn.reply");
-            if (btn !== null) {
-                btn.dispatchEvent(new MouseEvent('click', { 'view': window, 'bubbles': true, 'cancelable': true }));
-            }
-          }
+        action: function (e) {
+          if (e && e instanceof Event) { e.preventDefault(); }
+          mailAction('reply');
+        }
+      },
+      'g': {
+        name: 'Reply all',
+        action: function (e) {
+          if (e && e instanceof Event) { e.preventDefault(); }
+          mailAction('reply-all');
+        }
+      },
+      'f': {
+        name: 'Forward',
+        action: function (e) {
+          if (e && e instanceof Event) { e.preventDefault(); }
+          mailAction('forward');
         }
       },
       '?': {
@@ -315,39 +302,21 @@ if (typeof window.plugins !== "object") {
     },
     name: "Keyboard shortcuts",
     active: true,
-    onAdd: {
-      /**
-       * Should return true if plugin applies on added subtree
-       *
-       * @param {DOMNode} root node of added subtree
-       */
-      condition: function (node) {
-        return false;
-      },
-      /**
-       * Perform action on added subtree
-       *
-       * @param {DOMNode} root node of added subtree
-       */
-      action: function (node) {
-      }
-    },
-    /**
+    /*
      * Called when plugin is activated
      */
     onActivate: function () {
-      var self = this;
-      Object.keys(this._binding).forEach(function (key) {
-        var binding = self._binding[key];
-        Mousetrap.bind(key, binding.action.bind(self));
+      Object.keys(root.mailkeys._binding).forEach(function (key) {
+        var binding = root.mailkeys._binding[key];
+        Mousetrap.bind(key, binding.action.bind(root.mailkeys));
         if (Array.isArray(binding.alias)) {
           binding.alias.forEach(function (alias) {
-            Mousetrap.bind(alias, binding.action.bind(self));
+            Mousetrap.bind(alias, binding.action.bind(root.mailkeys));
           });
         }
       });
     },
-    /**
+    /*
      * Called when plugin is deactivated
      */
     onDeactivate: function () {

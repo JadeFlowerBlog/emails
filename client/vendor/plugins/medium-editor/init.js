@@ -15,9 +15,19 @@ window.plugins.mediumeditor = {
       /* eslint no-unused-vars: 0 */
       "use strict";
       var editorNode = node.querySelector('.rt-editor'),
-          medium;
+          medium,
+          options;
+      options = {
+        imageDragging: false, // We handle image drag'n'drop ourself
+        cleanPastedHTML: true,
+        static: true,
+        targetBlank: true,
+        toolbar: {
+          buttons: ['bold', 'italic', 'underline', 'anchor', 'h2', 'h3']
+        }
+      }
       if (!editorNode.classList.contains('medium-editor')) {
-        medium = new window.MediumEditor(editorNode);
+        medium = new window.MediumEditor(editorNode, options);
         editorNode.classList.add('medium-editor');
       }
     }

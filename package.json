@@ -3,7 +3,7 @@
   "displayName": "Emails",
   "version": "0.7.0",
   "engines": [
-    "node = 0.10.x"
+    "node >= 0.10.x"
   ],
   "description": "Modern Email Client based on React.js and PouchDB",
   "license": "MIT",

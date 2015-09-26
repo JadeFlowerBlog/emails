@@ -9,3 +9,5 @@ Cakefile
 coffeelint.json
 server.coffee
 .biscottoopts
+db
+attachments

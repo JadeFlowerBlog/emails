@@ -2,7 +2,7 @@ americano = require 'americano'
 
 application = module.exports.start = (options, callback) ->
     options ?= {}
-    options.name = 'webmail'
+    options.name = 'emails'
     options.root ?= __dirname
     options.port ?= process.env.PORT or 9125
     options.host ?= process.env.HOST or '0.0.0.0'

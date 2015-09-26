@@ -2,7 +2,7 @@
 
 Modern Email Client Based on Node.js and React.js.
 
-![screenshot](https://raw.githubusercontent.com/cozy-labs/webmail/master/assets/screen_webmail.png)
+![screenshot](https://cozy.io/assets/press/screenshots/emails.png)
 
 ## Install
 
